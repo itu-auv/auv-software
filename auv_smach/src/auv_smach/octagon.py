@@ -17,6 +17,7 @@ from auv_smach.common import (
     SearchForPropState,
     SetDetectionState,
     AlignAndCreateRotatingFrame,
+    GravityZEnable,
 )
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
@@ -36,7 +37,7 @@ class GripperAngleOpenState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 2400
+        self.angle_value = 2100
 
     def execute(self, userdata) -> str:
         try:
@@ -65,7 +66,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 1500
+        self.angle_value = 1100
 
     def execute(self, userdata) -> str:
         try:
@@ -240,6 +241,15 @@ class PickAndDropSequence(smach.StateMachine):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "CLOSE_GRAVITY_Z",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_GRAVITY_Z",
+                GravityZEnable(enable=False),
+                transitions={
                     "succeeded": "DEPTH_TO_COLLECT_OBJECT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -273,6 +283,15 @@ class PickAndDropSequence(smach.StateMachine):
                 "DEPTH_TO_DEFAULT_AFTER_PICKING",
                 SetDepthState(depth=-0.5, max_velocity=0.25, confirm_duration=1.0),
                 transitions={
+                    "succeeded": "OPEN_GRAVITY_Z",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "OPEN_GRAVITY_Z",
+                GravityZEnable(enable=True),
+                transitions={
                     "succeeded": "ALIGN_TO_MIDDLE_BASKET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -282,7 +301,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TO_MIDDLE_BASKET",
                 AlignFrame(
                     source_frame=base_link,
-                    target_frame="middle_basket",
+                    target_frame="octagon_table_segment_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     closest_yaw=False,
@@ -302,7 +321,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "SURFACE_WITH_OBJECT",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=0,
                     timeout=10.0,
                     max_velocity=0.4,
                     depth_threshold=0.05,
@@ -403,7 +422,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TO_MIDDLE_BASKET_AFTER_DROPPING",
                 AlignFrame(
                     source_frame=base_link,
-                    target_frame="middle_basket",
+                    target_frame="octagon_table_segment_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -590,7 +609,8 @@ class OctagonTaskState(smach.State):
         )
         pick_and_drop_target_baskets = dict(pick_and_drop_targets)
         role_search_rotation = AlignAndCreateRotatingFrame(
-            source_frame=self.base_link,
+            # source_frame=self.base_link,
+            source_frame="taluy/base_link/dvl_mount_link",
             rotating_frame_name="octagon_target_role_search_frame",
             rotation_period=15.0,
             rotation_count=3,
@@ -618,8 +638,17 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_OCTAGON_DETECTION",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "SET_OCTAGON_INITIAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
-                SetDepthState(depth=-1.2),
+                SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
@@ -832,9 +861,18 @@ class OctagonTaskState(smach.State):
                 "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                 OctagonFramePublisherServiceState(req=True),
                 transitions={
+                    "succeeded": "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                    "preempted": "preempted",
+                    "aborted": "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                SetDetectionState(camera_name="front", enable=False),
+                transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
                     "preempted": "preempted",
-                    "aborted": "PICK_AND_DROP_SEQUENCE_1",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
@@ -882,9 +920,18 @@ class OctagonTaskState(smach.State):
                     set_role_search_rotation_count=set_role_search_rotation_count,
                 ),
                 transitions={
+                    "succeeded": "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                    "preempted": "preempted",
+                    "aborted": "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                },
+            )
+            smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
                     "succeeded": "OCTAGON_FACING_DEPTH",
                     "preempted": "preempted",
-                    "aborted": "OCTAGON_FACING_DEPTH",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
@@ -914,6 +961,25 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ROTATE_THREE_TURNS",
                 role_search_rotation,
+                transitions={
+                    "succeeded": "ALIGN_TO_TABLE_BEFORE_ROLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TABLE_BEFORE_ROLE",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="octagon_table_segment_link",
+                    dist_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.3,
+                    max_angular_velocity=0.3,
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "SEARCH_FOR_ROLE_TARGET",
                     "preempted": "preempted",

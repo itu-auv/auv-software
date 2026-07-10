@@ -115,9 +115,19 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_GATE",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "SET_INITIAL_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
+                    confirm_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
