@@ -40,9 +40,7 @@ class SimTrackerNode:
             )
 
         camera_config = camera_configs[camera]
-        result_topic = rospy.get_param(
-            "~result_topic", camera_config["result_topic"]
-        )
+        result_topic = rospy.get_param("~result_topic", camera_config["result_topic"])
         result_image_topic = rospy.get_param(
             "~result_image_topic", camera_config["image_out_topic"] + "/compressed"
         )
