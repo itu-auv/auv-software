@@ -17,6 +17,7 @@ from auv_smach.common import (
     SearchForPropState,
     SetDetectionState,
     AlignAndCreateRotatingFrame,
+    GravityZEnable,
 )
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
@@ -240,6 +241,15 @@ class PickAndDropSequence(smach.StateMachine):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "CLOSE_GRAVITY_Z",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_GRAVITY_Z",
+                GravityZEnable(enable=False),
+                transitions={
                     "succeeded": "DEPTH_TO_COLLECT_OBJECT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -272,6 +282,15 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_TO_DEFAULT_AFTER_PICKING",
                 SetDepthState(depth=-0.5, max_velocity=0.25, confirm_duration=1.0),
+                transitions={
+                    "succeeded": "OPEN_GRAVITY_Z",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "OPEN_GRAVITY_Z",
+                GravityZEnable(enable=True),
                 transitions={
                     "succeeded": "ALIGN_TO_MIDDLE_BASKET",
                     "preempted": "preempted",
