@@ -57,7 +57,11 @@ class TorpedoTransformServiceNode:
         # Initialize default values for dynamic reconfigure parameters
         self.initial_offset = 2.5
         self.realsense_offset = 1.4
-        self.fire_offset = -0.4
+        self.fire_offsets = {
+            "default": [-0.55, 0.0, 0.0],
+            "left": [0.0, 0.0, 0.0],
+            "top": [0.0, 0.0, 0.0],
+        }
 
         # Dynamic reconfigure server
         self.reconfigure_server = Server(
@@ -111,6 +115,7 @@ class TorpedoTransformServiceNode:
 
     def _load_hole_fire_config(self, hole_name: str) -> dict:
         return {
+            "hole_name": hole_name,
             "hole_frame": rospy.get_param(
                 f"~torpedo_close_hole_{hole_name}_frame",
                 f"torpedo_close_hole_{hole_name}_link",
@@ -120,6 +125,17 @@ class TorpedoTransformServiceNode:
                 f"torpedo_{hole_name}_fire_frame",
             ),
         }
+
+    def get_fire_offsets(self, hole_name: str) -> list:
+        offsets = list(self.fire_offsets["default"])
+        overrides = self.fire_offsets.get(hole_name)
+        if overrides is None:
+            return offsets
+
+        for i, override in enumerate(overrides):
+            if abs(override) > 1e-9:
+                offsets[i] = override
+        return offsets
 
     def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """
@@ -306,7 +322,7 @@ class TorpedoTransformServiceNode:
 
                 fire_pose = self.apply_offsets(
                     torpedo_hole_pose,
-                    [self.fire_offset, 0.0, 0.0],
+                    self.get_fire_offsets(config["hole_name"]),
                 )
                 fire_transform = self.build_transform_message(
                     config["fire_frame"], fire_pose
@@ -343,7 +359,21 @@ class TorpedoTransformServiceNode:
         """Callback for dynamic reconfigure parameters"""
         self.initial_offset = config.initial_offset
         self.realsense_offset = config.realsense_offset
-        self.fire_offset = config.fire_offset
+        self.fire_offsets["default"] = [
+            config.fire_offset,
+            config.fire_y_offset,
+            config.fire_z_offset,
+        ]
+        self.fire_offsets["left"] = [
+            config.left_fire_offset,
+            config.left_fire_y_offset,
+            config.left_fire_z_offset,
+        ]
+        self.fire_offsets["top"] = [
+            config.top_fire_offset,
+            config.top_fire_y_offset,
+            config.top_fire_z_offset,
+        ]
         rospy.loginfo("Torpedo trajectory parameters updated via dynamic reconfigure")
         return config
 

@@ -1,6 +1,7 @@
 <launch>
     <arg name="namespace" default="taluy" />
     <arg name="rate" default="20.0" />
+    <arg name="enabled" default="false" />
 
     <arg name="engine_path" default="$(find auv_detection)/models/DA3METRIC-LARGE_476x644_sim.engine" />
 
@@ -16,6 +17,7 @@
         <node pkg="auv_vision" type="depth_anything_trt_node.py" name="depth_anything_trt_node" output="screen">
             <param name="engine_path" value="$(arg engine_path)" />
             <param name="rate" value="$(arg rate)" />
+            <param name="enabled" value="$(arg enabled)" />
             <param name="camera_namespace" value="$(arg camera_namespace)" />
             <param name="frame_id" value="$(arg frame_id)" />
             <param name="publish_rgb_point_cloud" value="$(arg publish_rgb_point_cloud)" />
@@ -24,6 +26,7 @@
             <remap from="raw_depth" to="$(arg output_depth_topic)" />
             <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
             <remap from="rgb_point_cloud" to="$(arg output_rgb_point_cloud_topic)" />
+            <remap from="enable" to="depth_anything_trt_node/enable" />
         </node>
     </group>
 </launch>

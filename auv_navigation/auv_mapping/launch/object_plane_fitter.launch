@@ -36,6 +36,8 @@
           <remap from="original_camera_info" to="$(arg original_camera_info_topic)"/>
           <remap from="detections" to="$(arg detections_topic)"/>
           <remap from="object_transform_updates" to="map/object_transform_updates"/>
+          <remap from="depth_enable" to="depth_anything_trt_node/enable"/>
+          <remap from="tracker_enable" to="/tracker_node_torpedo_front/enable"/>
       </node>
     </group>
 </launch>

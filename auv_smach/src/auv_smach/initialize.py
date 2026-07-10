@@ -58,6 +58,16 @@ class DVLEnableState(smach_ros.ServiceState):
         )
 
 
+class DisableDA3PipelineState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "enable_da3_publisher",
+            SetBool,
+            request=SetBoolRequest(data=False),
+        )
+
+
 class DelayState(smach.State):
     def __init__(self, delay_time):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -192,6 +202,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "SET_DETECTION_TO_NONE",
                 SetDetectionFocusState(focus_object="none"),
+                transitions={
+                    "succeeded": "DISABLE_DA3_PIPELINE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_DA3_PIPELINE",
+                DisableDA3PipelineState(),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

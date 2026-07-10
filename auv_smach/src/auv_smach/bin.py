@@ -417,7 +417,7 @@ class BinSecondTrialState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
-                SetDepthState(depth=bin_front_look_depth),
+                SetDepthState(depth=-0.5),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -488,7 +488,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_front_look_depth),
+                SetDepthState(depth=-0.75),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -577,7 +577,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth),
+                SetDepthState(depth=-0.60),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -674,7 +674,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-0.4),
+                SetDepthState(depth=-0.57),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
