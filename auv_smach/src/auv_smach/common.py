@@ -1293,10 +1293,14 @@ class SetPlanningNotActive(smach_ros.ServiceState):
             self, "/stop_planning", Trigger, request=TriggerRequest()
         )
 
+
 class GravityZEnable(smach_ros.ServiceState):
     def __init__(self, enable):
         smach_ros.ServiceState.__init__(
-            self, "/taluy/gravity_compensation_estimator/set_apply_updates", SetBool, request=SetBoolRequest(data=enable)
+            self,
+            "gravity_compensation_estimator/set_apply_updates",
+            SetBool,
+            request=SetBoolRequest(data=enable),
         )
 
 
