@@ -145,7 +145,7 @@ class DepthAnythingTRTNode:
         self.scaled_intrinsics = self._compute_scaled_intrinsics()
 
         # ROS interface
-        self.enabled = True
+        self.enabled = rospy.get_param("~enabled", False)
         self.latest_image = None
         self.image_sub = rospy.Subscriber(
             "image_raw", Image, self._image_cb, queue_size=1
@@ -154,7 +154,7 @@ class DepthAnythingTRTNode:
         self.camera_info_pub = rospy.Publisher(
             "scaled_camera_info", CameraInfo, queue_size=1, latch=True
         )
-        rospy.Service("~enable", SetBool, self._enable_callback)
+        rospy.Service("enable", SetBool, self._enable_callback)
         self.point_cloud_pub = None
         self.point_cloud_fields = None
         self.point_cloud_pixels = None

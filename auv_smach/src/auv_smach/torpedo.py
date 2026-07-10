@@ -587,9 +587,30 @@ class TorpedoTaskState(smach.State):
                 },
             )
 
+    def request_preempt(self):
+        smach.State.request_preempt(self)
+        self.state_machine.request_preempt()
+
+    def _disable_da3_pipeline(self):
+        service_name = TORPEDO_CLOSEST_METHOD_SERVICES[TORPEDO_PRIORITY_DA3]
+        try:
+            rospy.wait_for_service(service_name, timeout=1.0)
+            response = rospy.ServiceProxy(service_name, SetBool)(
+                SetBoolRequest(data=False)
+            )
+            if not response.success:
+                rospy.logwarn(
+                    "DA3 pipeline cleanup returned success=False: %s",
+                    response.message,
+                )
+        except (rospy.ROSException, rospy.ServiceException) as exc:
+            rospy.logwarn("Failed to disable DA3 pipeline during cleanup: %s", exc)
+
     def execute(self, userdata):
-        # Execute the state machine
-        outcome = self.state_machine.execute()
+        try:
+            outcome = self.state_machine.execute()
+        finally:
+            self._disable_da3_pipeline()
 
         if outcome is None:
             return "preempted"
