@@ -638,6 +638,15 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_OCTAGON_DETECTION",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "SET_OCTAGON_INITIAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
                 SetDepthState(depth=-0.6),
                 transitions={
