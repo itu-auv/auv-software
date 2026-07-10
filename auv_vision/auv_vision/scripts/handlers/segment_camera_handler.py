@@ -23,8 +23,37 @@ from utils.detection_utils import (
 from utils.segment_utils import (
     findposes_circle,
     findposes_rect,
+    get_segment_debug_color,
     publish_merged_debug_image,
 )
+
+
+class FixedWidthCompressedPublisher:
+    def __init__(self, publisher, bridge, width):
+        self.publisher = publisher
+        self.bridge = bridge
+        self.width = width
+
+    def publish(self, msg):
+        try:
+            image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            height = max(1, int(round(image.shape[0] * self.width / image.shape[1])))
+            interpolation = (
+                cv2.INTER_AREA if image.shape[1] > self.width else cv2.INTER_LINEAR
+            )
+            image = cv2.resize(image, (self.width, height), interpolation=interpolation)
+            dst_format = "png" if "png" in msg.format.lower() else "jpg"
+            resized_msg = self.bridge.cv2_to_compressed_imgmsg(
+                image, dst_format=dst_format
+            )
+            resized_msg.header = msg.header
+            self.publisher.publish(resized_msg)
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"Failed to resize segment debug image: {e}")
+            self.publisher.publish(msg)
+
+    def __getattr__(self, name):
+        return getattr(self.publisher, name)
 
 
 class SegmentCameraHandler:
@@ -65,7 +94,11 @@ class SegmentCameraHandler:
             self.debug_image_topic += "/compressed"
         self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
-            rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1)
+            FixedWidthCompressedPublisher(
+                rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1),
+                self.bridge,
+                640,
+            )
             if self.debug_segment_pose
             else None
         )
@@ -241,6 +274,7 @@ class SegmentCameraHandler:
                     continue
 
                 prop = self.props[prop_name]
+                debug_color = get_segment_debug_color(prop_name)
                 mask_msg = (
                     masks_by_id[detection_id].popleft()
                     if masks_by_id.get(detection_id)
@@ -259,13 +293,19 @@ class SegmentCameraHandler:
                         last_yaw = self.last_yaws.get(detection_id)
                         if prop_name == "electric_link" or prop_name == "bandaid_link":
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_rect"
                         elif prop_name == "nutbolt_link" or prop_name == "pill_link":
                             geometry = findposes_circle(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_circle"
@@ -275,7 +315,10 @@ class SegmentCameraHandler:
                             "octagon_table_segment_link",
                         ):
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "basket"
@@ -292,6 +335,7 @@ class SegmentCameraHandler:
                         "prop_name": prop_name,
                         "geometry": geometry,
                         "bbox_center": detection.bbox.center,
+                        "debug_color": debug_color,
                     }
 
                 distance = self._estimate_distance(prop, detection, geometry)

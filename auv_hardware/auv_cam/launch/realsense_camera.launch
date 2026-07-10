@@ -33,7 +33,7 @@
 
   <arg name="color_width"         default="-1"/>
   <arg name="color_height"        default="-1"/>
-  <arg name="enable_color"        default="true"/>
+  <arg name="enable_color"        default="false"/>
 
   <arg name="fisheye_fps"         default="-1"/>
   <arg name="depth_fps"           default="-1"/>

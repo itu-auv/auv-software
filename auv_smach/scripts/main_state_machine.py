@@ -142,7 +142,7 @@ class MainStateMachineNode:
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
 
-        self.octagon_depth = -0.8
+        self.octagon_depth = -0.6
 
         self.pipeline_depth = -0.75
 
