@@ -23,6 +23,7 @@ from utils.detection_utils import (
 from utils.segment_utils import (
     findposes_circle,
     findposes_rect,
+    get_segment_debug_color,
     publish_merged_debug_image,
 )
 
@@ -273,6 +274,7 @@ class SegmentCameraHandler:
                     continue
 
                 prop = self.props[prop_name]
+                debug_color = get_segment_debug_color(prop_name)
                 mask_msg = (
                     masks_by_id[detection_id].popleft()
                     if masks_by_id.get(detection_id)
@@ -291,13 +293,19 @@ class SegmentCameraHandler:
                         last_yaw = self.last_yaws.get(detection_id)
                         if prop_name == "electric_link" or prop_name == "bandaid_link":
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_rect"
                         elif prop_name == "nutbolt_link" or prop_name == "pill_link":
                             geometry = findposes_circle(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_circle"
@@ -307,7 +315,10 @@ class SegmentCameraHandler:
                             "octagon_table_segment_link",
                         ):
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "basket"
@@ -324,6 +335,7 @@ class SegmentCameraHandler:
                         "prop_name": prop_name,
                         "geometry": geometry,
                         "bbox_center": detection.bbox.center,
+                        "debug_color": debug_color,
                     }
 
                 distance = self._estimate_distance(prop, detection, geometry)
