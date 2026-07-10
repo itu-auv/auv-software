@@ -32,6 +32,7 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
+    <arg name="ignore_kde" default="false" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -61,6 +62,7 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="ignore_kde" value="$(arg ignore_kde)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -84,6 +86,7 @@
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
+            <remap from="enable_da3_publisher" to="object_plane_fitter/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 

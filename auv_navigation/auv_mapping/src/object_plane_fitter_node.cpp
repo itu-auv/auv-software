@@ -28,6 +28,7 @@
 #include <vision_msgs/Detection2DArray.h>
 
 #include <Eigen/Geometry>
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <mutex>
@@ -59,7 +60,6 @@ class ObjectPlaneFitter {
                             "taluy/camera_depth_optical_frame");
     pnh_.param<std::string>("base_link_frame", base_link_frame_,
                             "taluy/base_link");
-
     // Publishers
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
         "object_transform_updates", 10);
@@ -73,6 +73,9 @@ class ObjectPlaneFitter {
     // Enable service
     enable_service_ = pnh_.advertiseService(
         "enable", &ObjectPlaneFitter::enableCallback, this);
+    tracker_enable_client_ =
+        nh_.serviceClient<std_srvs::SetBool>("tracker_enable");
+    depth_enable_client_ = nh_.serviceClient<std_srvs::SetBool>("depth_enable");
 
     // Camera info subscriber (separate, latched)
     camera_info_sub_ = nh_.subscribe(
@@ -105,10 +108,76 @@ class ObjectPlaneFitter {
 
   bool enableCallback(std_srvs::SetBool::Request& req,
                       std_srvs::SetBool::Response& res) {
-    enabled_ = req.data;
-    res.success = true;
-    res.message = "Successfully set enabled to " + std::to_string(enabled_);
-    ROS_INFO_STREAM(res.message);
+    if (req.data) {
+      const bool depth_updated = setDepthEnabled(true);
+      const bool tracker_updated = depth_updated && setTrackerEnabled(true);
+
+      if (depth_updated && tracker_updated) {
+        enabled_ = true;
+        res.success = true;
+        res.message = "Object plane fitter, TensorRT depth, and YOLO enabled";
+      } else {
+        enabled_ = false;
+        setTrackerEnabled(false);
+        setDepthEnabled(false);
+        res.success = false;
+        res.message =
+            "Failed to enable TensorRT depth or YOLO; DA3 pipeline rolled back";
+      }
+    } else {
+      enabled_ = false;
+      const bool tracker_updated = setTrackerEnabled(false);
+      const bool depth_updated = setDepthEnabled(false);
+      res.success = tracker_updated && depth_updated;
+      res.message =
+          res.success ? "Object plane fitter, TensorRT depth, and YOLO disabled"
+                      : "Object plane fitter disabled, but a dependency could "
+                        "not be disabled";
+    }
+
+    if (res.success) {
+      ROS_INFO_STREAM(res.message);
+    } else {
+      ROS_ERROR_STREAM(res.message);
+    }
+    return true;
+  }
+
+  bool setTrackerEnabled(bool enabled) {
+    return setDependencyEnabled(tracker_enable_client_, "tracker_enable",
+                                "YOLO tracker", enabled);
+  }
+
+  bool setDepthEnabled(bool enabled) {
+    return setDependencyEnabled(depth_enable_client_, "depth_enable",
+                                "TensorRT depth", enabled);
+  }
+
+  bool setDependencyEnabled(ros::ServiceClient& client,
+                            const std::string& service_name,
+                            const std::string& dependency_name, bool enabled) {
+    if (!client.exists()) {
+      ROS_ERROR_STREAM(dependency_name << " enable service is unavailable: "
+                                       << service_name);
+      return false;
+    }
+
+    std_srvs::SetBool enable_srv;
+    enable_srv.request.data = enabled;
+    if (!client.call(enable_srv)) {
+      ROS_ERROR_STREAM("Failed to call "
+                       << dependency_name
+                       << " enable service: " << service_name);
+      return false;
+    }
+
+    if (!enable_srv.response.success) {
+      ROS_ERROR_STREAM(dependency_name << " rejected enable=" << enabled
+                                       << " via " << service_name << ": "
+                                       << enable_srv.response.message);
+      return false;
+    }
+
     return true;
   }
 
@@ -484,6 +553,8 @@ class ObjectPlaneFitter {
 
   // Service Servers
   ros::ServiceServer enable_service_;
+  ros::ServiceClient tracker_enable_client_;
+  ros::ServiceClient depth_enable_client_;
   bool enabled_;
 
   // Subscribers

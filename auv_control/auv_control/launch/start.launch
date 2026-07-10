@@ -41,6 +41,16 @@
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
+    <node pkg="auv_control" type="gravity_compensation_estimator.py"
+      name="gravity_compensation_estimator" output="screen">
+      <param name="controller_reconfigure_server" value="auv_control_node" />
+      <param name="use_odometry_twist" value="$(eval arg('namespace') == 'taluy')" type="bool" />
+
+      <remap from="odometry" to="odometry" />
+      <remap from="wrench" to="wrench" />
+      <remap from="enable" to="enable" />
+    </node>
+
     <node pkg="auv_control" type="reference_pose_publisher.py" name="reference_pose_publisher_node"
       output="screen">
       <param name="update_rate" value="$(arg rate)" />

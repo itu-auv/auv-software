@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   cv_bridge
   sensor_msgs
+  std_srvs
   tf
 )
 
@@ -19,6 +20,7 @@ catkin_package(
     auv_detection
     rospy
     sensor_msgs
+    std_srvs
     tf
 )
 
@@ -33,6 +35,7 @@ catkin_install_python(
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
+    scripts/principal_point_overlay_node.py
     scripts/sim_bbox_node.py
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
