@@ -386,6 +386,15 @@ class TorpedoTaskState(smach.State):
                 "RESOLVE_TORPEDO_CLOSEST_FRAME",
                 ResolveTorpedoClosestFrameState(torpedo_priority=torpedo_priority),
                 transitions={
+                    "succeeded": "WAIT_FOR_YOLO_TORPEDO",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_YOLO_TORPEDO",
+                DelayState(delay_time=2.0),
+                transitions={
                     "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
