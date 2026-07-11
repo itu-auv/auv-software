@@ -1,7 +1,7 @@
 <launch>
     <arg name="namespace" default="taluy" />
     <arg name="rate" default="20.0" />
-    <arg name="enabled" default="false" />
+    <arg name="enabled" default="true" />
 
     <arg name="engine_path" default="$(find auv_detection)/models/DA3METRIC-LARGE_476x644_sim.engine" />
 
