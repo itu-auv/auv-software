@@ -71,8 +71,8 @@ class CameraDetectionNode:
         self.camera_enabled = {
             "front": True,
             "front_kde": True,
-            "slalom": False,
-            "bottom": False,
+            "slalom": True,
+            "bottom": True,
             "torpedo": False,
             "bottom_seg": False,
         }

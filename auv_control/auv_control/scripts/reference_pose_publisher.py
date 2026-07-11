@@ -40,6 +40,7 @@ from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
 
 
+DEFAULT_MAX_VELOCITY = [0.6, 0.6, 0.6, 0.8, 0.8, 0.8]
 RIGHT_ANGLE_YAW_OFFSETS = (0.0, np.pi / 2.0, np.pi, 3.0 * np.pi / 2.0)
 
 
@@ -132,13 +133,14 @@ class ReferencePosePublisherNode:
         self.max_z_offset = rospy.get_param("~max_z_offset", 0.2)
         self.max_z = rospy.get_param("~max_z", 0.0)
         self.min_z = rospy.get_param("~min_z", -2.0)
-        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
+        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 2.0)
         self.tf_lookup_timeout = rospy.Duration(
             rospy.get_param("~tf_lookup_timeout", 0.2)
         )
         self.tf_freshness_threshold = rospy.Duration(
-            rospy.get_param("~tf_freshness_threshold", 0.4)
+            rospy.get_param("~tf_freshness_threshold", 0.8)
         )
+        self.default_max_velocity = DEFAULT_MAX_VELOCITY[:]
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -154,29 +156,9 @@ class ReferencePosePublisherNode:
                 target_server, timeout=5
             )
             rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
-
-            # Capture current max velocity configuration as defaults to restore later
-            current_cfg = self._read_controller_cfg()
-            if current_cfg is not None:
-                self.default_max_velocity = [
-                    current_cfg.get("max_velocity_0", 1.0),
-                    current_cfg.get("max_velocity_1", 1.0),
-                    current_cfg.get("max_velocity_2", 1.0),
-                    current_cfg.get("max_velocity_3", 1.0),
-                    current_cfg.get("max_velocity_4", 1.0),
-                    current_cfg.get("max_velocity_5", 1.0),
-                ]
-            else:
-                rospy.logwarn(
-                    "Failed to read initial controller configuration; using params/fallback"
-                )
-                self.default_max_velocity = rospy.get_param(
-                    f"{target_server}/max_velocity", [1.0] * 6
-                )
         except Exception as e:
             rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
             self.reconfigure_client = None
-            self.default_max_velocity = [1.0] * 6
 
     def killswitch_callback(self, msg: Bool) -> None:
         if not msg.data:
@@ -366,17 +348,33 @@ class ReferencePosePublisherNode:
             self.target_frame_id = req.target_frame
 
             if self.reconfigure_client:
-                linear_vel = (
-                    req.max_linear_velocity
-                    if req.max_linear_velocity > 0
-                    else self.default_max_velocity[0]
+                linear_vel_x = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_x,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[0],
+                )
+                linear_vel_y = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_y,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[1],
+                )
+                linear_vel_z = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_z,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[2],
                 )
                 angular_vel = (
                     req.max_angular_velocity
                     if req.max_angular_velocity > 0
                     else self.default_max_velocity[3]
                 )
-                self._update_controller_cfg(linear_vel, angular_vel, req.use_depth)
+                self._update_controller_cfg(
+                    linear_vel_x,
+                    linear_vel_y,
+                    linear_vel_z,
+                    angular_vel,
+                    req.use_depth,
+                )
 
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
@@ -426,31 +424,37 @@ class ReferencePosePublisherNode:
             self._restore_controller_cfg()
 
     # --- Helper methods for dynamic reconfigure handling ---
-    def _read_controller_cfg(self):
-        if not self.reconfigure_client:
-            return None
-        try:
-            return self.reconfigure_client.get_configuration()
-        except Exception as e:
-            rospy.logwarn(f"Failed to read controller configuration: {e}")
-            return None
+    @staticmethod
+    def _resolve_linear_velocity_limit(
+        axis_velocity: float, fallback_velocity: float, default_velocity: float
+    ) -> float:
+        if axis_velocity > 0:
+            return axis_velocity
+        if fallback_velocity > 0:
+            return fallback_velocity
+        return default_velocity
 
     def _update_controller_cfg(
-        self, linear_vel: float, angular_vel: float, use_depth: bool = True
+        self,
+        linear_vel_x: float,
+        linear_vel_y: float,
+        linear_vel_z: float,
+        angular_vel: float,
+        use_depth: bool = True,
     ):
         try:
-            # Determine Z velocity: use linear_vel if use_depth, else preserve current or use default
-            if use_depth:
-                z_vel = linear_vel
-            elif self.set_depth_velocity is not None:
+            # If align_frame does not own depth, keep the active set_depth limit.
+            if not use_depth and self.set_depth_velocity is not None:
                 z_vel = self.set_depth_velocity
+            elif use_depth:
+                z_vel = linear_vel_z
             else:
                 z_vel = self.default_max_velocity[2]
 
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity_0": linear_vel,
-                    "max_velocity_1": linear_vel,
+                    "max_velocity_0": linear_vel_x,
+                    "max_velocity_1": linear_vel_y,
                     "max_velocity_2": z_vel,
                     "max_velocity_3": angular_vel,
                     "max_velocity_4": angular_vel,

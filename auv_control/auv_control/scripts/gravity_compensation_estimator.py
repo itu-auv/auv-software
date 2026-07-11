@@ -59,7 +59,7 @@ class GravityCompensationEstimatorNode:
         self.max_gravity_compensation_z = float(
             rospy.get_param("~max_gravity_compensation_z", 20.0)
         )
-        self.apply_updates = True
+        self.apply_updates = False
 
         self.data_timeout = rospy.Duration(1.0)
         self.samples = deque()

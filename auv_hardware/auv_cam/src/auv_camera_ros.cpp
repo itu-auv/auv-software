@@ -79,12 +79,17 @@ USBGStreamerCameraROS::USBGStreamerCameraROS(const ros::NodeHandle &nh)
 
   std::stringstream ss;
   ss << "v4l2src device=" << device_
-     << " ! image/jpeg, format=MJPG, framerate=" << fps_
-     << "/1, width=" << width_ << ", height=" << height_
-     << " ! nvv4l2decoder mjpeg=1 ! nvvidconv ! video/x-raw, "
-        "format=(string)BGRx"
-     << " ! videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=1";
-  const std::string default_gst_device = ss.str();
+    << " ! image/jpeg, framerate=" << fps_
+    << "/1, width=1920, height=1080"
+    << " ! jpegparse"
+    << " ! nvv4l2decoder mjpeg=1"
+    << " ! nvvidconv"
+    << " ! video/x-raw, format=(string)BGRx, width=" << width_
+    << ", height=" << height_
+    << " ! videoconvert"
+    << " ! video/x-raw, format=(string)BGR"
+    << " ! appsink drop=1 max-buffers=1 sync=false";  
+    const std::string default_gst_device = ss.str();
   if (verbose_) {
     ROS_INFO_STREAM("gstreamer pipeline:" << default_gst_device);
   }

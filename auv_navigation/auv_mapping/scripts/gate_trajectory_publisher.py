@@ -633,8 +633,6 @@ class TransformServiceNode:
             rate.sleep()
 
     def reconfigure_callback(self, config, level):
-        if "selected_role" in config:
-            self.set_target_gate_frame(config["selected_role"])
         self.entrance_offset = config.entrance_offset
         self.exit_offset = config.exit_offset
         self.z_offset = config.z_offset

@@ -209,41 +209,51 @@ TORPEDO_FORBIDDEN_SIDE_MASKS = (
 )
 
 
-BOTTOM_MASK_REFERENCE_WIDTH = 1920.0
-BOTTOM_MASK_REFERENCE_HEIGHT = 1080.0
+BOTTOM_MASK_REFERENCE_WIDTH = 768.0
+BOTTOM_MASK_REFERENCE_HEIGHT = 432.0
 BOTTOM_FORBIDDEN_MASKS = (
     # Polygon 1
     (
-        (466.0, 1066.0),
-        (448.0, 720.0),
-        (423.0, 408.0),
-        (439.0, 33.0),
-        (295.0, 7.0),
-        (5.0, 11.0),
-        (2.0, 63.0),
-        (5.0, 159.0),
-        (0.0, 228.0),
-        (1.0, 857.0),
-        (2.0, 932.0),
-        (1.0, 1006.0),
-        (7.0, 1047.0),
-        (8.0, 1068.0),
-        (11.0, 1074.0),
-        (138.0, 1074.0),
-        (247.0, 1075.0),
-        (357.0, 1077.0),
-        (436.0, 1068.0),
-        (460.0, 1071.0),
+        (134.0, 10.0),
+        (120.4, 48.8),
+        (106.0, 88.4),
+        (77.2, 128.0),
+        (68.4, 189.2),
+        (77.6, 235.2),
+        (83.2, 284.4),
+        (92.4, 330.4),
+        (98.4, 350.4),
+        (112.4, 375.6),
+        (121.6, 391.2),
+        (132.8, 403.6),
+        (154.4, 420.4),
+        (162.8, 429.6),
+        (0.8, 430.0),
+        (4.0, 15.6),
+        (18.8, 12.0),
+        (72.8, 10.0),
+        (132.8, 10.4),
     ),
     # Polygon 2
     (
-        (1911.0, 329.0),
-        (1891.0, 435.0),
-        (1893.0, 537.0),
-        (1903.0, 603.0),
-        (1918.0, 498.0),
-        (1917.0, 429.0),
-        (1917.0, 321.0),
+        (632.0, 18.0),
+        (674.4, 39.2),
+        (700.4, 80.8),
+        (715.2, 137.2),
+        (718.8, 193.2),
+        (714.8, 258.4),
+        (704.0, 318.0),
+        (690.0, 359.2),
+        (672.8, 390.4),
+        (646.8, 418.4),
+        (641.6, 428.8),
+        (763.6, 428.8),
+        (766.8, 288.0),
+        (766.0, 29.2),
+        (766.0, 2.8),
+        (660.4, 1.6),
+        (631.6, 0.0),
+        (633.2, 16.4),
     ),
 )
 
@@ -333,8 +343,8 @@ def check_inside_image_torpedo(
 
 def check_inside_image_bottom(
     detection,
-    image_width: int = 1920,
-    image_height: int = 1080,
+    image_width: int = 768,
+    image_height: int = 432,
     forbidden_masks=None,
 ) -> bool:
     """Check if a bottom-camera detection bbox is inside the usable image area.
@@ -389,8 +399,8 @@ def check_inside_image_bottom(
 
 def check_inside_image_bottom_bin(
     detection,
-    image_width: int = 1920,
-    image_height: int = 1080,
+    image_width: int = 768,
+    image_height: int = 432,
     forbidden_masks=None,
 ) -> bool:
     """Check if a bottom-camera detection bbox is inside the usable image area.

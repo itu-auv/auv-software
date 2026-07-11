@@ -109,3 +109,29 @@ TEST(MultiDOFPIDController, LimitsAccelerationCommandRate) {
   EXPECT_NEAR(second_force_torque(0), 1.0, kEpsilon);
   EXPECT_NEAR(second_force_torque(5), 1.0, kEpsilon);
 }
+
+TEST(MultiDOFPIDController, AppliesYawCrossCouplingFeedforward) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+
+  model.mass_inertia_matrix = Matrix6d::Zero();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+
+  controller.set_model(model);
+  controller.set_kp(Vector12d::Zero());
+  controller.set_ki(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+  controller.set_yaw_cross_coupling_gain(4.0);
+
+  const auto state = Vector12d::Zero();
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state(6) = 2.0;
+  desired_state(7) = 3.0;
+  const auto d_state = Vector12d::Zero();
+
+  const auto force_torque =
+      controller.control(state, desired_state, d_state, 0.1);
+
+  EXPECT_NEAR(force_torque(5), 24.0, kEpsilon);
+}

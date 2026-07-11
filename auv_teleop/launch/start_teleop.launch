@@ -5,7 +5,7 @@
   <arg name="control_rate" default="25.0" />
   <arg name="controller" default="ps5" />
   <arg name="rov" default="0" />
-  <arg name="use_vel" default="false" />
+  <arg name="use_vel" default="true" />
 
   <group ns="$(arg namespace)">
 

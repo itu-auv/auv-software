@@ -36,7 +36,7 @@
       <param name="body_frame" value="$(arg namespace)/base_link" />
       <param name="frame_prefix" value="$(arg namespace)" />
       <param name="minimum_voltage_threshold" value="13.5" />
-      <param name="low_voltage_duration" value="3.0" />
+      <param name="low_voltage_duration" value="5.0" />
       <remap from="power" to="mainboard/power_sensor/power" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>

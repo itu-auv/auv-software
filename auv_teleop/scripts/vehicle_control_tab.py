@@ -22,6 +22,7 @@ import time
 class VehicleControlTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.namespace = rospy.get_param("~namespace", "taluy").strip("/")
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
 
@@ -144,7 +145,12 @@ class VehicleControlTab(QWidget):
         return self.angular_speed_spinbox.value()
 
     def start_teleop(self):
-        cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
+        cmd = [
+            "roslaunch",
+            "auv_teleop",
+            "start_teleop.launch",
+            f"namespace:={self.namespace}",
+        ]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")

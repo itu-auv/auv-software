@@ -31,7 +31,7 @@
       name="${namespace}/thruster_0"
       parent="${namespace}/base_link"
       position="0.157582 0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${-3*pi/4} ${pi/4}"
+      orientation="0 ${3*pi/4} ${-pi/4}"
       use_models="${use_models}"
     />
     <!-- on sol ust -->
@@ -39,7 +39,7 @@
       name="${namespace}/thruster_1"
       parent="${namespace}/base_link"
       position="0.157582 -0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${-3*pi/4} ${-pi/4}"
+      orientation="0 ${3*pi/4} ${pi/4}"
       use_models="${use_models}"
     />
     <!-- on sag ust -->
@@ -47,7 +47,7 @@
       name="${namespace}/thruster_2"
       parent="${namespace}/base_link"
       position="0.157582 0.234119 ${-0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${-pi/4} ${pi/4}"
+      orientation="0 ${pi/4} ${-pi/4}"
       use_models="${use_models}"
     />
     <!-- on sol alt -->
@@ -55,7 +55,7 @@
       name="${namespace}/thruster_3"
       parent="${namespace}/base_link"
       position="0.157582 -0.234119 ${-0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${-pi/4} ${-pi/4}"
+      orientation="0 ${pi/4} ${pi/4}"
       use_models="${use_models}"
     />
     <!-- on sag alt -->
@@ -64,7 +64,7 @@
       name="${namespace}/thruster_4"
       parent="${namespace}/base_link"
       position="-0.157582 0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${3*pi/4} ${-pi/4}"
+      orientation="0 ${-3*pi/4} ${pi/4}"
       use_models="${use_models}"
     />
     <!-- arka sol ust  -->
@@ -72,7 +72,7 @@
       name="${namespace}/thruster_5"
       parent="${namespace}/base_link"
       position="-0.157582 -0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${3*pi/4} ${pi/4}"
+      orientation="0 ${-3*pi/4} ${-pi/4}"
       use_models="${use_models}"
     />
     <!-- arka sag ust -->
@@ -80,7 +80,7 @@
       name="${namespace}/thruster_6"
       parent="${namespace}/base_link"
       position="-0.157582 0.234119 ${-0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${pi/4} ${-pi/4}"
+      orientation="0 ${-pi/4} ${pi/4}"
       use_models="${use_models}"
     />
     <!-- arka sol alt -->
@@ -88,12 +88,21 @@
       name="${namespace}/thruster_7"
       parent="${namespace}/base_link"
       position="-0.157582 -0.234119 ${-0.104193 + $(arg angled_thruster_z_offset)}"
-      orientation="0 ${pi/4} ${pi/4}"
+      orientation="0 ${-pi/4} ${-pi/4}"
       use_models="${use_models}"
     />
     <!-- arka sag alt -->
 
     <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.3 0 0" orientation="0.0 0 0" use_models="${use_models}"/>
+    <xacro:logitech_c920_camera
+      name="${namespace}/base_link/bottom_camera"
+      parent="${namespace}/base_link"
+      position="0.1 0.20 -0.20"
+      orientation="0 ${math.pi/2} ${math.pi}"
+      use_models="${use_models}"
+    />
+    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_1" parent="${namespace}/base_link" position="-0.05 0.0 -0.20" orientation="0 0 0" use_models="${use_models}"/>
+    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_2" parent="${namespace}/base_link" position="-0.05 0.0 -0.20" orientation="0 0 0" use_models="${use_models}"/>
     <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="${math.pi} 0 ${math.pi/2}" use_models="${use_models}"/>
     <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.07" orientation="0 0 0" use_models="${use_models}"/>
     <xacro:wayfinder_dvl name="${namespace}/base_link/dvl" parent="${namespace}/base_link" position="0.0 0 -0.17" orientation="0 0 0" use_models="${use_models}"/>

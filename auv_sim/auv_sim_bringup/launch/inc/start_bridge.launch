@@ -39,6 +39,8 @@
     <!-- Ball Dropper Service Node -->
     <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
       <param name="base_frame" value="$(arg namespace)/base_link" />
+      <param name="drop_frame_1" value="$(arg namespace)/base_link/ball_dropper_1_link" />
+      <param name="drop_frame_2" value="$(arg namespace)/base_link/ball_dropper_2_link" />
       <remap from="actuators/ball_dropper/set_angle" to="actuators/ball_dropper/set_angle" />
     </node>
     <!-- Model Spawner Service Node (generic) -->

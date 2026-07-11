@@ -18,6 +18,7 @@ from utils.detection_utils import (
     transform_to_odom_and_publish,
     calculate_intersection_with_plane,
 )
+from std_msgs.msg import Bool
 
 
 class FrontCameraHandler:
@@ -43,6 +44,15 @@ class FrontCameraHandler:
         self.props_yaw_pub = publishers["props_yaw"]
         self.shared_state = shared_state
 
+        # Create a separate publisher for each object
+        self.is_inside_pubs = {}
+        for det_id in list(id_tf_map.keys()):
+            prop_name = id_tf_map[det_id]
+            if prop_name not in self.is_inside_pubs:
+                self.is_inside_pubs[prop_name] = rospy.Publisher(
+                    f"vision/front/{prop_name}_is_inside_image", Bool, queue_size=1
+                )
+
         # Front camera specific state
         self.active_ids = list(id_tf_map.keys())  # All IDs active by default
 
@@ -52,6 +62,7 @@ class FrontCameraHandler:
 
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
+        seen_props = set()
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
@@ -67,12 +78,15 @@ class FrontCameraHandler:
             # bin_whole uses altitude projection — special path
             if detection_id == self.id_tf_map.id_of("bin_whole_link"):
                 self._process_altitude_projection(detection, stamp)
+                seen_props.add(self.id_tf_map[detection_id])
                 continue
 
             if not check_inside_image(detection, self.image_width, self.image_height):
                 continue
 
             prop_name = self.id_tf_map[detection_id]
+            seen_props.add(prop_name)
+
             if prop_name not in self.props:
                 continue
 
@@ -112,6 +126,9 @@ class FrontCameraHandler:
                 self.tf_buffer,
                 self.object_transform_pub,
             )
+
+        for prop_name, pub in self.is_inside_pubs.items():
+            pub.publish(Bool(prop_name in seen_props))
 
     def _process_altitude_projection(self, detection, stamp):
         """Project bin_whole (ID=6) onto the pool floor using ray-plane intersection."""
