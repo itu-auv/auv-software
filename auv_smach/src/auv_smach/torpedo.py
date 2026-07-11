@@ -113,7 +113,9 @@ class ResolveTorpedoClosestFrameState(smach.State):
         enabled: bool,
         wait_timeout: float = 2.0,
     ) -> bool:
-        print(f"Setting torpedo closest frame source '{TORPEDO_CLOSEST_METHOD_SERVICES[method]}' enabled={enabled}")
+        print(
+            f"Setting torpedo closest frame source '{TORPEDO_CLOSEST_METHOD_SERVICES[method]}' enabled={enabled}"
+        )
         return self._set_bool_service(
             TORPEDO_CLOSEST_METHOD_SERVICES[method],
             enabled,
