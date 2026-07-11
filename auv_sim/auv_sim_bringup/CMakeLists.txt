@@ -7,6 +7,11 @@ catkin_package()
 
 include_directories()
 
+catkin_install_python(PROGRAMS
+  scripts/render_semi_final_pool_world.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(DIRECTORY
   launch
   config

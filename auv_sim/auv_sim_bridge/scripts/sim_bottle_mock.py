@@ -33,6 +33,9 @@ class ModelSpawner:
 
         self.spawn_counts = {}
         self.spawned_positions = []
+        self.table_center_x = rospy.get_param("~table_center_x", 13.0)
+        self.table_center_y = rospy.get_param("~table_center_y", -4.25)
+        self.auto_spawn_z = rospy.get_param("~auto_spawn_z", -1.3)
 
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         self.spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
@@ -54,8 +57,8 @@ class ModelSpawner:
         """Pick a random (x, y) on the table that is at least min_dist from all
         previously spawned positions."""
         for _ in range(1000):
-            x = random.uniform(12.8, 13.2)
-            y = random.uniform(-4.45, -4.05)
+            x = random.uniform(self.table_center_x - 0.2, self.table_center_x + 0.2)
+            y = random.uniform(self.table_center_y - 0.2, self.table_center_y + 0.2)
             too_close = False
             for px, py in self.spawned_positions:
                 if math.hypot(x - px, y - py) < min_dist:
@@ -66,7 +69,10 @@ class ModelSpawner:
 
         # Fallback to a slightly shifted position based on spawn count if space is completely exhausted
         fallback_offset = len(self.spawned_positions) * 0.05
-        return 13.0 + (fallback_offset % 0.2), -4.25 + (fallback_offset % 0.2)
+        return (
+            self.table_center_x + (fallback_offset % 0.2),
+            self.table_center_y + (fallback_offset % 0.2),
+        )
 
     def _get_unique_model_name(self, key):
         """Return a unique Gazebo model name for the given key.
@@ -84,7 +90,7 @@ class ModelSpawner:
         """Automatically spawn the task 5 models facing upwards on startup."""
         for key in self.keys:
             x, y = self._get_random_table_pose()
-            self._spawn_single_model(key, x, y, -1.3)
+            self._spawn_single_model(key, x, y, self.auto_spawn_z)
 
     def _spawn_single_model(self, key, x, y, z):
         if key not in self.configs:

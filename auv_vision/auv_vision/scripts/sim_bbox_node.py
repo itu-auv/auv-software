@@ -896,6 +896,15 @@ def load_config(config_path: str, ns: str) -> Tuple[List[SimObject], Dict]:
                 )
             )
 
+    # A Gazebo model can have multiple detection definitions (for example, both
+    # gate labels or all torpedo holes).  Prefix matching is a model-level
+    # property, so enabling it on one definition must cover every definition
+    # backed by the same numbered model instances.
+    prefix_models = {obj.gazebo_model for obj in all_objects if obj.match_prefix}
+    for obj in all_objects:
+        if obj.gazebo_model in prefix_models:
+            obj.match_prefix = True
+
     return all_objects, camera_configs
 
 

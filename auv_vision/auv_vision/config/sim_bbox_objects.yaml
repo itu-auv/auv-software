@@ -47,6 +47,7 @@ objects:
     name: gate_search_rescue
     cameras: [front, realsense]
     gazebo_model: robosub_gate
+    match_prefix: true
     offset: [0.0, -0.762, 1.356]
     boundary:
       shape: rect
@@ -67,6 +68,7 @@ objects:
     name: torpedo_map
     cameras: [front, realsense]
     gazebo_model: robosub_torpedo
+    match_prefix: true
     offset: [-0.1166, 0.6472, -0.9490]
     boundary:
       shape: rect
@@ -116,6 +118,7 @@ objects:
     name: white_pipe
     cameras: [slalom]
     gazebo_model: robosub_slalom_1
+    match_prefix: true
     offset: [-1.5, 0.0, 0.45]
     boundary:
       shape: cylinder
@@ -144,6 +147,7 @@ objects:
     name: white_pipe
     cameras: [slalom]
     gazebo_model: robosub_slalom_2
+    match_prefix: true
     offset: [-1.5, 0.0, 0.45]
     boundary:
       shape: cylinder
@@ -172,6 +176,7 @@ objects:
     name: white_pipe
     cameras: [slalom]
     gazebo_model: robosub_slalom_3
+    match_prefix: true
     offset: [-1.5, 0.0, 0.45]
     boundary:
       shape: cylinder
@@ -195,11 +200,41 @@ objects:
       shape: cylinder
       args: [0.0127, 0.0127, 0.45]
 
+  # Slalom 4
+  - class_id: 3
+    name: white_pipe
+    cameras: [slalom]
+    gazebo_model: robosub_slalom_4
+    match_prefix: true
+    offset: [-1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 2
+    name: red_pipe
+    cameras: [slalom]
+    gazebo_model: robosub_slalom_4
+    offset: [0.0, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 3
+    name: white_pipe
+    cameras: [slalom]
+    gazebo_model: robosub_slalom_4
+    offset: [1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
   # Bin baskets (front camera)
   - class_id: 6
     name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.7432, 0.2978, -0.1486]
     boundary:
       shape: box
@@ -209,6 +244,7 @@ objects:
     name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.4462, 1.5502, 0.3349]
     boundary:
       shape: box
@@ -218,6 +254,7 @@ objects:
     name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.0937, 0.6191, -0.0805]
     boundary:
       shape: box
@@ -227,6 +264,7 @@ objects:
     name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-1.0420, 1.2816, 0.0919]
     boundary:
       shape: box
@@ -237,6 +275,7 @@ objects:
     name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.7480, 0.2883, -0.2803] # basket-1
     boundary:
       shape: rect
@@ -246,6 +285,7 @@ objects:
     name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.4330, 1.5468, 0.2042] # basket-2
     boundary:
       shape: rect
@@ -255,6 +295,7 @@ objects:
     name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-0.0880, 0.6145, -0.2168] # basket-3
     boundary:
       shape: rect
@@ -264,6 +305,7 @@ objects:
     name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
+    match_prefix: true
     offset: [-1.0381, 1.2940, -0.0540] # basket-4
     boundary:
       shape: rect
@@ -274,6 +316,7 @@ objects:
     name: octagon
     cameras: [front, realsense]
     gazebo_model: robosub_octagon
+    match_prefix: true
     offset: [0.0, 0.0, 0.347]
     boundary:
       - shape: box
@@ -288,6 +331,7 @@ objects:
     name: octagon_repair_link
     cameras: [front, realsense]
     gazebo_model: robosub_octagon_animals
+    match_prefix: true
     offset: [0.0, 0.0, 0.5525]
     boundary:
       shape: rect
