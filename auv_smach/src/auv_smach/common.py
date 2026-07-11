@@ -1309,6 +1309,16 @@ class SetPlanningNotActive(smach_ros.ServiceState):
         )
 
 
+class GravityZEnable(smach_ros.ServiceState):
+    def __init__(self, enable):
+        smach_ros.ServiceState.__init__(
+            self,
+            "gravity_compensation_estimator/set_apply_updates",
+            SetBool,
+            request=SetBoolRequest(data=enable),
+        )
+
+
 class DynamicPathState(smach.StateMachine):
     def __init__(
         self,
