@@ -73,7 +73,7 @@ class CameraDetectionNode:
             "front_kde": True,
             "slalom": False,
             "bottom": False,
-            "torpedo": False,
+            "torpedo": True,
             "bottom_seg": False,
         }
 
