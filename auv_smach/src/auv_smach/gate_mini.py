@@ -113,15 +113,6 @@ class NavigateThroughGateMiniState(smach.State):
                 "ilk_state_tir",
                 ResetOdometryPositionState(),
                 transitions={
-                    "succeeded": "ikinci_state_tir",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ikinci_state_tir",
-                ClearObjectMapState(),
-                transitions={
                     "succeeded": "open_gate_detection",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -130,6 +121,27 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "open_gate_detection",
                 SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "SET_INITIAL_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_INITIAL_GATE_DEPTH",
+                SetDepthState(
+                    depth=-0.55,
+                    depth_threshold=0.25,
+                ),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "GATE_E_DON",
                     "preempted": "preempted",
@@ -149,27 +161,6 @@ class NavigateThroughGateMiniState(smach.State):
                     max_linear_velocity=0.001,
                 ),
                 transitions={
-                    "succeeded": "SET_DETECTION_FOCUS_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_GATE",
-                SetDetectionFocusState(focus_object="gate"),
-                transitions={
-                    "succeeded": "SET_INITIAL_GATE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_INITIAL_GATE_DEPTH",
-                SetDepthState(
-                    depth=-0.55,
-                    depth_threshold=0.25,
-                ),
-                transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -178,6 +169,15 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "wait_for_gate_trajectory",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "wait_for_gate_trajectory",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "ilk_entrance",
                     "preempted": "preempted",
@@ -197,6 +197,26 @@ class NavigateThroughGateMiniState(smach.State):
                     max_linear_velocity=0.05,
                     max_linear_velocity_y=0.02,
                     max_angular_velocity=0.3,
+                ),
+                transitions={
+                    "succeeded": "yavas_entrance",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "yavas_entrance",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="mini_gate_entrance",
+                    dist_threshold=100.0,
+                    yaw_threshold=1.0,
+                    confirm_duration=0.1,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.0001,
+                    max_linear_velocity_z=0.6,
+                    max_angular_velocity=0.0001,
                 ),
                 transitions={
                     "succeeded": "ilk_pitch",
@@ -340,6 +360,26 @@ class NavigateThroughGateMiniState(smach.State):
                 "amerika",
                 SetDepthState(
                     depth=-0.6,
+                ),
+                transitions={
+                    "succeeded": "pitch_oncesi_yavas",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "pitch_oncesi_yavas",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="odom",
+                    dist_threshold=100.0,
+                    yaw_threshold=1.0,
+                    confirm_duration=0.1,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.0001,
+                    max_linear_velocity_z=0.6,
+                    max_angular_velocity=0.0001,
                 ),
                 transitions={
                     "succeeded": "ikinci_pitch",

@@ -111,32 +111,17 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
 
 class SetStartFrameState(smach_ros.ServiceState):
-    def __init__(
-        self,
-        frame_name: str,
-        translation_x: float = 0.0,
-        translation_y: float = 0.0,
-        rotation_yaw: float = 0.0,
-    ):
+    def __init__(self, frame_name: str):
         transform_request = SetObjectTransformRequest()
         transform_request.transform.header.frame_id = get_base_link()
         transform_request.transform.child_frame_id = frame_name
-
-        transform_request.transform.transform.translation.x = translation_x
-        transform_request.transform.transform.translation.y = translation_y
-
-        q = tf.transformations.quaternion_from_euler(0, 0, rotation_yaw)
-        transform_request.transform.transform.rotation.x = q[0]
-        transform_request.transform.transform.rotation.y = q[1]
-        transform_request.transform.transform.rotation.z = q[2]
-        transform_request.transform.transform.rotation.w = q[3]
+        transform_request.transform.transform.rotation.w = 1.0
 
         smach_ros.ServiceState.__init__(
             self,
             "set_object_transform",
             SetObjectTransform,
             request=transform_request,
-            outcomes=["succeeded", "preempted", "aborted"],
         )
 
 
@@ -163,24 +148,6 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_KILLSWITCH_ENABLED",
                 WaitForKillswitchEnabledState(),
-                #     transitions={
-                #         "succeeded": "DVL_ENABLE",
-                #         "preempted": "preempted",
-                #         "aborted": "aborted",
-                #     },
-                # )
-                # smach.StateMachine.add(
-                #     "DVL_ENABLE",
-                #     DVLEnableState(),
-                #     transitions={
-                #         "succeeded": "DELAY_FOR_DVL_ENABLE",
-                #         "preempted": "preempted",
-                #         "aborted": "aborted",
-                #     },
-                # )
-                # smach.StateMachine.add(
-                #     "DELAY_FOR_DVL_ENABLE",
-                #     DelayState(delay_time=4.4),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",
@@ -209,14 +176,14 @@ class InitializeState(smach.State):
                 "DISABLE_SLALOM_DETECTION",
                 SetDetectionState(camera_name="slalom", enable=False),
                 transitions={
-                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "succeeded": "DISABLE_FRONT_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_SEGMENT_DETECTION",
-                SetDetectionState(camera_name="segment", enable=False),
+                "DISABLE_FRONT_DETECTION",
+                SetDetectionState(camera_name="front", enable=False),
                 transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",
@@ -227,7 +194,7 @@ class InitializeState(smach.State):
                 "SET_DETECTION_TO_NONE",
                 SetDetectionFocusState(focus_object="none"),
                 transitions={
-                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "succeeded": "DISABLE_DA3_PIPELINE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -237,24 +204,6 @@ class InitializeState(smach.State):
                 ClearObjectMapState(),
                 transitions={
                     "succeeded": "CLEAR_KDE_MAP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLEAR_KDE_MAP",
-                ClearKDEMapState(),
-                transitions={
-                    "succeeded": "SET_START_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_START_FRAME",
-                SetStartFrameState(frame_name="mission_start_link"),
-                transitions={
-                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

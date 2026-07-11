@@ -17,8 +17,8 @@ cameras:
     frame: "taluy_mini/base_link/bottom_camera_optical_link"
     yolo_topic: "/yolo_result_bottom"
     handler: "bottom_camera_handler"
-    image_width: 1920
-    image_height: 1080
+    image_width: 768
+    image_height: 432
     id_tf_map:
       0: bin_blood_link
       1: bin_fire_link

@@ -416,6 +416,15 @@ class NavigateThroughSlalomMiniState(smach.State):
                     pipe_angle_stale_timeout=self.pipe_angle_stale_timeout,
                 ),
                 transitions={
+                    "succeeded": "DISABLE_SLALOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SLALOM_DETECTION",
+                SetDetectionState(camera_name="slalom", enable=False),
+                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
