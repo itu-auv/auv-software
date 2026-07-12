@@ -87,6 +87,8 @@ class NavigateThroughGateMiniState(smach.State):
         target_animal: str = "gate_survey_repair_link",
         pitch_torque: float = -100.0,
         pitch_timeout: float = 15.0,
+        pitch_depth: float = -0.65,
+        after_pitch_depth: float = -0.45,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -102,6 +104,8 @@ class NavigateThroughGateMiniState(smach.State):
         self.target_animal = target_animal
         self.pitch_torque = pitch_torque
         self.pitch_timeout = pitch_timeout
+        self.pitch_depth = pitch_depth
+        self.after_pitch_depth = after_pitch_depth
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -130,7 +134,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-0.55,
+                    depth=-0.45,
                     depth_threshold=0.25,
                 ),
                 transitions={
@@ -184,6 +188,7 @@ class NavigateThroughGateMiniState(smach.State):
                     "aborted": "aborted",
                 },
             )
+########################################### sequence 1
             smach.StateMachine.add(
                 "ilk_entrance",
                 AlignFrame(
@@ -219,6 +224,32 @@ class NavigateThroughGateMiniState(smach.State):
                     max_angular_velocity=0.0001,
                 ),
                 transitions={
+                    "succeeded": "depth_denemesi",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "depth_denemesi",
+                SetDepthState(
+                    depth=self.pitch_depth,
+                    depth_threshold=0.1,
+                    max_velocity=0.4,
+                ),
+                transitions={
+                    "succeeded": "depth_denemesi_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "depth_denemesi_2",
+                SetDepthState(
+                    depth=self.pitch_depth,
+                    depth_threshold=0.1,
+                    max_velocity=0.05,
+                ),
+                transitions={
                     "succeeded": "ilk_pitch",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -249,6 +280,18 @@ class NavigateThroughGateMiniState(smach.State):
                 "RESET_ODOMETRY_POSITION",
                 ResetOdometryPositionState(),
                 transitions={
+                    "succeeded": "depth_denemesi_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "depth_denemesi_3",
+                SetDepthState(
+                    depth=self.after_pitch_depth,
+                    depth_threshold=0.1,
+                ),
+                transitions={
                     "succeeded": "pitch_arasi_bakis",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -265,11 +308,137 @@ class NavigateThroughGateMiniState(smach.State):
                     confirm_duration=1.0,
                 ),
                 transitions={
+                    "succeeded": "ikinci_entrance",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+########################################### sequence 2
+            smach.StateMachine.add(
+                "ikinci_entrance",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="mini_gate_entrance",
+                    dist_threshold=0.2,
+                    yaw_threshold=0.2,
+                    confirm_duration=3.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.05,
+                    max_linear_velocity_y=0.02,
+                    max_angular_velocity=0.3,
+                ),
+                transitions={
+                    "succeeded": "yavas_entrance_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )            
+            smach.StateMachine.add(
+                "yavas_entrance_2",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="mini_gate_entrance",
+                    dist_threshold=100.0,
+                    yaw_threshold=1.0,
+                    confirm_duration=0.1,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.0001,
+                    max_linear_velocity_z=0.6,
+                    max_angular_velocity=0.0001,
+                ),
+                transitions={
+                    "succeeded": "depth_denemesi_5",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "depth_denemesi_5",
+                SetDepthState(
+                    depth=self.pitch_depth,
+                    depth_threshold=0.1,
+                    max_velocity=0.4,
+                ),
+                transitions={
+                    "succeeded": "depth_denemesi_6",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "depth_denemesi_6",
+                SetDepthState(
+                    depth=self.pitch_depth,
+                    depth_threshold=0.1,
+                    max_velocity=0.05,
+                ),
+                transitions={
+                    "succeeded": "ikinci_pitch",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ikinci_pitch",
+                PitchTwoTimes(
+                    pitch_torque=self.pitch_torque,
+                    timeout_s=self.pitch_timeout,
+                ),
+                transitions={
+                    "succeeded": "bekle_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "bekle_2",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSITION_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSITION_2",
+                ResetOdometryPositionState(),
+                transitions={
+                    "succeeded": "depth_denemesi_7",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )          
+            smach.StateMachine.add(
+                "depth_denemesi_7",
+                SetDepthState(
+                    depth=self.after_pitch_depth,
+                    depth_threshold=0.1,
+                ),
+                transitions={
+                    "succeeded": "pitch_arasi_bakis_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )  
+            smach.StateMachine.add(
+                "pitch_arasi_bakis_2",
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame=self.gate_search_frame,
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                    confirm_duration=1.0,
+                ),
+                transitions={
                     "succeeded": "m",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+#############################################################
             smach.StateMachine.add(
                 "m",
                 SetDepthState(
@@ -359,58 +528,8 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "amerika",
                 SetDepthState(
-                    depth=-0.6,
+                    depth=-0.7,
                 ),
-                transitions={
-                    "succeeded": "pitch_oncesi_yavas",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "pitch_oncesi_yavas",
-                AlignFrame(
-                    source_frame=self.base_link,
-                    target_frame="odom",
-                    dist_threshold=100.0,
-                    yaw_threshold=1.0,
-                    confirm_duration=0.1,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    max_linear_velocity=0.0001,
-                    max_linear_velocity_z=0.6,
-                    max_angular_velocity=0.0001,
-                ),
-                transitions={
-                    "succeeded": "ikinci_pitch",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ikinci_pitch",
-                PitchTwoTimes(
-                    pitch_torque=self.pitch_torque,
-                    timeout_s=self.pitch_timeout,
-                ),
-                transitions={
-                    "succeeded": "bekle_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "bekle_2",
-                DelayState(delay_time=4.0),
-                transitions={
-                    "succeeded": "RESET_ODOMETRY_POSITION_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "RESET_ODOMETRY_POSITION_2",
-                ResetOdometryPositionState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

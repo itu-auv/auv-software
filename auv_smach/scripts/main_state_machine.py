@@ -120,6 +120,8 @@ class MainStateMachineNode:
         self.roll_depth = -0.8
 
         self.slalom_depth = rospy.get_param("~slalom_depth", -1.1)
+        self.pitch_depth = rospy.get_param("~pitch_depth", -0.65)
+        self.after_pitch_depth = rospy.get_param("~after_pitch_depth", -0.45)
         self.slalom_mini_forward_wrench = rospy.get_param(
             "~slalom_mini_forward_wrench", 5.0
         )
@@ -417,6 +419,8 @@ class MainStateMachineNode:
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
                     "target_animal": gate_target_frame,
+                    "pitch_depth": self.pitch_depth,
+                    "after_pitch_depth": self.after_pitch_depth,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (

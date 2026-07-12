@@ -194,7 +194,7 @@ class InitializeState(smach.State):
                 "SET_DETECTION_TO_NONE",
                 SetDetectionFocusState(focus_object="none"),
                 transitions={
-                    "succeeded": "DISABLE_DA3_PIPELINE",
+                    "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -203,7 +203,7 @@ class InitializeState(smach.State):
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
                 transitions={
-                    "succeeded": "CLEAR_KDE_MAP",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
