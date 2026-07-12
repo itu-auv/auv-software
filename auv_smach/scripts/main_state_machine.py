@@ -31,6 +31,9 @@ BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 # uncomment this
 # BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_first", "bin_fire_second"]
 # BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_first", "bin_blood_second"]
+# also uncomment this if needed
+# BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_fire_link_0"]
+# BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_blood_link_0"]
 RANDOM_PINGER_MEMBER_STATES = {
     "NAVIGATE_TO_TORPEDO_TASK",
     "NAVIGATE_TO_OCTAGON_TASK",
