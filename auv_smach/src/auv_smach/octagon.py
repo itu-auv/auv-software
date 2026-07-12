@@ -258,7 +258,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_TO_COLLECT_OBJECT",
                 SetDepthState(
-                    depth=-1.1,
+                    depth=-1.03,
                     max_velocity=0.07,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
