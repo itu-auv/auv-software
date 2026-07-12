@@ -25,6 +25,7 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
+DEFAULT_TORPEDO_PRIORITY = "da3"
 BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
 BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 RANDOM_PINGER_MEMBER_STATES = {
@@ -66,9 +67,11 @@ class MainStateMachineNode:
         # Get initial values from dynamic reconfigure
         self.selected_role = DEFAULT_SELECTED_ROLE
         self.torpedo_map = DEFAULT_TORPEDO_MAP
+        self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
         self.slalom_mode = "close"
         self.slalom_direction = "left"
         self.octagon_start_from_table = False
+        self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -86,6 +89,9 @@ class MainStateMachineNode:
                 self.torpedo_map = current_config.get(
                     "torpedo_map", DEFAULT_TORPEDO_MAP
                 )
+                self.torpedo_priority = current_config.get(
+                    "torpedo_priority", DEFAULT_TORPEDO_PRIORITY
+                )
                 self.slalom_mode = current_config.get("slalom_mode", "close")
                 self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
@@ -97,7 +103,7 @@ class MainStateMachineNode:
                     "torpedo_exit_angle", 0.0
                 )
                 rospy.loginfo(
-                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -110,11 +116,19 @@ class MainStateMachineNode:
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
         )
-        self.torpedo_search_frame = "torpedo_map_link_kde"
-        self.bin_search_frame = "bin_basket_front_link_kde"
-        self.octagon_search_frame = "octagon_link_kde"
-        self.red_buoy_search_frame = "red_buoy_link_kde"
-        self.slalom_search_frame = "slalom_red_pipe_link_kde"
+        self.ignore_kde = rospy.get_param("~ignore_kde", False)
+        if self.ignore_kde:
+            self.torpedo_search_frame = "torpedo_map_link"
+            self.bin_search_frame = "bin_basket_front_link"
+            self.octagon_search_frame = "octagon_link"
+            self.red_buoy_search_frame = "red_buoy_link"
+            self.slalom_search_frame = "slalom_red_pipe_link"
+        else:
+            self.torpedo_search_frame = "torpedo_map_link_kde"
+            self.bin_search_frame = "bin_basket_front_link_kde"
+            self.octagon_search_frame = "octagon_link_kde"
+            self.red_buoy_search_frame = "red_buoy_link_kde"
+            self.slalom_search_frame = "slalom_red_pipe_link_kde"
 
         self.slalom_depth = -1.1
 
@@ -128,7 +142,7 @@ class MainStateMachineNode:
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
 
-        self.octagon_depth = -0.8
+        self.octagon_depth = -0.6
 
         self.pipeline_depth = -0.75
 
@@ -138,12 +152,13 @@ class MainStateMachineNode:
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_publish_rate = 1.0  # Hz
-        self.acoustic_tx_duration = 5.0  # seconds
+        self.acoustic_tx_topic = "acoustic/modem/transmitted"
 
         # Acoustic receiver parameters
-        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
-        self.acoustic_rx_timeout = 30.0  # seconds
+        self.acoustic_rx_expected_data = [1]
+        self.acoustic_rx_timeout = 60.0  # seconds
+        self.acoustic_rx_topic = "acoustic/modem/received"
+        self.acoustic_rx_accept_any_data = False
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -186,9 +201,10 @@ class MainStateMachineNode:
 
         selected_role = config.selected_role
         rospy.loginfo(
-            "Received reconfigure request: selected_role=%s, torpedo_map=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
             selected_role,
             config.torpedo_map,
+            config.torpedo_priority,
             config.slalom_mode,
             config.slalom_direction,
             config.gate_exit_angle,
@@ -200,6 +216,7 @@ class MainStateMachineNode:
         # Update parameters
         self.selected_role = selected_role
         self.torpedo_map = config.torpedo_map
+        self.torpedo_priority = config.torpedo_priority
         self.slalom_mode = config.slalom_mode
         self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
@@ -351,10 +368,12 @@ class MainStateMachineNode:
             "torpedo_exit_angle": torpedo_exit_angle_rad,
             "torpedo_fire_frames": torpedo_fire_frames,
             "torpedo_search_frame": self.torpedo_search_frame,
+            "torpedo_priority": self.torpedo_priority,
         }
         octagon_task_params = {
             "octagon_depth": self.octagon_depth,
             "start_from_table": self.octagon_start_from_table,
+            "remaining_targets_max_attempts": self.octagon_remaining_targets_max_attempts,
             "octagon_search_frame": self.octagon_search_frame,
             "octagon_target_role_frame": octagon_target_role_frame,
         }
@@ -414,13 +433,18 @@ class MainStateMachineNode:
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
-                {},
+                {
+                    "acoustic_data": self.acoustic_tx_data_value,
+                    "topic_name": self.acoustic_tx_topic,
+                },
             ),
             "ACOUSTIC_RECEIVER": (
                 AcousticReceiver,
                 {
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
+                    "topic_name": self.acoustic_rx_topic,
+                    "accept_any_data": self.acoustic_rx_accept_any_data,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (

@@ -6,9 +6,11 @@ from collections import defaultdict, deque
 import re
 
 import rospy
+import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import String
 from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
@@ -16,15 +18,53 @@ from tf import transformations as tf_transformations
 from utils.detection_utils import (
     calculate_angles_and_offsets,
     check_inside_image_bottom,
+    check_inside_image_bottom_bin,
 )
 from utils.segment_utils import (
     findposes_circle,
     findposes_rect,
+    get_segment_debug_color,
     publish_merged_debug_image,
 )
 
 
+class FixedWidthCompressedPublisher:
+    def __init__(self, publisher, bridge, width):
+        self.publisher = publisher
+        self.bridge = bridge
+        self.width = width
+
+    def publish(self, msg):
+        try:
+            image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            height = max(1, int(round(image.shape[0] * self.width / image.shape[1])))
+            interpolation = (
+                cv2.INTER_AREA if image.shape[1] > self.width else cv2.INTER_LINEAR
+            )
+            image = cv2.resize(image, (self.width, height), interpolation=interpolation)
+            dst_format = "png" if "png" in msg.format.lower() else "jpg"
+            resized_msg = self.bridge.cv2_to_compressed_imgmsg(
+                image, dst_format=dst_format
+            )
+            resized_msg.header = msg.header
+            self.publisher.publish(resized_msg)
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"Failed to resize segment debug image: {e}")
+            self.publisher.publish(msg)
+
+    def __getattr__(self, name):
+        return getattr(self.publisher, name)
+
+
 class SegmentCameraHandler:
+    OCTAGON_TABLE_SEGMENT_NAME = "octagon_table_segment_link"
+    OCTAGON_TASK_OBJECT_ORDER = (
+        "pill_link",
+        "nutbolt_link",
+        "electric_link",
+        "bandaid_link",
+    )
+
     def __init__(
         self,
         camera_config,
@@ -54,11 +94,18 @@ class SegmentCameraHandler:
             self.debug_image_topic += "/compressed"
         self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
-            rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1)
+            FixedWidthCompressedPublisher(
+                rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1),
+                self.bridge,
+                640,
+            )
             if self.debug_segment_pose
             else None
         )
         self.last_yaws = {}
+        self.task_object_list_pub = rospy.Publisher(
+            "octagon/object_list", String, queue_size=1
+        )
 
     def _mask_to_cv2(self, mask_msg):
         try:
@@ -91,12 +138,14 @@ class SegmentCameraHandler:
                     )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
+                    if not check_inside_image_bottom_bin(detection):
+                        return None
+
                     alt = self.shared_state.get("altitude")
                     if alt is not None:
                         hardcoded_distance = alt - self.table_height
                         # print("Hardcoded distance:", hardcoded_distance, prop.name)
                         return hardcoded_distance
-                    return None
                 else:
                     edges = geometry.get("edges_px", (None, None))
                     longest_edge, shortest_edge = edges
@@ -157,10 +206,42 @@ class SegmentCameraHandler:
 
         return Quaternion(0, 0, 0, 1)
 
+    def _publish_octagon_task_object_list(self, table_mask, object_masks):
+        if table_mask is None:
+            return
+
+        _, table_binary = cv2.threshold(table_mask, 0, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(
+            table_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if not contours:
+            return
+
+        table_area = table_binary.copy()
+        table_area[:] = 0
+        table_contour = max(contours, key=cv2.contourArea)
+        cv2.drawContours(table_area, [table_contour], -1, 255, thickness=cv2.FILLED)
+
+        visible_objects = []
+
+        for prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+            object_mask = object_masks.get(prop_name)
+            if object_mask is None or object_mask.shape[:2] != table_area.shape[:2]:
+                continue
+
+            _, object_binary = cv2.threshold(object_mask, 0, 255, cv2.THRESH_BINARY)
+            overlap = cv2.bitwise_and(table_area, object_binary)
+            if cv2.countNonZero(overlap) > 0:
+                visible_objects.append(prop_name)
+
+        self.task_object_list_pub.publish(String(data=",".join(visible_objects)))
+
     def handle(self, detection_msg: YoloResult):
         masks_msgs = list(detection_msg.masks) if detection_msg.masks else []
         stamp = detection_msg.header.stamp
         masks_by_id = defaultdict(deque)
+        octagon_table_mask = None
+        octagon_task_object_masks = {}
 
         # Prefer explicit mask IDs from mask headers.
         for mask_msg in masks_msgs:
@@ -193,6 +274,7 @@ class SegmentCameraHandler:
                     continue
 
                 prop = self.props[prop_name]
+                debug_color = get_segment_debug_color(prop_name)
                 mask_msg = (
                     masks_by_id[detection_id].popleft()
                     if masks_by_id.get(detection_id)
@@ -203,16 +285,27 @@ class SegmentCameraHandler:
                 if mask_msg is not None:
                     mask = self._mask_to_cv2(mask_msg)
                     if mask is not None:
+                        if prop_name == self.OCTAGON_TABLE_SEGMENT_NAME:
+                            octagon_table_mask = mask
+                        elif prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+                            octagon_task_object_masks[prop_name] = mask
+
                         last_yaw = self.last_yaws.get(detection_id)
                         if prop_name == "electric_link" or prop_name == "bandaid_link":
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_rect"
                         elif prop_name == "nutbolt_link" or prop_name == "pill_link":
                             geometry = findposes_circle(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "object_circle"
@@ -222,7 +315,10 @@ class SegmentCameraHandler:
                             "octagon_table_segment_link",
                         ):
                             geometry = findposes_rect(
-                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                                mask,
+                                last_yaw=last_yaw,
+                                debug=self.debug_segment_pose,
+                                debug_color=debug_color,
                             )
                             if geometry is not None:
                                 geometry["type"] = "basket"
@@ -239,6 +335,7 @@ class SegmentCameraHandler:
                         "prop_name": prop_name,
                         "geometry": geometry,
                         "bbox_center": detection.bbox.center,
+                        "debug_color": debug_color,
                     }
 
                 distance = self._estimate_distance(prop, detection, geometry)
@@ -313,6 +410,9 @@ class SegmentCameraHandler:
                     f"Segment detection processing failed for id={detection_id}: {e}",
                 )
                 continue
+        self._publish_octagon_task_object_list(
+            octagon_table_mask, octagon_task_object_masks
+        )
         if self.debug_segment_pose and debug_items_by_id:
             publish_merged_debug_image(
                 self.segment_pose_debug_pub,

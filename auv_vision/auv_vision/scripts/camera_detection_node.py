@@ -8,6 +8,7 @@ from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import tf2_ros
@@ -72,7 +73,7 @@ class CameraDetectionNode:
             "front_kde": True,
             "slalom": False,
             "bottom": False,
-            "torpedo": False,
+            "torpedo": True,
             "bottom_seg": False,
         }
 
@@ -87,8 +88,29 @@ class CameraDetectionNode:
             cam_key: rospy.ServiceProxy(service_name, SetBool)
             for cam_key, service_name in self.tracker_enable_services.items()
         }
+        tracker_enabled_topics = {
+            cam_key: self._enabled_topic_from_enable_service(service_name)
+            for cam_key, service_name in self.tracker_enable_services.items()
+        }
+        tracker_enabled_topics.update(rospy.get_param("~tracker_enabled_topics", {}))
+        tracker_enabled_topics.update(
+            rospy.get_param("~tracker_enable_status_topics", {})
+        )
+        self.tracker_enabled_topics = tracker_enabled_topics
+        self.tracker_enabled_status = {
+            cam_key: None for cam_key in self.tracker_enable_services
+        }
         self.tracker_enable_applied = {
             cam_key: None for cam_key in self.tracker_enable_services
+        }
+        self.tracker_enabled_subscribers = {
+            cam_key: rospy.Subscriber(
+                topic,
+                Bool,
+                lambda msg, k=cam_key: self._handle_tracker_enabled_status(k, msg),
+                queue_size=1,
+            )
+            for cam_key, topic in self.tracker_enabled_topics.items()
         }
 
         # Create handlers for each camera
@@ -186,6 +208,18 @@ class CameraDetectionNode:
             rospy.Duration(1.0), self._sync_tracker_enable_states
         )
 
+    @staticmethod
+    def _enabled_topic_from_enable_service(service_name):
+        service_name = service_name.rstrip("/")
+        if service_name.endswith("/enable"):
+            return service_name[: -len("/enable")] + "/enabled"
+        if service_name.endswith("enable"):
+            return service_name[: -len("enable")] + "enabled"
+        return service_name + "/enabled"
+
+    def _handle_tracker_enabled_status(self, cam_key, msg):
+        self.tracker_enabled_status[cam_key] = bool(msg.data)
+
     def _dispatch(self, msg, cam_key):
         if not self.camera_enabled.get(cam_key, False):
             return
@@ -245,8 +279,19 @@ class CameraDetectionNode:
     def _sync_tracker_enable_states(self, _event):
         for cam_key in self.tracker_enable_proxies:
             enabled = self.camera_enabled.get(cam_key, False)
-            if self.tracker_enable_applied.get(cam_key) == enabled:
+            tracker_enabled = self.tracker_enabled_status.get(cam_key)
+            if tracker_enabled == enabled:
+                self.tracker_enable_applied[cam_key] = enabled
                 continue
+            if tracker_enabled is not None:
+                rospy.logwarn_throttle(
+                    5.0,
+                    f"YOLO tracker '{cam_key}' enabled={tracker_enabled} "
+                    f"differs from camera_detection enabled={enabled}; resyncing",
+                )
+            elif self.tracker_enable_applied.get(cam_key) == enabled:
+                continue
+
             self._set_tracker_enabled(cam_key, enabled, warn=False)
 
     def _handle_enable_camera(self, cam_key, enabled):

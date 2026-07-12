@@ -1073,7 +1073,17 @@ class CheckAlignmentState(smach.State):
                     yaw_with_offset,
                     abs(
                         angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi / 2
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
                             0, yaw + self.angle_offset + math.pi
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + 3 * math.pi / 2
                         )
                     ),
                 )
@@ -1281,6 +1291,16 @@ class SetPlanningNotActive(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
+class GravityZEnable(smach_ros.ServiceState):
+    def __init__(self, enable):
+        smach_ros.ServiceState.__init__(
+            self,
+            "gravity_compensation_estimator/set_apply_updates",
+            SetBool,
+            request=SetBoolRequest(data=enable),
         )
 
 

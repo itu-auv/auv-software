@@ -5,11 +5,14 @@
   <arg name="sim" default="true" />
   <arg name="use_gui" default="true" />
   <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
+  <arg name="octagon_object_x" default="13.0" />
+  <arg name="octagon_object_y" default="-4.25" />
+  <arg name="octagon_object_z" default="-1.3" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
   <arg name="pinger_mode" default="octagon" />
   <arg name="pinger_publish_rate" default="1.0" />
-  <arg name="spawn_octagon_objects" value="$(eval 'octagon' in [object.strip() for object in arg('objects').split(',')])" />
+  <arg name="spawn_octagon_objects" value="$(eval any(object.strip() in ['octagon', 'octagon_table'] for object in arg('objects').split(',')))" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
 
@@ -43,6 +46,9 @@
     </node>
     <!-- Model Spawner Service Node (generic) -->
     <node name="spawn_model_server" pkg="auv_sim_bridge" type="sim_bottle_mock.py" output="screen" if="$(arg spawn_octagon_objects)">
+      <param name="table_center_x" value="$(arg octagon_object_x)" />
+      <param name="table_center_y" value="$(arg octagon_object_y)" />
+      <param name="auto_spawn_z" value="$(arg octagon_object_z)" />
       <!-- service name remapped to ladle by default; the spawner script is configurable via params -->
       <remap from="actuators/ladle/spawn" to="actuators/ladle/spawn" />
     </node>

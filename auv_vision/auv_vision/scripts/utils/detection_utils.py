@@ -22,10 +22,10 @@ class CameraCalibration:
         ).get_camera_info()
 
     def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
-        fx = self.calibration.K[0]
-        fy = self.calibration.K[4]
-        cx = self.calibration.K[2]
-        cy = self.calibration.K[5]
+        fx = self.calibration.P[0]
+        fy = self.calibration.P[5]
+        cx = self.calibration.P[2]
+        cy = self.calibration.P[6]
         norm_x = (pixel_coordinates[0] - cx) / fx
         norm_y = (pixel_coordinates[1] - cy) / fy
         angle_x = math.atan(norm_x)
@@ -33,12 +33,12 @@ class CameraCalibration:
         return angle_x, angle_y
 
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
-        focal_length = self.calibration.K[4]
+        focal_length = self.calibration.P[5]
         distance = (real_height * focal_length) / measured_height
         return distance
 
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
-        focal_length = self.calibration.K[0]
+        focal_length = self.calibration.P[0]
         distance = (real_width * focal_length) / measured_width
         return distance
 
