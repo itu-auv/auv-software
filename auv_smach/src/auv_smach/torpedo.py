@@ -113,6 +113,9 @@ class ResolveTorpedoClosestFrameState(smach.State):
         enabled: bool,
         wait_timeout: float = 2.0,
     ) -> bool:
+        print(
+            f"Setting torpedo closest frame source '{TORPEDO_CLOSEST_METHOD_SERVICES[method]}' enabled={enabled}"
+        )
         return self._set_bool_service(
             TORPEDO_CLOSEST_METHOD_SERVICES[method],
             enabled,
@@ -296,7 +299,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_MAP_DEPTH",
-                SetDepthState(depth=-0.5),
+                SetDepthState(depth=torpedo_map_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -535,13 +538,34 @@ class TorpedoTaskState(smach.State):
                     source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
-                    dist_threshold=0.02,
+                    dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=3.0,
+                    confirm_duration=1.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
+                    use_frame_depth=True,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME_2_HIZLI_ALIGN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TORPEDO_FIRE_FRAME_2_HIZLI_ALIGN",
+                AlignFrame(
+                    source_frame=f"{self.base_link}/torpedo_bottom_link",
+                    target_frame=self.torpedo_fire_frames[1],
+                    angle_offset=0.0,
+                    dist_threshold=0.02,
+                    yaw_threshold=0.05,
+                    confirm_duration=3.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.05,
                     use_frame_depth=True,
                 ),
                 transitions={
@@ -571,6 +595,15 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_HOLES_DETECTION",
                 SetDetectionState(camera_name="torpedo", enable=False),
+                transitions={
+                    "succeeded": "ac_artik",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ac_artik",
+                GravityZEnable(enable=True),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_EXIT",
                     "preempted": "preempted",

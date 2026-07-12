@@ -26,24 +26,24 @@ class GravityCompensationEstimatorNode:
         self.active_max_z = float(rospy.get_param("~active_max_z", -0.35))
 
         self.stable_window = rospy.Duration(
-            float(rospy.get_param("~stable_window", 3.0))
+            float(rospy.get_param("~stable_window", 5.0))
         )
         self.sample_window_slack = rospy.Duration(
             float(rospy.get_param("~sample_window_slack", 1.0))
         )
-        self.min_samples = int(rospy.get_param("~min_samples", 20))
+        self.min_samples = int(rospy.get_param("~min_samples", 80))
         self.z_stability_threshold = float(
-            rospy.get_param("~z_stability_threshold", 0.05)
+            rospy.get_param("~z_stability_threshold", 0.03)
         )
         self.max_vertical_velocity = float(
-            rospy.get_param("~max_vertical_velocity", 0.015)
+            rospy.get_param("~max_vertical_velocity", 0.01)
         )
         self.max_wrench_z_stddev = float(rospy.get_param("~max_wrench_z_stddev", 3.0))
         self.max_horizontal_velocity = float(
             rospy.get_param("~max_horizontal_velocity", 0.05)
         )
         self.max_horizontal_wrench = float(
-            rospy.get_param("~max_horizontal_wrench", 8.0)
+            rospy.get_param("~max_horizontal_wrench", 5.0)
         )
         self.use_odometry_twist = self._get_bool_param("~use_odometry_twist", False)
 
