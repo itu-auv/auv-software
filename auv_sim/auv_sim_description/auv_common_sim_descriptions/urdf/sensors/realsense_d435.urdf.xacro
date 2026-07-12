@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="realsense_d435_sim"
-               params="name reference_name:='${name}' frame_name:='${name}_depth_optical_frame' depth_image_topic:='depth/image_raw' depth_camera_info_topic:='depth/camera_info'">
+  <xacro:macro
+    name="realsense_d435_sim"
+    params="name reference_name:='${name}' frame_name:='${name}_depth_optical_frame' depth_image_topic:='depth/image_raw' depth_camera_info_topic:='depth/camera_info'"
+  >
     <gazebo reference="${reference_name}">
       <sensor type="depth" name="${name}_depth_sensor">
         <update_rate>30.0</update_rate>

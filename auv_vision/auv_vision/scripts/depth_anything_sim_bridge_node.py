@@ -22,9 +22,7 @@ class DepthAnythingSimBridge:
         self.camera_info_sub = rospy.Subscriber(
             "input_camera_info", CameraInfo, self._camera_info_callback, queue_size=1
         )
-        self.enable_service = rospy.Service(
-            "enable", SetBool, self._enable_callback
-        )
+        self.enable_service = rospy.Service("enable", SetBool, self._enable_callback)
 
         rospy.loginfo(
             "[DA3-SIM] Bridge ready (%s)",
