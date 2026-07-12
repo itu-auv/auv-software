@@ -17,6 +17,9 @@
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>
   <xacro:if value="$(arg pointcloud_filter)">
-    <xacro:realsense_d435_sim name="${namespace}/camera"/>
+    <xacro:realsense_d435_sim
+      name="${namespace}/camera"
+      reference_name="${namespace}/base_link/torpedo_camera_link"
+      frame_name="${namespace}/base_link/torpedo_camera_optical_link"/>
   </xacro:if>
 </robot>

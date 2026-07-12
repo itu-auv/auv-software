@@ -40,6 +40,7 @@ catkin_install_python(
     scripts/sim_tracker_node.py
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
+    scripts/depth_anything_sim_bridge_node.py
     scripts/depth_anything_zmq_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
