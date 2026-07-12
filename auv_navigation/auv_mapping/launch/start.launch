@@ -93,6 +93,7 @@
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
       <param name="yolo_result_topic" value="$(arg slalom_yolo_result_topic)" />
       <param name="image_topic" value="$(arg slalom_image_topic)" />
+      <param name="min_bbox_height_percent" value="15.0" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
     <node pkg="auv_mapping" type="kde_object_mapper.py" name="kde_object_mapper" output="screen">

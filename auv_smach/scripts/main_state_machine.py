@@ -123,18 +123,18 @@ class MainStateMachineNode:
         self.pitch_depth = rospy.get_param("~pitch_depth", -0.65)
         self.after_pitch_depth = rospy.get_param("~after_pitch_depth", -0.45)
         self.slalom_mini_forward_wrench = rospy.get_param(
-            "~slalom_mini_forward_wrench", 5.0
+            "~slalom_mini_forward_wrench", 10.0
         )
         self.slalom_mini_lateral_kp = rospy.get_param("~slalom_mini_lateral_kp", 0.0)
         self.slalom_mini_lateral_kd = rospy.get_param("~slalom_mini_lateral_kd", 0.0)
         self.slalom_mini_max_lateral_wrench = rospy.get_param(
-            "~slalom_mini_max_lateral_wrench", 30.0
+            "~slalom_mini_max_lateral_wrench", 3.0
         )
         self.slalom_mini_max_angular_velocity = rospy.get_param(
-            "~slalom_mini_max_angular_velocity", 0.15
+            "~slalom_mini_max_angular_velocity", 0.4
         )
         self.slalom_mini_follow_duration = rospy.get_param(
-            "~slalom_mini_follow_duration", 120.0
+            "~slalom_mini_follow_duration", 180.0
         )
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.

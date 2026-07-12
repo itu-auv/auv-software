@@ -8,6 +8,7 @@ import rospy
 import tf2_geometry_msgs  # noqa: F401 - registers geometry_msgs transforms
 import tf2_ros
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
+from auv_msgs.srv import SetFloat32, SetFloat32Response
 from cv_bridge import CvBridge
 from geometry_msgs.msg import (
     PoseStamped,
@@ -49,6 +50,17 @@ class MiniSlalomAnglePublisher:
         self.slalom_real_height = rospy.get_param("~slalom_real_height", 0.9)
         self.slalom_real_width = rospy.get_param("~slalom_real_width", 0.0254)
         self.max_red_frame_distance = rospy.get_param("~max_red_frame_distance", 30.0)
+        self.min_bbox_height_percent = float(
+            rospy.get_param("~min_bbox_height_percent", 15.0)
+        )
+        if not 0.0 <= self.min_bbox_height_percent <= 100.0:
+            rospy.logwarn(
+                "min_bbox_height_percent must be between 0 and 100; clamping %.2f",
+                self.min_bbox_height_percent,
+            )
+            self.min_bbox_height_percent = max(
+                0.0, min(100.0, self.min_bbox_height_percent)
+            )
 
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
         self.pipe_angle_full_height_ratio = rospy.get_param(
@@ -98,6 +110,11 @@ class MiniSlalomAnglePublisher:
             SetBool,
             self.set_two_red_midpoint_reference_enabled_callback,
         )
+        rospy.Service(
+            "slalom/min_bbox_height_percent/set",
+            SetFloat32,
+            self.set_min_bbox_height_percent_callback,
+        )
         self.set_pipe_angle_debug_enabled(
             rospy.get_param("~pipe_angle_debug_enabled", False)
         )
@@ -119,6 +136,26 @@ class MiniSlalomAnglePublisher:
         self.set_pipe_angle_debug_enabled(req.data)
         state = "enabled" if self.pipe_angle_debug_enabled else "disabled"
         return SetBoolResponse(success=True, message=f"pipe angle debug {state}")
+
+    def set_min_bbox_height_percent_callback(self, req):
+        value = float(req.value)
+        if not math.isfinite(value) or not 0.0 <= value <= 100.0:
+            return SetFloat32Response(
+                success=False,
+                message="min bbox height percent must be between 0 and 100",
+            )
+
+        self.min_bbox_height_percent = value
+        min_height_px = self.cam.height * value / 100.0
+        rospy.loginfo(
+            "Slalom minimum bbox height set to %.2f%% (%.1f px)",
+            value,
+            min_height_px,
+        )
+        return SetFloat32Response(
+            success=True,
+            message=f"minimum bbox height set to {value:.2f}% ({min_height_px:.1f} px)",
+        )
 
     def set_pipe_angle_debug_enabled(self, enabled: bool):
         enabled = bool(enabled)
@@ -253,6 +290,18 @@ class MiniSlalomAnglePublisher:
 
             bbox = detection.bbox
             if bbox.size_x <= 0 or bbox.size_y <= 0:
+                continue
+            min_bbox_height = self.cam.height * self.min_bbox_height_percent / 100.0
+            if bbox.size_y < min_bbox_height:
+                rospy.logdebug_throttle(
+                    2.0,
+                    "Ignoring slalom bbox with height %.1f px; minimum is %.1f px "
+                    "(%.2f%% of %d px image height)",
+                    bbox.size_y,
+                    min_bbox_height,
+                    self.min_bbox_height_percent,
+                    self.cam.height,
+                )
                 continue
 
             camera_angle_x = self.pixel_horizontal_angle(bbox.center.x)
@@ -497,6 +546,7 @@ class MiniSlalomAnglePublisher:
 
         debug_image, frame_id = self.get_pipe_angle_debug_image()
         self.draw_pipe_angle_context(debug_image, angle_detections)
+        self.draw_min_bbox_height_threshold(debug_image)
         self.draw_pipe_angle_points(debug_image, debug_points)
         self.draw_cmd_pose_yaw(debug_image)
 
@@ -573,6 +623,40 @@ class MiniSlalomAnglePublisher:
                 image, detection["right"], detection["bottom"]
             )
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 1)
+
+    def draw_min_bbox_height_threshold(self, image):
+        image_height, image_width = image.shape[:2]
+        threshold_height = image_height * self.min_bbox_height_percent / 100.0
+        threshold_px = int(round(threshold_height))
+        x = max(0, image_width - 10)
+        center_y = image_height // 2
+        y1 = max(0, center_y - threshold_px // 2)
+        y2 = min(image_height - 1, y1 + threshold_px)
+        color = (0, 165, 255)
+
+        cv2.line(image, (x, y1), (x, y2), color, 3, cv2.LINE_AA)
+        cv2.line(
+            image,
+            (x - 8, y1),
+            (image_width - 1, y1),
+            color,
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.line(
+            image,
+            (x - 8, y2),
+            (image_width - 1, y2),
+            color,
+            3,
+            cv2.LINE_AA,
+        )
+        self.draw_debug_label(
+            image,
+            f"min bbox: {self.min_bbox_height_percent:.2f}% / "
+            f"{self.cam.height * self.min_bbox_height_percent / 100.0:.1f} px",
+            (max(4, image_width - 290), 24),
+        )
 
     def draw_pipe_angle_points(self, image, debug_points):
         top_labels = []

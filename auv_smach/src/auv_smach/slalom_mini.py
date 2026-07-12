@@ -334,12 +334,12 @@ class NavigateThroughSlalomMiniState(smach.State):
         self,
         slalom_depth: float,
         white_side: str = "right",
-        forward_wrench: float = 0.0,
+        forward_wrench: float = 10.0,
         lateral_kp: float = 0.0,
         lateral_kd: float = 0.0,
-        max_lateral_wrench: float = 30.0,
-        max_angular_velocity: float = 0.15,
-        follow_duration: float = 0.0,
+        max_lateral_wrench: float = 3.0,
+        max_angular_velocity: float = 0.4,
+        follow_duration: float = 180.0,
         pipe_angle_stale_timeout: float = 3.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -377,7 +377,7 @@ class NavigateThroughSlalomMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
-                SetDepthState(depth=-0.6),
+                SetDepthState(depth=-1.2),
                 transitions={
                     "succeeded": "RESET_ODOMETRY_POSE",
                     "preempted": "preempted",

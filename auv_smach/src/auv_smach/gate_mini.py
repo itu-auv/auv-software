@@ -134,8 +134,8 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-0.45,
-                    depth_threshold=0.25,
+                    depth=self.after_pitch_depth,
+                    depth_threshold=0.1,
                 ),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
@@ -196,11 +196,11 @@ class NavigateThroughGateMiniState(smach.State):
                     target_frame="mini_gate_entrance",
                     dist_threshold=0.2,
                     yaw_threshold=0.2,
-                    confirm_duration=3.0,
+                    confirm_duration=1.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.05,
-                    max_linear_velocity_y=0.02,
+                    max_linear_velocity_y=0.001,
                     max_angular_velocity=0.3,
                 ),
                 transitions={
@@ -269,7 +269,7 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "bekle",
-                DelayState(delay_time=4.0),
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "RESET_ODOMETRY_POSITION",
                     "preempted": "preempted",
@@ -321,11 +321,11 @@ class NavigateThroughGateMiniState(smach.State):
                     target_frame="mini_gate_entrance",
                     dist_threshold=0.2,
                     yaw_threshold=0.2,
-                    confirm_duration=3.0,
+                    confirm_duration=1.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.05,
-                    max_linear_velocity_y=0.02,
+                    max_linear_velocity_y=0.001,
                     max_angular_velocity=0.3,
                 ),
                 transitions={
@@ -394,7 +394,7 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "bekle_2",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "RESET_ODOMETRY_POSITION_2",
                     "preempted": "preempted",
@@ -442,7 +442,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "m",
                 SetDepthState(
-                    depth=-0.75,
+                    depth=-1.1,
                 ),
                 transitions={
                     "succeeded": "n",
@@ -520,22 +520,22 @@ class NavigateThroughGateMiniState(smach.State):
                 "kapa_gate_sonda",
                 TransformServiceEnableState(req=False),
                 transitions={
-                    "succeeded": "amerika",  # ev için eklendi robosubda sil
+                    "succeeded": "succeeded",  # ev için eklendi robosubda sil
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            smach.StateMachine.add(
-                "amerika",
-                SetDepthState(
-                    depth=-0.7,
-                ),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "amerika",
+            #     SetDepthState(
+            #         depth=-1,
+            #     ),
+            #     transitions={
+            #         "succeeded": "succeeded",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
 
     def execute(self, userdata):
         rospy.logdebug(

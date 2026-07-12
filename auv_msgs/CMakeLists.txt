@@ -41,6 +41,7 @@ add_service_files(
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv
+  SetFloat32.srv
   SetWaypoint.srv
 )
 

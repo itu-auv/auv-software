@@ -35,15 +35,15 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
-    <arg name="slalom_depth" default="-1.1"/>
-    <arg name="pitch_depth" default="-0.65"/>
-    <arg name="after_pitch_depth" default="-0.45"/>
+    <arg name="slalom_depth" default="-1.2"/>
+    <arg name="pitch_depth" default="-0.8"/>
+    <arg name="after_pitch_depth" default="-0.6"/>
     <arg name="slalom_mini_forward_wrench" default="0.0"/>
     <arg name="slalom_mini_lateral_kp" default="0.0"/>
     <arg name="slalom_mini_lateral_kd" default="0.0"/>
-    <arg name="slalom_mini_max_lateral_wrench" default="30.0"/>
-    <arg name="slalom_mini_max_angular_velocity" default="0.15"/>
-    <arg name="slalom_mini_follow_duration" default="0.0"/>
+    <arg name="slalom_mini_max_lateral_wrench" default="3.0"/>
+    <arg name="slalom_mini_max_angular_velocity" default="0.4"/>
+    <arg name="slalom_mini_follow_duration" default="180.0"/>
     <arg name="ignore_kde" default="true" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
