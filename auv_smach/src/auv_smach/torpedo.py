@@ -299,7 +299,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_MAP_DEPTH",
-                SetDepthState(depth=-0.5),
+                SetDepthState(depth=torpedo_map_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
