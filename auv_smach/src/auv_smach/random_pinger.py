@@ -10,7 +10,12 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
-from auv_smach.common import CancelAlignControllerState, DynamicPathState, SetDepthState, SearchForPropState
+from auv_smach.common import (
+    CancelAlignControllerState,
+    DynamicPathState,
+    SetDepthState,
+    SearchForPropState,
+)
 from auv_smach.initialize import DelayState, SetStartFrameState
 from auv_smach.octagon import OctagonSurfaceState, OctagonTaskState
 from auv_smach.tf_utils import get_base_link, get_tf_buffer
