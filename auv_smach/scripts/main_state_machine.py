@@ -109,8 +109,8 @@ class MainStateMachineNode:
             rospy.logwarn(f"Could not get current configuration: {e}")
             rospy.loginfo("Using default values")
 
-        self.gate_search_depth = -0.7
-        self.gate_depth = -1.35
+        self.gate_search_depth = -0.6
+        self.gate_depth = -1.0
         self.roll_depth = -0.8
 
         self.gate_look_at_frame = (
