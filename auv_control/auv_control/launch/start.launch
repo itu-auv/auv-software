@@ -44,6 +44,7 @@
     <node pkg="auv_control" type="gravity_compensation_estimator.py"
       name="gravity_compensation_estimator" output="screen">
       <param name="controller_reconfigure_server" value="auv_control_node" />
+      <param name="use_odometry_twist" value="$(eval arg('namespace') == 'taluy')" type="bool" />
 
       <remap from="odometry" to="odometry" />
       <remap from="wrench" to="wrench" />

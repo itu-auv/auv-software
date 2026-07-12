@@ -44,6 +44,7 @@
     <arg name="slalom_mini_max_lateral_wrench" default="30.0"/>
     <arg name="slalom_mini_max_angular_velocity" default="0.15"/>
     <arg name="slalom_mini_follow_duration" default="0.0"/>
+    <arg name="ignore_kde" default="true" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -83,6 +84,7 @@
             <param name="slalom_mini_max_lateral_wrench" value="$(arg slalom_mini_max_lateral_wrench)"/>
             <param name="slalom_mini_max_angular_velocity" value="$(arg slalom_mini_max_angular_velocity)"/>
             <param name="slalom_mini_follow_duration" value="$(arg slalom_mini_follow_duration)"/>
+            <param name="ignore_kde" value="$(arg ignore_kde)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>

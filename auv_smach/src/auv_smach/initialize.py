@@ -77,6 +77,16 @@ class DVLEnableState(smach_ros.ServiceState):
         )
 
 
+class DisableDA3PipelineState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "enable_da3_publisher",
+            SetBool,
+            request=SetBoolRequest(data=False),
+        )
+
+
 class DelayState(smach.State):
     def __init__(self, delay_time):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])

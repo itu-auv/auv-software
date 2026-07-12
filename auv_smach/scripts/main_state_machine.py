@@ -139,11 +139,19 @@ class MainStateMachineNode:
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
         )
-        self.torpedo_search_frame = "torpedo_map_link_kde"
-        self.bin_search_frame = "bin_basket_front_link_kde"
-        self.octagon_search_frame = "octagon_link_kde"
-        self.red_buoy_search_frame = "red_buoy_link_kde"
-        self.slalom_search_frame = "slalom_red_pipe_link_kde"
+        self.ignore_kde = rospy.get_param("~ignore_kde", False)
+        if self.ignore_kde:
+            self.torpedo_search_frame = "torpedo_map_link"
+            self.bin_search_frame = "bin_basket_front_link"
+            self.octagon_search_frame = "octagon_link"
+            self.red_buoy_search_frame = "red_buoy_link"
+            self.slalom_search_frame = "slalom_red_pipe_link"
+        else:
+            self.torpedo_search_frame = "torpedo_map_link_kde"
+            self.bin_search_frame = "bin_basket_front_link_kde"
+            self.octagon_search_frame = "octagon_link_kde"
+            self.red_buoy_search_frame = "red_buoy_link_kde"
+            self.slalom_search_frame = "slalom_red_pipe_link_kde"
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -155,7 +163,7 @@ class MainStateMachineNode:
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
 
-        self.octagon_depth = -0.8
+        self.octagon_depth = -0.6
 
         self.pipeline_depth = -0.75
 
