@@ -694,6 +694,29 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_BALL_DROP_1",
                 DelayState(delay_time=5.0),
                 transitions={
+                    "succeeded": "CHECK_TARGET_FRAME_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_TARGET_FRAME_2",
+                CheckTargetFrameAvailable(
+                    target_frame=target_frames[1],
+                ),
+                transitions={
+                    "target_found": "ALLIGN_TO_SECOND_BASKET",
+                    "need_search": "SEARCH_FOR_TARGET_2",
+                    "preempted": "preempted",
+                },
+            )
+            smach.StateMachine.add(
+                "SEARCH_FOR_TARGET_2",
+                BinSearchSequenceState(
+                    base_link=self.base_link,
+                    target_frame=target_frames[1],
+                ),
+                transitions={
                     "succeeded": "ALLIGN_TO_SECOND_BASKET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -703,7 +726,7 @@ class BinTaskState(smach.State):
                 "ALLIGN_TO_SECOND_BASKET",
                 AlignFrame(
                     source_frame=self.base_link + "/ball_dropper_2_link",
-                    target_frame=target_frames[0],
+                    target_frame=target_frames[1],
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
