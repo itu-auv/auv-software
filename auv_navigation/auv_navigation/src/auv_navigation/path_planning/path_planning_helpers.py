@@ -167,7 +167,10 @@ class PathPlanningHelper:
             List[PoseStamped]: A list of interpolated PoseStamped messages.
         """
         poses = []
-        blend_start = 0.9  # start blending from look-at to target yaw at 90% of path
+        # Use an absolute distance instead of path progress. Dynamic paths are
+        # replanned from the current vehicle pose, so a percentage-based window
+        # moves on every replan and may never converge to the target yaw.
+        yaw_blend_distance = 1.0
 
         for t in np.linspace(0, 1, num_waypoints):
             pose = PoseStamped()
@@ -189,8 +192,8 @@ class PathPlanningHelper:
                 if dist > 1e-3 and t < 1.0:
                     look_at_yaw = np.arctan2(dy, dx)
 
-                    if t >= blend_start:
-                        blend_t = (t - blend_start) / (1.0 - blend_start)
+                    if dist <= yaw_blend_distance:
+                        blend_t = 1.0 - dist / yaw_blend_distance
                         yaw_diff = (target_euler[2] - look_at_yaw + np.pi) % (
                             2 * np.pi
                         ) - np.pi
