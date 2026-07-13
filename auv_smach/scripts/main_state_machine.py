@@ -109,9 +109,9 @@ class MainStateMachineNode:
             rospy.logwarn(f"Could not get current configuration: {e}")
             rospy.loginfo("Using default values")
 
-        self.gate_search_depth = -0.6
-        self.gate_depth = -1.0
-        self.roll_depth = -0.8
+        self.gate_search_depth = -0.4
+        self.gate_depth = -0.7
+        self.roll_depth = -0.7
 
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
