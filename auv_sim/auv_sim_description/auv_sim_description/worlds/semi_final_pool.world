@@ -699,7 +699,7 @@
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>6.926375 -17.302187 -2.000747 1.570033 -0.000225 -3.136994</pose>
+      <pose>6.282205 -17.305149 -2.000602 1.570033 -0.000225 -3.136994</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
@@ -818,12 +818,12 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>0.752265 -20.902666 -1.35 0 0 1.57</pose>
+      <pose>1.133705 -20.902969 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>2.252740 -19.808674 -1.35 0 0 1.57</pose>
+      <pose>2.721079 -19.809048 -1.35 0 0 1.57</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>
