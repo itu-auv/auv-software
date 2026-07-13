@@ -69,10 +69,18 @@ class FrontCameraHandler:
                 self._process_altitude_projection(detection, stamp)
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
+            prop_name = self.id_tf_map[detection_id]
+            octagon_links = (
+                "octagon_repair_link",
+                "octagon_rescue_link",
+                "octagon_search_link",
+                "octagon_survey_link",
+            )
+            if prop_name not in octagon_links and not check_inside_image(
+                detection, self.image_width, self.image_height
+            ):
                 continue
 
-            prop_name = self.id_tf_map[detection_id]
             if prop_name not in self.props:
                 continue
 
