@@ -639,7 +639,7 @@
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
-      <pose>-5 -21.75 -1.5 0 0 0</pose>
+      <pose>-5 -22.991823 -1.5 0 0 0</pose>
     </include>
     <!-- **** 4 × TORPEDO TARGET **** -->
     <include>
@@ -660,7 +660,7 @@
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>9 -15.7 -2 1.57 0 -2.85</pose>
+      <pose>6.920997 -16.132641 -1.999854 1.570033 -0.000225 -3.136994</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
@@ -681,7 +681,7 @@
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_4</name>
-      <pose>5.39 -18 -1.6 0 0 0</pose>
+      <pose>11.354712 -26.096647 -1.6 0 0 0</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
@@ -774,17 +774,17 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_1</name>
-      <pose>-0.75 -23.25 -1.35 0 0 1.57</pose>
+      <pose>-0.747091 -19.596355 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>0.75 -22.5 -1.35 0 0 1.57</pose>
+      <pose>0.752448 -20.672817 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>2.25 -23.25 -1.35 0 0 1.57</pose>
+      <pose>2.252740 -19.808674 -1.35 0 0 1.57</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>
