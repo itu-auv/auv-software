@@ -125,16 +125,17 @@ class MainStateMachineNode:
         self.slalom_mini_forward_wrench = rospy.get_param(
             "~slalom_mini_forward_wrench", 10.0
         )
-        self.slalom_mini_lateral_kp = rospy.get_param("~slalom_mini_lateral_kp", 0.0)
-        self.slalom_mini_lateral_kd = rospy.get_param("~slalom_mini_lateral_kd", 0.0)
-        self.slalom_mini_max_lateral_wrench = rospy.get_param(
-            "~slalom_mini_max_lateral_wrench", 3.0
-        )
         self.slalom_mini_max_angular_velocity = rospy.get_param(
             "~slalom_mini_max_angular_velocity", 0.4
         )
         self.slalom_mini_follow_duration = rospy.get_param(
             "~slalom_mini_follow_duration", 180.0
+        )
+        self.slalom_mini_lateral_wrench = rospy.get_param(
+            "~slalom_mini_lateral_wrench", 5.0
+        )
+        self.slalom_mini_lateral_duration = rospy.get_param(
+            "~slalom_mini_lateral_duration", 0.0
         )
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
@@ -445,11 +446,10 @@ class MainStateMachineNode:
                     "slalom_depth": self.slalom_depth,
                     "white_side": self.slalom_direction,
                     "forward_wrench": self.slalom_mini_forward_wrench,
-                    "lateral_kp": self.slalom_mini_lateral_kp,
-                    "lateral_kd": self.slalom_mini_lateral_kd,
-                    "max_lateral_wrench": self.slalom_mini_max_lateral_wrench,
                     "max_angular_velocity": self.slalom_mini_max_angular_velocity,
                     "follow_duration": self.slalom_mini_follow_duration,
+                    "lateral_wrench": self.slalom_mini_lateral_wrench,
+                    "lateral_duration": self.slalom_mini_lateral_duration,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (

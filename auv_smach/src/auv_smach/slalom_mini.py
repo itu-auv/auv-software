@@ -3,6 +3,7 @@ import math
 import rospy
 import smach
 import tf.transformations as transformations
+import tf2_ros
 from geometry_msgs.msg import TransformStamped, WrenchStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, Float32MultiArray
@@ -24,7 +25,138 @@ from auv_smach.common import (
 from auv_smach.initialize import ClearObjectMapState, ResetOdometryPoseState
 
 from auv_smach.initialize import DelayState
-from auv_smach.tf_utils import get_base_link
+from auv_smach.tf_utils import get_base_link, get_tf_buffer
+
+
+class AlignToRedPipeWithLateralWrenchState(smach.State):
+    """Face the red slalom pipe while applying a constant lateral wrench."""
+
+    def __init__(self, lateral_wrench: float, duration: float, rate_hz: float = 10.0):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.lateral_wrench = lateral_wrench
+        self.duration = duration
+        self.rate_hz = rate_hz
+        self.base_link = get_base_link()
+        self.target_frame = "slalom_red_pipe_link"
+        self.alignment_frame = "slalom_mini_red_pipe_alignment"
+        self.tf_buffer = get_tf_buffer()
+        self.alignment_started = False
+
+        self.cmd_wrench_pub = rospy.Publisher("cmd_wrench", WrenchStamped, queue_size=1)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+        self.set_object_transform = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
+        self.align_start = rospy.ServiceProxy("align_frame/start", AlignFrameController)
+        self.align_cancel = rospy.ServiceProxy("align_frame/cancel", Trigger)
+
+    def execute(self, userdata):
+        if self.duration < 0.0:
+            rospy.logerr("[AlignToRedPipeWithLateralWrenchState] duration must be >= 0")
+            return "aborted"
+
+        started_at = rospy.Time.now()
+        rate = rospy.Rate(self.rate_hz)
+
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                self.stop()
+                return "preempted"
+
+            if (rospy.Time.now() - started_at).to_sec() >= self.duration:
+                self.stop()
+                return "succeeded"
+
+            if self.update_alignment_frame() and self.ensure_alignment_started():
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.base_link
+                cmd.wrench.force.y = self.lateral_wrench
+                self.enable_pub.publish(Bool(data=True))
+                self.cmd_wrench_pub.publish(cmd)
+
+            rate.sleep()
+
+        self.stop()
+        return "aborted"
+
+    def update_alignment_frame(self):
+        try:
+            target = self.tf_buffer.lookup_transform(
+                self.base_link, self.target_frame, rospy.Time(0), rospy.Duration(0.2)
+            )
+            translation = target.transform.translation
+            yaw = math.atan2(translation.y, translation.x)
+            quaternion = transformations.quaternion_from_euler(0.0, 0.0, yaw)
+
+            transform = TransformStamped()
+            transform.header.stamp = rospy.Time.now()
+            transform.header.frame_id = self.base_link
+            transform.child_frame_id = self.alignment_frame
+            transform.transform.rotation.x = quaternion[0]
+            transform.transform.rotation.y = quaternion[1]
+            transform.transform.rotation.z = quaternion[2]
+            transform.transform.rotation.w = quaternion[3]
+
+            request = SetObjectTransformRequest()
+            request.transform = transform
+            response = self.set_object_transform(request)
+            if not response.success:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "Failed to set red-pipe alignment frame: %s",
+                    response.message,
+                )
+            return response.success
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+            rospy.ServiceException,
+        ) as error:
+            rospy.logwarn_throttle(
+                2.0, "Waiting for red-pipe alignment frame: %s", error
+            )
+            return False
+
+    def ensure_alignment_started(self):
+        if self.alignment_started:
+            return True
+
+        request = AlignFrameControllerRequest()
+        request.source_frame = self.base_link
+        request.target_frame = self.alignment_frame
+        request.keep_orientation = False
+        request.use_depth = False
+        request.closest_yaw = True
+
+        try:
+            response = self.align_start(request)
+            self.alignment_started = response.success
+            if not response.success:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "Failed to start red-pipe alignment: %s",
+                    response.message,
+                )
+            return response.success
+        except rospy.ServiceException as error:
+            rospy.logwarn_throttle(2.0, "Red-pipe alignment service failed: %s", error)
+            return False
+
+    def stop(self):
+        if self.alignment_started:
+            try:
+                self.align_cancel()
+            except rospy.ServiceException as error:
+                rospy.logwarn("Failed to cancel red-pipe alignment: %s", error)
+            self.alignment_started = False
+
+        stop = WrenchStamped()
+        stop.header.stamp = rospy.Time.now()
+        stop.header.frame_id = self.base_link
+        self.cmd_wrench_pub.publish(stop)
 
 
 class FollowMiniSlalomState(smach.State):
@@ -33,9 +165,6 @@ class FollowMiniSlalomState(smach.State):
         depth: float,
         white_side: str = "right",
         forward_wrench: float = 15.0,
-        lateral_kp: float = 0.0,
-        lateral_kd: float = 0.0,
-        max_lateral_wrench: float = 30.0,
         max_angular_velocity: float = 0.20,
         duration: float = 0.0,
         pipe_angle_stale_timeout: float = 3.0,
@@ -49,17 +178,12 @@ class FollowMiniSlalomState(smach.State):
         self.depth = depth
         self.white_side = white_side
         self.forward_wrench = forward_wrench
-        self.lateral_kp = lateral_kp
-        self.lateral_kd = lateral_kd
-        self.max_lateral_wrench = abs(max_lateral_wrench)
         self.max_angular_velocity = max_angular_velocity
         self.duration = duration
         self.rate_hz = rate_hz
         self.base_link = get_base_link()
         self.latest_odom = None
         self.latest_pipe_angles = None
-        self.last_lateral_error = None
-        self.last_lateral_error_time = None
         self.follow_frame = "slalom_mini_follow"
         self.alignment_started = False
         self.pipe_angle_stale_timeout = rospy.Duration(pipe_angle_stale_timeout)
@@ -82,10 +206,10 @@ class FollowMiniSlalomState(smach.State):
         self.latest_odom = msg
 
     def pipe_angle_callback(self, msg: Float32MultiArray):
-        if len(msg.data) < 6:
+        if len(msg.data) < 3:
             rospy.logwarn_throttle(
                 2.0,
-                "[FollowMiniSlalomState] Expected 6 slalom values, got %d",
+                "[FollowMiniSlalomState] Expected 3 slalom angles, got %d",
                 len(msg.data),
             )
             return
@@ -137,8 +261,7 @@ class FollowMiniSlalomState(smach.State):
                 continue
 
             target_relative_yaw = self.target_relative_yaw()
-            lateral_error = self.lateral_height_error()
-            if target_relative_yaw is None or lateral_error is None:
+            if target_relative_yaw is None:
                 rospy.logwarn_throttle(
                     2.0,
                     "[FollowMiniSlalomState] Waiting for valid red and %s white slalom data",
@@ -155,7 +278,7 @@ class FollowMiniSlalomState(smach.State):
                 rate.sleep()
                 continue
 
-            self.cmd_wrench_pub.publish(self.build_cmd_wrench(lateral_error))
+            self.cmd_wrench_pub.publish(self.build_cmd_wrench())
             rate.sleep()
 
         return "aborted"
@@ -177,16 +300,6 @@ class FollowMiniSlalomState(smach.State):
             return None
 
         return self.average_angles([red_angle, white_angle])
-
-    def lateral_height_error(self):
-        red_height = self.latest_pipe_angles.data[3]
-        white_index = 4 if self.white_side == "left" else 5
-        white_height = self.latest_pipe_angles.data[white_index]
-
-        if math.isnan(red_height) or math.isnan(white_height):
-            return None
-
-        return red_height - white_height
 
     def publish_follow_frame(self, target_relative_yaw: float):
         odom = self.latest_odom
@@ -275,32 +388,13 @@ class FollowMiniSlalomState(smach.State):
             )
         self.alignment_started = False
 
-    def build_cmd_wrench(self, lateral_error: float):
+    def build_cmd_wrench(self):
         now = rospy.Time.now()
-        derivative = 0.0
-
-        if (
-            self.last_lateral_error is not None
-            and self.last_lateral_error_time is not None
-        ):
-            dt = (now - self.last_lateral_error_time).to_sec()
-            if dt > 1e-3:
-                derivative = (lateral_error - self.last_lateral_error) / dt
-
-        self.last_lateral_error = lateral_error
-        self.last_lateral_error_time = now
-
-        lateral_wrench = self.lateral_kp * lateral_error + self.lateral_kd * derivative
-        lateral_wrench = max(
-            -self.max_lateral_wrench,
-            min(self.max_lateral_wrench, lateral_wrench),
-        )
 
         cmd_wrench = WrenchStamped()
         cmd_wrench.header.stamp = now
         cmd_wrench.header.frame_id = self.base_link
         cmd_wrench.wrench.force.x = self.forward_wrench
-        cmd_wrench.wrench.force.y = lateral_wrench
         return cmd_wrench
 
     def publish_zero_wrench(self):
@@ -335,12 +429,11 @@ class NavigateThroughSlalomMiniState(smach.State):
         slalom_depth: float,
         white_side: str = "right",
         forward_wrench: float = 10.0,
-        lateral_kp: float = 0.0,
-        lateral_kd: float = 0.0,
-        max_lateral_wrench: float = 3.0,
         max_angular_velocity: float = 0.4,
         follow_duration: float = 180.0,
         pipe_angle_stale_timeout: float = 3.0,
+        lateral_wrench: float = 5.0,
+        lateral_duration: float = 0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -348,12 +441,11 @@ class NavigateThroughSlalomMiniState(smach.State):
         self.slalom_depth = slalom_depth
         self.white_side = white_side
         self.forward_wrench = forward_wrench
-        self.lateral_kp = lateral_kp
-        self.lateral_kd = lateral_kd
-        self.max_lateral_wrench = max_lateral_wrench
         self.max_angular_velocity = max_angular_velocity
         self.follow_duration = follow_duration
         self.pipe_angle_stale_timeout = pipe_angle_stale_timeout
+        self.lateral_wrench = lateral_wrench
+        self.lateral_duration = lateral_duration
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -397,6 +489,18 @@ class NavigateThroughSlalomMiniState(smach.State):
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
                 transitions={
+                    "succeeded": "ALIGN_TO_RED_PIPE_WITH_LATERAL_WRENCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_RED_PIPE_WITH_LATERAL_WRENCH",
+                AlignToRedPipeWithLateralWrenchState(
+                    lateral_wrench=self.lateral_wrench,
+                    duration=self.lateral_duration,
+                ),
+                transitions={
                     "succeeded": "FOLLOW_SLALOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -408,9 +512,6 @@ class NavigateThroughSlalomMiniState(smach.State):
                     depth=self.slalom_depth,
                     white_side=self.white_side,
                     forward_wrench=self.forward_wrench,
-                    lateral_kp=self.lateral_kp,
-                    lateral_kd=self.lateral_kd,
-                    max_lateral_wrench=self.max_lateral_wrench,
                     max_angular_velocity=self.max_angular_velocity,
                     duration=self.follow_duration,
                     pipe_angle_stale_timeout=self.pipe_angle_stale_timeout,

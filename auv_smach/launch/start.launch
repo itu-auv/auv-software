@@ -39,11 +39,10 @@
     <arg name="pitch_depth" default="-0.8"/>
     <arg name="after_pitch_depth" default="-0.6"/>
     <arg name="slalom_mini_forward_wrench" default="0.0"/>
-    <arg name="slalom_mini_lateral_kp" default="0.0"/>
-    <arg name="slalom_mini_lateral_kd" default="0.0"/>
-    <arg name="slalom_mini_max_lateral_wrench" default="3.0"/>
     <arg name="slalom_mini_max_angular_velocity" default="0.4"/>
     <arg name="slalom_mini_follow_duration" default="180.0"/>
+    <arg name="slalom_mini_lateral_wrench" default="5.0"/>
+    <arg name="slalom_mini_lateral_duration" default="0.0"/>
     <arg name="ignore_kde" default="true" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
@@ -79,11 +78,10 @@
             <param name="pitch_depth" value="$(arg pitch_depth)"/>
             <param name="after_pitch_depth" value="$(arg after_pitch_depth)"/>
             <param name="slalom_mini_forward_wrench" value="$(arg slalom_mini_forward_wrench)"/>
-            <param name="slalom_mini_lateral_kp" value="$(arg slalom_mini_lateral_kp)"/>
-            <param name="slalom_mini_lateral_kd" value="$(arg slalom_mini_lateral_kd)"/>
-            <param name="slalom_mini_max_lateral_wrench" value="$(arg slalom_mini_max_lateral_wrench)"/>
             <param name="slalom_mini_max_angular_velocity" value="$(arg slalom_mini_max_angular_velocity)"/>
             <param name="slalom_mini_follow_duration" value="$(arg slalom_mini_follow_duration)"/>
+            <param name="slalom_mini_lateral_wrench" value="$(arg slalom_mini_lateral_wrench)"/>
+            <param name="slalom_mini_lateral_duration" value="$(arg slalom_mini_lateral_duration)"/>
             <param name="ignore_kde" value="$(arg ignore_kde)"/>
 
             <!-- common.py -->
