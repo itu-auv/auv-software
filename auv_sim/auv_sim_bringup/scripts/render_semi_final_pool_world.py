@@ -4,7 +4,7 @@ import argparse
 import xml.etree.ElementTree as ET
 
 
-LANE_CAMERA_Y = {"a": 15.5, "b": 3.3, "c": -9.0, "d": -21.5}
+LANE_CAMERA_Y = {"a": -24.321539, "b": 3.3, "c": -9.0, "d": 15.5}
 
 
 def main():
