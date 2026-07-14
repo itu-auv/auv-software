@@ -29,29 +29,29 @@ cam_front:
     rows: 3
     cols: 4
     data: [289.144440, 0.0, 391.415081, 0.0, 0.0, 361.298340, 195.051301, 0.0, 0.0, 0.0, 1.0, 0.0]
-cam_bottom:
-  width: 768
-  height: 432
-  fps: 30
-  device: /dev/auv_cam_bottom
+# cam_bottom:
+#   width: 768
+#   height: 432
+#   fps: 30
+#   device: /dev/auv_cam_bottom
 
-  image_width: 768
-  image_height: 432
-  camera_name: cam_bottom
-  camera_matrix:
-    rows: 3
-    cols: 3
-    data: [518.858553, 0.0, 391.205617, 0.0, 517.979735, 207.450441, 0.0, 0.0, 1.0]
-  distortion_model: plumb_bob
-  distortion_coefficients:
-    rows: 1
-    cols: 5
-    data: [-0.304776, 0.140531, 0.006985, -0.000393, 0.0]
-  rectification_matrix:
-    rows: 3
-    cols: 3
-    data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-  projection_matrix:
-    rows: 3
-    cols: 4
-    data: [440.875488, 0.0, 391.788023, 0.0, 0.0, 489.854688, 208.626358, 0.0, 0.0, 0.0, 1.0, 0.0]
+#   image_width: 768
+#   image_height: 432
+#   camera_name: cam_bottom
+#   camera_matrix:
+#     rows: 3
+#     cols: 3
+#     data: [518.858553, 0.0, 391.205617, 0.0, 517.979735, 207.450441, 0.0, 0.0, 1.0]
+#   distortion_model: plumb_bob
+#   distortion_coefficients:
+#     rows: 1
+#     cols: 5
+#     data: [-0.304776, 0.140531, 0.006985, -0.000393, 0.0]
+#   rectification_matrix:
+#     rows: 3
+#     cols: 3
+#     data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+#   projection_matrix:
+#     rows: 3
+#     cols: 4
+#     data: [440.875488, 0.0, 391.788023, 0.0, 0.0, 489.854688, 208.626358, 0.0, 0.0, 0.0, 1.0, 0.0]

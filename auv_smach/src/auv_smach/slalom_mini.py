@@ -31,10 +31,17 @@ from auv_smach.tf_utils import get_base_link, get_tf_buffer
 class AlignToRedPipeWithLateralWrenchState(smach.State):
     """Face the red slalom pipe while applying a constant lateral wrench."""
 
-    def __init__(self, lateral_wrench: float, duration: float, rate_hz: float = 10.0):
+    def __init__(
+        self,
+        lateral_wrench: float,
+        duration: float,
+        x_wrench: float = 0.0,
+        rate_hz: float = 10.0,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.lateral_wrench = lateral_wrench
         self.duration = duration
+        self.x_wrench = x_wrench
         self.rate_hz = rate_hz
         self.base_link = get_base_link()
         self.target_frame = "slalom_red_pipe_link"
@@ -72,6 +79,7 @@ class AlignToRedPipeWithLateralWrenchState(smach.State):
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
                 cmd.header.frame_id = self.base_link
+                cmd.wrench.force.x = self.x_wrench
                 cmd.wrench.force.y = self.lateral_wrench
                 self.enable_pub.publish(Bool(data=True))
                 self.cmd_wrench_pub.publish(cmd)
@@ -434,6 +442,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         pipe_angle_stale_timeout: float = 3.0,
         lateral_wrench: float = 5.0,
         lateral_duration: float = 0.0,
+        lateral_x_wrench: float = 0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -446,6 +455,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         self.pipe_angle_stale_timeout = pipe_angle_stale_timeout
         self.lateral_wrench = lateral_wrench
         self.lateral_duration = lateral_duration
+        self.lateral_x_wrench = lateral_x_wrench
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -499,6 +509,7 @@ class NavigateThroughSlalomMiniState(smach.State):
                 AlignToRedPipeWithLateralWrenchState(
                     lateral_wrench=self.lateral_wrench,
                     duration=self.lateral_duration,
+                    x_wrench=self.lateral_x_wrench,
                 ),
                 transitions={
                     "succeeded": "FOLLOW_SLALOM",

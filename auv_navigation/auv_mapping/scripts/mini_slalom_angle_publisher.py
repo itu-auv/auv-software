@@ -38,14 +38,14 @@ class MiniSlalomAnglePublisher:
         )
         self.slalom_camera_frame = rospy.get_param(
             "~slalom_camera_frame",
-            self.base_link_frame + "/front_camera_optical_link_stabilized",
+            self.base_link_frame + "/front_camera_optical_link",
         )
         self.yolo_result_topic = rospy.get_param(
             "~yolo_result_topic", "/yolo_result_slalom"
         )
         self.cmd_pose_topic = rospy.get_param("~cmd_pose_topic", "cmd_pose")
         self.image_topic = rospy.get_param(
-            "~image_topic", "/taluy_mini/cameras/cam_front/image_corrected"
+            "~image_topic", "/taluy_mini/cameras/cam_front/image_rect_color"
         )
         self.slalom_real_height = rospy.get_param("~slalom_real_height", 0.9)
         self.slalom_real_width = rospy.get_param("~slalom_real_width", 0.0254)
@@ -65,9 +65,6 @@ class MiniSlalomAnglePublisher:
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
         self.pipe_angle_full_height_ratio = rospy.get_param(
             "~pipe_angle_full_height_ratio", 0.9
-        )
-        self.pipe_angle_vertical_edge_margin_px = rospy.get_param(
-            "~pipe_angle_vertical_edge_margin_px", 5.0
         )
         self.pipe_angle_debug_jpeg_quality = max(
             1, min(100, int(rospy.get_param("~pipe_angle_debug_jpeg_quality", 80)))
@@ -696,15 +693,14 @@ class MiniSlalomAnglePublisher:
             self.draw_debug_label(image, label, (12, 24 + index * 24))
 
     def select_outer_white_detections(self, white_detections):
-        candidates = self.select_angle_update_candidates(white_detections)
-        if not candidates:
+        if not white_detections:
             return None, None
 
-        if len(candidates) == 1:
-            return self.select_single_outer_white_detection(candidates[0])
+        if len(white_detections) == 1:
+            return self.select_single_outer_white_detection(white_detections[0])
 
-        left_white = min(candidates, key=lambda x: x["center_x"])
-        right_white = max(candidates, key=lambda x: x["center_x"])
+        left_white = min(white_detections, key=lambda x: x["center_x"])
+        right_white = max(white_detections, key=lambda x: x["center_x"])
         return left_white, right_white
 
     def select_single_outer_white_detection(self, white_detection):
@@ -771,13 +767,9 @@ class MiniSlalomAnglePublisher:
         if not white_detections:
             return None
 
-        candidates = self.select_angle_update_candidates(white_detections)
-        if not candidates:
-            return None
-
         if side == "right":
-            return max(candidates, key=lambda x: x["height"])
-        return max(candidates, key=lambda x: x["height"])
+            return max(white_detections, key=lambda x: x["height"])
+        return max(white_detections, key=lambda x: x["height"])
 
     def build_missing_red_detection(self, stamp):
         if self.last_red_detection is None:
@@ -831,23 +823,6 @@ class MiniSlalomAnglePublisher:
             "camera_angle_x": self.pixel_horizontal_angle(center_x),
             "camera_angle_y": self.pixel_vertical_angle(center_y),
         }
-
-    def select_angle_update_candidates(self, detections):
-        if not detections:
-            return []
-
-        inside_candidates = [
-            x for x in detections if self.is_vertically_inside_image(x)
-        ]
-        if inside_candidates:
-            return inside_candidates
-        return detections
-
-    def is_vertically_inside_image(self, detection):
-        margin = self.pipe_angle_vertical_edge_margin_px
-        return (
-            detection["top"] > margin and detection["bottom"] < self.cam.height - margin
-        )
 
     def rectified_intrinsics(self):
         if len(self.cam.P) >= 12 and self.cam.P[0] != 0.0 and self.cam.P[5] != 0.0:

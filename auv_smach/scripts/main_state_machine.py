@@ -137,6 +137,9 @@ class MainStateMachineNode:
         self.slalom_mini_lateral_duration = rospy.get_param(
             "~slalom_mini_lateral_duration", 0.0
         )
+        self.slalom_mini_lateral_x_wrench = rospy.get_param(
+            "~slalom_mini_lateral_x_wrench", 0.0
+        )
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
         )
@@ -178,9 +181,9 @@ class MainStateMachineNode:
 
         # Acoustic receiver parameters
         self.acoustic_rx_expected_data = [1]
-        self.acoustic_rx_timeout = 60.0  # seconds
+        self.acoustic_rx_timeout = 120.0  # seconds
         self.acoustic_rx_topic = "acoustic/modem/received"
-        self.acoustic_rx_accept_any_data = False
+        self.acoustic_rx_accept_any_data = True
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -450,6 +453,7 @@ class MainStateMachineNode:
                     "follow_duration": self.slalom_mini_follow_duration,
                     "lateral_wrench": self.slalom_mini_lateral_wrench,
                     "lateral_duration": self.slalom_mini_lateral_duration,
+                    "lateral_x_wrench": self.slalom_mini_lateral_x_wrench,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (

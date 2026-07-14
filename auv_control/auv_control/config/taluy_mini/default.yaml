@@ -44,5 +44,5 @@ coeffs_cw: [-7.65890867108129, -2.272619267631361, 1.5070809906898863, 140.79738
 mapping: [4, 7, 0, 2, 6, 5, 1, 3]
 directions: [1, 1, 1, 1, 1, 1, 1, 1]
 
-gravity_compensation_z: 0.0
+gravity_compensation_z: 8.4
 yaw_cross_coupling_gain: 40.000
