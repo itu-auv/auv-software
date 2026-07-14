@@ -111,7 +111,7 @@ class MainStateMachineNode:
 
         self.gate_search_depth = -0.4
         self.gate_depth = -0.7
-        self.roll_depth = -0.7
+        self.roll_depth = -0.4
 
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
