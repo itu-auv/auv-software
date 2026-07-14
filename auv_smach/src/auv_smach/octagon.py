@@ -389,7 +389,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_TO_DROP_OBJECT",
                 SetDepthState(
-                    depth=-0.95,
+                    depth=-0.90,
                     max_velocity=0.1,
                     confirm_duration=1.0,
                     depth_threshold=0.07,
@@ -979,6 +979,20 @@ class OctagonTaskState(smach.State):
                     max_linear_velocity=0.3,
                     max_angular_velocity=0.3,
                     cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "ROLE_BAKMA_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ROLE_BAKMA_DEPTH",
+                SetDepthState(
+                    depth=-0.1,
+                    timeout=10.0,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_ROLE_TARGET",
