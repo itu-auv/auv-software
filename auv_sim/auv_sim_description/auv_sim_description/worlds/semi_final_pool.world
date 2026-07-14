@@ -752,7 +752,7 @@
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_4</name>
-      <pose>11 -21.75 -1.97 0 0 -0.3</pose>
+      <pose>9.941803 -20.647182 -1.97 0 0 -0.3</pose>
     </include>
     <!-- **** ANIMALS FOR ALL OCTAGONS **** -->
     <include>
@@ -773,7 +773,7 @@
     <include>
       <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals_4</name>
-      <pose>9.7103 -21.351 -0.62 0 0 -0.3</pose>
+      <pose>8.652103 -20.248182 -0.62 0 0 -0.3</pose>
     </include>
     <!-- SLALOM PIPES -->
     <include>
