@@ -689,7 +689,7 @@
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
-      <pose>-5 -23.643700 -1.5 0 0 0</pose>
+      <pose>-5.000000 -22.482344 -1.500000 0.000000 0.000000 0.000000</pose>
     </include>
     <!-- **** 4 × TORPEDO TARGET **** -->
     <include>
@@ -710,7 +710,7 @@
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>6.282205 -17.305149 -2.000602 1.570033 -0.000225 -3.136994</pose>
+      <pose>5.535094 -16.519724 -1.999833 1.570142 0.000453 -2.244907</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
@@ -731,7 +731,7 @@
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_4</name>
-      <pose>11.354712 -26.096647 -1.6 0 0 0</pose>
+      <pose>8.718672 -24.459122 -1.600000 0.000000 0.000000 -2.305001</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
@@ -779,7 +779,7 @@
     <include>
       <uri>model://robosub_path</uri>
       <name>robosub_path_1</name>
-      <pose>-2 15.75 -2.1336 0 0 1.57</pose>
+      <pose>4.864545 -20.461676 -2.133600 0.000000 0.000000 2.336734</pose>
     </include>
     <!-- SLALOM PIPES -->
     <include>
@@ -830,17 +830,17 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_1</name>
-      <pose>-0.747646 -20.293873 -1.35 0 0 1.57</pose>
+      <pose>-0.747978 -20.710253 -1.350000 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>1.133705 -20.902969 -1.35 0 0 1.57</pose>
+      <pose>1.133012 -21.773094 -1.350000 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>2.721079 -19.809048 -1.35 0 0 1.57</pose>
+      <pose>3.296887 -20.460802 -1.879175 0.000000 0.000000 1.570000</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>

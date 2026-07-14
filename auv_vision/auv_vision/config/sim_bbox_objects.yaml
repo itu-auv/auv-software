@@ -55,7 +55,7 @@ objects:
     cameras: [front]
     gazebo_model: robosub_gate
     match_prefix: true
-    offset: [0.0, -0.762, 1.356]
+    offset: [0.0, 0.762, 1.356]
     boundary:
       shape: rect
       args: [0, 0.1524, 0.1524]
@@ -65,7 +65,7 @@ objects:
     name: gate_survey_repair
     cameras: [front]
     gazebo_model: robosub_gate
-    offset: [0.0, 0.762, 1.356]
+    offset: [0.0, -0.762, 1.356]
     boundary:
       shape: rect
       args: [0, 0.1524, 0.1524]
