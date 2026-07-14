@@ -775,6 +775,12 @@
       <name>robosub_octagon_animals_4</name>
       <pose>8.652103 -20.248182 -0.62 0 0 -0.3</pose>
     </include>
+    <!-- PATH MARKER -->
+    <include>
+      <uri>model://robosub_path</uri>
+      <name>robosub_path_1</name>
+      <pose>-2 15.75 -2.1336 0 0 1.57</pose>
+    </include>
     <!-- SLALOM PIPES -->
     <include>
       <uri>model://robosub_slalom</uri>

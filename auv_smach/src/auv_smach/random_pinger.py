@@ -390,7 +390,7 @@ class RandomPingerTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_PINGER_START",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame="taluy/base_link",
                     target_frame="pinger_mission_start",
                     cancel_on_success=False,
                 ),
