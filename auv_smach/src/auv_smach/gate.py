@@ -19,7 +19,6 @@ from auv_smach.common import (
 from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.roll import TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
-from auv_smach.acoustic import AcousticTransmitter
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):

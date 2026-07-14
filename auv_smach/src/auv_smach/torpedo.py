@@ -19,7 +19,6 @@ from auv_smach.common import (
     GravityZEnable,
 )
 from auv_smach.initialize import DelayState
-from auv_smach.acoustic import AcousticTransmitter
 
 
 TORPEDO_PRIORITY_REALSENSE = "realsense"
@@ -315,15 +314,6 @@ class TorpedoTaskState(smach.State):
                     source_frame=self.base_link,
                     rotation_speed=0.4,
                 ),
-                transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_1",
-                AcousticTransmitter(acoustic_data=1),
                 transitions={
                     "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -622,15 +612,6 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     use_frame_depth=False,
                 ),
-                transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_4",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_4",
-                AcousticTransmitter(acoustic_data=4),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
