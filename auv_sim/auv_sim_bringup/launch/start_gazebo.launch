@@ -135,6 +135,7 @@
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
             <arg name="pinger_mode" value="$(arg pinger_mode)" />
+            <arg name="world" value="$(arg world)" />
             <arg name="objects" value="$(arg objects)" />
             <arg name="octagon_object_x" value="$(arg octagon_object_x)" />
             <arg name="octagon_object_y" value="$(arg octagon_object_y)" />
