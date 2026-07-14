@@ -772,20 +772,20 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_3",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_3",
-                AcousticTransmitter(acoustic_data=3),
-                transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "TRANSMIT_ACOUSTIC_3",
+            #     AcousticTransmitter(acoustic_data=3),
+            #     transitions={
+            #         "succeeded": "CANCEL_ALIGN_CONTROLLER",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
