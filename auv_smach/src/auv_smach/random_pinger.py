@@ -11,6 +11,7 @@ from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
 from auv_smach.common import (
+    AlignFrame,
     CancelAlignControllerState,
     DynamicPathState,
     SetDepthState,
@@ -381,14 +382,18 @@ class RandomPingerTaskState(smach.State):
                 "PINGER_MISSION_START",
                 SetStartFrameState(frame_name="pinger_mission_start"),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "ALIGN_TO_PINGER_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
+                "ALIGN_TO_PINGER_START",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="pinger_mission_start",
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "TORPEDO_FIRST",
                     "preempted": "preempted",
