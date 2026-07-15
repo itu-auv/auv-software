@@ -4,7 +4,7 @@
   <arg name="prefix" default="log"/>
   <arg name="logging_directory" default="$(optenv HOME)/bags"/>
   <arg name="include_pattern" default=".*"/>
-  <arg name="exclude_pattern" default="^/(?!.*(?:image_rect_color/compressed|yolo_image_[^/]+/compressed|segment_pose_debug/compressed|camera/color/image_raw/compressed|camera/depth/image_rect_raw/compressed)$).*(?:image|compressed).*$|^/.*(?:points_filtered|points|cloud|mask)$|^/depth_anything/(?:raw_depth|rgb_point_cloud)$"/>
+  <arg name="exclude_pattern" default="^/(?!.*(?:image_rect_color/compressed|yolo_image_[^/]+/compressed|segment_pose_debug/compressed|kde_map/visualization/compressed|camera/color/image_raw/compressed|camera/depth/image_rect_raw/compressed)$).*(?:image|compressed).*$|^/.*(?:points_filtered|points|cloud|mask)$|^/depth_anything/(?:raw_depth|rgb_point_cloud)$"/>
   <arg name="topics" default=""/>
   <arg name="log_filename" default=""/>
   <group ns="$(arg namespace)">
