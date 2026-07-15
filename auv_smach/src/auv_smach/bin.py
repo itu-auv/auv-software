@@ -772,7 +772,7 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "find_aim_return_home",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -786,6 +786,31 @@ class BinTaskState(smach.State):
             #         "aborted": "aborted",
             #     },
             # )
+            smach.StateMachine.add(
+                "find_aim_return_home",
+                SearchForPropState(
+                    look_at_frame="odom",  # should entegrate kde frame here
+                    alignment_frame="return_search_melih",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                ),
+                transitions={
+                    "succeeded": "RETURN_HOME_melih",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RETURN_HOME_melih",
+                DynamicPathState(
+                    plan_target_frame="odom",
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
