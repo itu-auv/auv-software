@@ -54,6 +54,13 @@ def closest_right_angle_yaw(source_yaw: float, reference_yaw: float) -> float:
     )
 
 
+def closest_half_turn_yaw(source_yaw: float, reference_yaw: float) -> float:
+    return min(
+        (normalize_angle(source_yaw + offset) for offset in (0.0, np.pi)),
+        key=lambda yaw: abs(shortest_angular_distance(yaw, reference_yaw)),
+    )
+
+
 class ReferencePosePublisherNode:
     def __init__(self):
         self.tf_buffer = tf2_ros.Buffer()
@@ -341,6 +348,50 @@ class ReferencePosePublisherNode:
                             ]
                         )
                         self.target_heading = closest_right_angle_yaw(
+                            self.target_heading, base_yaw_in_target
+                        )
+
+                    desired_base_in_target = quaternion_from_euler(
+                        self.target_roll, self.target_pitch, self.target_heading
+                    )
+                    desired_source_in_target = quaternion_multiply(
+                        desired_base_in_target,
+                        quaternion_inverse(base_in_source_quaternion),
+                    )
+                    rotation_matrix = quaternion_matrix(desired_source_in_target)[
+                        :3, :3
+                    ]
+                    offset_in_target = rotation_matrix.dot(
+                        [
+                            t.transform.translation.x,
+                            t.transform.translation.y,
+                            t.transform.translation.z,
+                        ]
+                    )
+                    self.target_x, self.target_y = offset_in_target[:2]
+                elif req.closest_yaw_180:
+                    base_in_source_quaternion = [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                    t_base = self.tf_lookup(
+                        req.target_frame,
+                        self.base_frame,
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                    if t_base is not None:
+                        _, _, base_yaw_in_target = euler_from_quaternion(
+                            [
+                                t_base.transform.rotation.x,
+                                t_base.transform.rotation.y,
+                                t_base.transform.rotation.z,
+                                t_base.transform.rotation.w,
+                            ]
+                        )
+                        self.target_heading = closest_half_turn_yaw(
                             self.target_heading, base_yaw_in_target
                         )
 
