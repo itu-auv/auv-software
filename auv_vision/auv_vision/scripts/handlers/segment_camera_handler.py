@@ -176,7 +176,11 @@ class SegmentCameraHandler:
 
     def _build_rotation(self, stamp, geometry, prop_name):
         if geometry is not None:
-            if prop_name == "nutbolt_link" or prop_name == "pill_link":
+            if (
+                prop_name == "nutbolt_link"
+                or prop_name == "pill_link"
+                or prop_name == self.OCTAGON_TABLE_SEGMENT_NAME
+            ):
                 return Quaternion(0, 0, 0, 1)
 
             try:
