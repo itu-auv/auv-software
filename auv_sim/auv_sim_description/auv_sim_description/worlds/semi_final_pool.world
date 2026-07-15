@@ -674,7 +674,7 @@
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_1</name>
-      <pose>-5 15.75 -1.5 0 0 0.4</pose>
+      <pose>-5.000000 15.750000 -1.500000 0.000000 0.000000 0.000187</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
@@ -695,7 +695,7 @@
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_1</name>
-      <pose>7.000206 19.999659 -1.499179 1.57 0 -2.6</pose>
+      <pose>7.197310 20.681072 -2.108636 1.570116 -0.000414 3.136814</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
@@ -716,7 +716,7 @@
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_1</name>
-      <pose>6.2 13.8 -1.166032 0 0 3.1</pose>
+      <pose>6.917767 13.716724 -1.607390 0.000000 0.000000 1.455293</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
@@ -737,7 +737,7 @@
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_1</name>
-      <pose>11 15.75 -1.97 0 0 0</pose>
+      <pose>10.885654 16.376108 -1.950000 0.000000 0.000000 0.000000</pose>
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
@@ -758,7 +758,7 @@
     <include>
       <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals</name>
-      <pose>9.65 15.75 -0.62 0 0 0</pose>
+      <pose>9.535654 16.376108 -0.600000 0.000000 0.000000 0.000000</pose>
     </include>
     <include>
       <uri>model://robosub_octagon_animals</uri>
@@ -785,17 +785,17 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_1</name>
-      <pose>-0.75 17.25 -1.35 0 0 1.57</pose>
+      <pose>-0.750791 16.256712 -2.087427 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_2</name>
-      <pose>0.75 18.0 -1.35 0 0 1.57</pose>
+      <pose>0.921462 17.575613 -1.888925 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_3</name>
-      <pose>2.25 17.25 -1.35 0 0 1.57</pose>
+      <pose>3.249127 16.511126 -2.183931 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>

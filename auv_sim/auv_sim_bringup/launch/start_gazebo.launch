@@ -37,8 +37,8 @@
     <arg name="first_pool_octagon_table" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon_table')" />
     <arg name="first_pool_bin" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'bin')" />
     <arg name="first_pool_slalom" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'slalom')" />
-    <arg name="octagon_object_x" value="$(eval 9.941803 if arg('world') == 'semi_final_pool' and arg('lane') == 'a' else (11.0 if arg('world') == 'semi_final_pool' else 13.0))" />
-    <arg name="octagon_object_y" value="$(eval {'a': -20.647182, 'b': 3.25, 'c': -9.25, 'd': 15.75}[arg('lane')] if arg('world') == 'semi_final_pool' else -4.25)" />
+    <arg name="octagon_object_x" value="$(eval 9.941803 if arg('world') == 'semi_final_pool' and arg('lane') == 'a' else (10.885654 if arg('world') == 'semi_final_pool' and arg('lane') == 'd' else (11.0 if arg('world') == 'semi_final_pool' else 13.0)))" />
+    <arg name="octagon_object_y" value="$(eval {'a': -20.647182, 'b': 3.25, 'c': -9.25, 'd': 16.376108}[arg('lane')] if arg('world') == 'semi_final_pool' else -4.25)" />
     <arg name="octagon_object_z" value="$(eval -1.27 if arg('world') == 'semi_final_pool' else -1.3)" />
     <arg name="start_tf_gazebo_debug" default="false" />
 
