@@ -1,52 +1,75 @@
 reference_frame: odom
-created_at: '2026-07-13'
+created_at: '2026-07-15T11:39:00.290944'
 objects:
-  gate_search_rescue_link:
-    position:
-      - 3.206545
-      - 0.677839
-      - -0.680627
-    orientation:
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-  gate_survey_repair_link:
-    position:
-      - 3.206545
-      - 0.677839
-      - -0.680627
-    orientation:
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-  torpedo_map_link:
-    position:
-      - 15.132920
-      - 7.019352
-      - -1.181374
-    orientation:
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
   bin_basket_front_link:
     position:
-      - 19.561257
-      - -1.775108
-      - -0.780627
+    - 14.265927977839334
+    - -2.112188365650968
+    - -2.0
     orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  torpedo_map_link:
+    position:
+    - 14.785318559556787
+    - 5.020775623268698
+    - -1.5
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  octagon_link:
+    position:
+    - 20.63711911357341
+    - 0.7963988919667612
+    - -1.3
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+gui_state:
+  reference_frame: odom
+  objects:
+    reference:
+      position:
+      - 24.930747922437675
+      - 0.1904432132963989
+      - 0.0
+      orientation:
       - 0.0
       - 0.0
       - 0.0
       - 1.0
-  octagon_link:
-    position:
-      - 19.206545
-      - 2.571539
-      - -1.150627
-    orientation:
+    bin:
+      position:
+      - 27.042936288088644
+      - 14.456371191135734
+      - 0.0
+      orientation:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    torpedo:
+      position:
+      - 19.909972299168977
+      - 14.975761772853186
+      - 0.0
+      orientation:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    octagon:
+      position:
+      - 24.134349030470915
+      - 20.827562326869806
+      - 0.0
+      orientation:
       - 0.0
       - 0.0
       - 0.0
