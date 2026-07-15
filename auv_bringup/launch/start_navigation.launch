@@ -31,11 +31,11 @@
     <arg name="sim" value="$(arg sim)" />
   </include>
 
-  <include file="$(find auv_navigation)/launch/start.launch">
+  <!-- <include file="$(find auv_navigation)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
-  </include>
+  </include> -->
 
-  <include file="$(find auv_vision)/launch/start.launch">
+  <!-- <include file="$(find auv_vision)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
-  </include>
+  </include> -->
 </launch>

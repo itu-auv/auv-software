@@ -8,7 +8,7 @@
   <arg name="enable_xsens" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="enable_dvl" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="enable_vectornav" default="$(eval arg('namespace') == 'taluy_mini')" />
-  <arg name="enable_hydrophone" default="true" />
+  <arg name="enable_hydrophone" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />

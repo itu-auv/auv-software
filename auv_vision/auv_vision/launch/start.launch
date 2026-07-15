@@ -3,14 +3,14 @@
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->
-    <node
+    <!-- <node
       pkg="auv_vision"
       type="yolo_to_mask_node.py"
       name="yolo_seg_to_mask_node"
       output="screen">
       <remap from="yolo_result_seg" to="/yolo_result_seg" />
       <param name="output_mask_topic" value="bottle_mask" />
-    </node>
+    </node> -->
 
     <!-- <node
       pkg="auv_vision"
