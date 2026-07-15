@@ -304,7 +304,7 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame="octagon_table_segment_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    closest_yaw=False,
+                    closest_yaw_180=True,
                     keep_orientation=False,
                     angle_offset=1.7,
                     confirm_duration=1.0,
