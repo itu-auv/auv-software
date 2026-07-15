@@ -614,7 +614,7 @@ class TorpedoTaskState(smach.State):
                 "ALIGN_TO_TORPEDO_EXIT",
                 AlignFrame(
                     source_frame=f"{self.base_link}/torpedo_camera_link",
-                    target_frame=torpedo_realsense_target_frame,
+                    target_frame=torpedo_target_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,

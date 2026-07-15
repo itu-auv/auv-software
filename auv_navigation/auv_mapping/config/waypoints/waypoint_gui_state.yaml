@@ -1,4 +1,4 @@
-created_at: '2026-07-15T11:01:46.288586'
+created_at: '2026-07-15T13:59:52.240930'
 paths:
 - name: path1
   ref_a: gate_search_rescue_link
@@ -7,22 +7,22 @@ paths:
   b_reference_distance: 12.0
   waypoint_prefix: path
   waypoints:
-  - x: 2.964824120603015
-    y: -2.1306532663316577
+  - x: 2.0804020100502516
+    y: 4.723618090452261
     z: -1.0
     yaw: 0.0
-  - x: 5.698492462311558
-    y: -2.150753768844222
+  - x: 6.442211055276381
+    y: 4.844221105527638
     z: -1.0
-    yaw: 12.0
+    yaw: 0.0
 - name: path2
-  ref_a: bin_exit
+  ref_a: octagon_link_kde
   ref_b: ''
   b_mode: 0
   b_reference_distance: 12.0
   waypoint_prefix: path
   waypoints:
-  - x: 0.07035175879396993
-    y: 2.8542713567839195
+  - x: -1.9195979899497488
+    y: -0.020100502512562457
     z: -1.0
-    yaw: 28.000000000000007
+    yaw: -138.0
