@@ -66,7 +66,7 @@
     <arg name="x" default="5.0" if="$(arg first_pool_bin)" />
     <arg name="x" default="0.15" if="$(arg first_pool_slalom)" />
     <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
-    <arg name="x" default="-8.206540" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="x" default="-8.206080" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="x" default="3.0" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] not in ['torpedo', 'octagon', 'octagon_table', 'bin', 'slalom'])" />
     <arg name="y" default="-3.8" if="$(arg first_pool_torpedo)" />
@@ -81,11 +81,12 @@
     <arg name="y" default="15.5" if="$(eval arg('world') == 'semi_final_pool' and arg('lane') == 'd')" />
     <arg name="y" default="0" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
-    <arg name="z" default="-1.085770" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="z" default="-1.706270" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
+    <arg name="pitch" value="0.000358" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="pitch" value="0" unless="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
     <arg name="yaw" value="0" if="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] not in ['torpedo', 'octagon', 'octagon_table', 'bin', 'slalom'])" />
     <arg name="yaw" default="0.33" if="$(arg first_pool_torpedo)" />
@@ -93,7 +94,7 @@
     <arg name="yaw" default="0" if="$(arg first_pool_octagon_table)" />
     <arg name="yaw" default="-0.9" if="$(arg first_pool_bin)" />
     <arg name="yaw" default="-0.12" if="$(arg first_pool_slalom)" />
-    <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="yaw" default="0.000014" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
 
     <!-- Start world launch -->

@@ -684,7 +684,7 @@
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
-      <pose>-5.000000 -22.482344 -1.500000 0.000000 0.000000 0.000000</pose>
+      <pose>-4.383510 -21.096700 -1.500000 0.000000 0.000000 0.446470</pose>
     </include>
     <!-- **** 4 × TORPEDO TARGET **** -->
     <include>
@@ -734,7 +734,7 @@
     <include>
       <uri>model://robosub_path</uri>
       <name>robosub_path_1</name>
-      <pose>4.864545 -20.461676 -2.133600 0.000000 0.000000 2.336734</pose>
+      <pose>4.268290 -15.525900 -2.133600 0.000000 0.000000 2.336730</pose>
     </include>
     <!-- SLALOM PIPES -->
     <include>
@@ -770,17 +770,17 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_1</name>
-      <pose>-0.747978 -20.710253 -1.350000 0.000000 0.000000 1.570000</pose>
+      <pose>-0.746627 -19.014100 -1.350000 0.000000 0.000000 2.104880</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>1.133012 -21.773094 -1.350000 0.000000 0.000000 1.570000</pose>
+      <pose>1.136370 -17.553400 -1.350000 0.000000 0.000000 2.036010</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>3.296887 -20.460802 -1.879175 0.000000 0.000000 1.570000</pose>
+      <pose>2.831720 -15.332400 -1.879180 0.000000 0.000000 2.075350</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>
