@@ -819,18 +819,9 @@ class CompetitionMapGUI:
         self.update_positions_text()
 
     def apply_vehicle_premap(self, objects, response_frame):
-        if response_frame == "odom":
+        if "reference" not in self.placed_objects:
             self.placed_objects["reference"] = (
-                0.0,
-                0.0,
-                "green",
-                "frame",
-                0,
-                -90.0,
-            )
-        elif "reference" not in self.placed_objects:
-            self.placed_objects["reference"] = (
-                0.0,
+                25.0,
                 0.0,
                 "green",
                 "frame",
