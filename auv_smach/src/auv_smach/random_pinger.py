@@ -353,7 +353,7 @@ class RandomPingerTaskState(smach.State):
         torpedo_frame="torpedo_map_link_kde",
         octagon_frame="octagon_link_kde",
         source_frame=None,
-        pinger_depth=-1.7,
+        pinger_depth=-1.5,
         stabilization_time=2.0,
         sample_count=10,
         timeout=10.0,
@@ -395,72 +395,72 @@ class RandomPingerTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "TORPEDO_FIRST",
+                    "succeeded": "DEPTH_BEFORE_PINGER",
                     "preempted": "preempted",
-                    "aborted": "TORPEDO_FIRST",
+                    "aborted": "DEPTH_BEFORE_PINGER",
                 },
             )
-            # smach.StateMachine.add(
-            #     "DEPTH_BEFORE_PINGER",
-            #     SetDepthState(depth=pinger_depth),
-            #     transitions={
-            #         "succeeded": "WAIT_FOR_PINGER_STABILIZATION",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "WAIT_FOR_PINGER_STABILIZATION",
-            #     DelayState(delay_time=stabilization_time),
-            #     transitions={
-            #         "succeeded": "SELECT_PINGER_ORDER",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "SELECT_PINGER_ORDER",
-            #     RandomPingerSelectorState(
-            #         angle_topic=angle_topic,
-            #         torpedo_frame=torpedo_frame,
-            #         octagon_frame=octagon_frame,
-            #         source_frame=source_frame,
-            #         sample_count=sample_count,
-            #         timeout=timeout,
-            #         fallback_first=fallback_first,
-            #         tie_threshold=tie_threshold,
-            #         outlier_rejection_threshold=outlier_rejection_threshold,
-            #         min_consensus_ratio=min_consensus_ratio,
-            #         pinger_depth=pinger_depth,
-            #         depth_recovery_threshold=depth_recovery_threshold,
-            #         depth_recovery_policy=depth_recovery_policy,
-            #         depth_recovery_min_samples=depth_recovery_min_samples,
-            #     ),
-            #     transitions={
-            #         "torpedo_first": "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
-            #         "octagon_first": "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
-            #     SetDepthState(depth=pinger_depth),
-            #     transitions={
-            #         "succeeded": "TORPEDO_FIRST",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
-            #     SetDepthState(depth=pinger_depth),
-            #     transitions={
-            #         "succeeded": octagon_first_state,
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
+            smach.StateMachine.add(
+                "DEPTH_BEFORE_PINGER",
+                SetDepthState(depth=pinger_depth),
+                transitions={
+                    "succeeded": "WAIT_FOR_PINGER_STABILIZATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_PINGER_STABILIZATION",
+                DelayState(delay_time=stabilization_time),
+                transitions={
+                    "succeeded": "SELECT_PINGER_ORDER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SELECT_PINGER_ORDER",
+                RandomPingerSelectorState(
+                    angle_topic=angle_topic,
+                    torpedo_frame=torpedo_frame,
+                    octagon_frame=octagon_frame,
+                    source_frame=source_frame,
+                    sample_count=sample_count,
+                    timeout=timeout,
+                    fallback_first=fallback_first,
+                    tie_threshold=tie_threshold,
+                    outlier_rejection_threshold=outlier_rejection_threshold,
+                    min_consensus_ratio=min_consensus_ratio,
+                    pinger_depth=pinger_depth,
+                    depth_recovery_threshold=depth_recovery_threshold,
+                    depth_recovery_policy=depth_recovery_policy,
+                    depth_recovery_min_samples=depth_recovery_min_samples,
+                ),
+                transitions={
+                    "torpedo_first": "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
+                    "octagon_first": "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
+                SetDepthState(depth=pinger_depth),
+                transitions={
+                    "succeeded": "TORPEDO_FIRST",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
+                SetDepthState(depth=pinger_depth),
+                transitions={
+                    "succeeded": octagon_first_state,
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "TORPEDO_FIRST",
                 TorpedoTaskState(**torpedo_params),
@@ -505,128 +505,128 @@ class RandomPingerTaskState(smach.State):
                 },
             )
 
-            # if surface_and_return_if_octagon_first:
-            #     smach.StateMachine.add(
-            #         "OCTAGON_SURFACE_FIRST",
-            #         OctagonSurfaceState(octagon_depth=octagon_params["octagon_depth"]),
-            #         transitions={
-            #             "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
-            #             "preempted": "preempted",
-            #             "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
-            #         SearchForPropState(
-            #             look_at_frame="pinger_mission_start",
-            #             alignment_frame="pinger_search",
-            #             full_rotation=False,
-            #             source_frame="taluy/base_link",
-            #         ),
-            #         transitions={
-            #             "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
-            #             "preempted": "preempted",
-            #             "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
-            #         DynamicPathState(
-            #             plan_target_frame="pinger_mission_start",
-            #         ),
-            #         transitions={
-            #             "succeeded": "TORPEDO_AFTER_OCTAGON_SURFACE",
-            #             "preempted": "preempted",
-            #             "aborted": "aborted",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "TORPEDO_AFTER_OCTAGON_SURFACE",
-            #         TorpedoTaskState(**torpedo_params),
-            #         transitions={
-            #             "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
-            #             "preempted": "preempted",
-            #             "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
-            #         SearchForPropState(
-            #             look_at_frame="pinger_mission_start",
-            #             alignment_frame="pinger_search",
-            #             full_rotation=False,
-            #             source_frame="taluy/base_link",
-            #         ),
-            #         transitions={
-            #             "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
-            #             "preempted": "preempted",
-            #             "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
-            #         DynamicPathState(
-            #             plan_target_frame="pinger_mission_start",
-            #         ),
-            #         transitions={
-            #             "succeeded": "OCTAGON_AFTER_SURFACE_TORPEDO",
-            #             "preempted": "preempted",
-            #             "aborted": "aborted",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "OCTAGON_AFTER_SURFACE_TORPEDO",
-            #         OctagonTaskState(**octagon_params),
-            #         transitions={
-            #             "succeeded": "succeeded",
-            #             "preempted": "preempted",
-            #             "aborted": "aborted",
-            #         },
-            #     )
-            # else:
-            #     smach.StateMachine.add(
-            #         "OCTAGON_FIRST",
-            #         OctagonTaskState(**octagon_params),
-            #         transitions={
-            #             "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
-            #             "preempted": "preempted",
-            #             "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
-            #         SearchForPropState(
-            #             look_at_frame="pinger_mission_start",
-            #             alignment_frame="pinger_search",
-            #             full_rotation=False,
-            #             source_frame="taluy/base_link",
-            #         ),
-            #         transitions={
-            #             "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
-            #             "preempted": "preempted",
-            #             "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
-            #         DynamicPathState(
-            #             plan_target_frame="pinger_mission_start",
-            #         ),
-            #         transitions={
-            #             "succeeded": "TORPEDO_SECOND",
-            #             "preempted": "preempted",
-            #             "aborted": "aborted",
-            #         },
-            #     )
-            #     smach.StateMachine.add(
-            #         "TORPEDO_SECOND",
-            #         TorpedoTaskState(**torpedo_params),
-            #         transitions={
-            #             "succeeded": "succeeded",
-            #             "preempted": "preempted",
-            #             "aborted": "aborted",
-            #         },
-            #     )
+            if surface_and_return_if_octagon_first:
+                smach.StateMachine.add(
+                    "OCTAGON_SURFACE_FIRST",
+                    OctagonSurfaceState(octagon_depth=octagon_params["octagon_depth"]),
+                    transitions={
+                        "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
+                        "preempted": "preempted",
+                        "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
+                    },
+                )
+                smach.StateMachine.add(
+                    "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_SURFACE_FIRST",
+                    SearchForPropState(
+                        look_at_frame="pinger_mission_start",
+                        alignment_frame="pinger_search",
+                        full_rotation=False,
+                        source_frame="taluy/base_link",
+                    ),
+                    transitions={
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
+                        "preempted": "preempted",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
+                    },
+                )
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
+                        "succeeded": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "TORPEDO_AFTER_OCTAGON_SURFACE",
+                    TorpedoTaskState(**torpedo_params),
+                    transitions={
+                        "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
+                    },
+                )
+                smach.StateMachine.add(
+                    "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_AFTER_SURFACE",
+                    SearchForPropState(
+                        look_at_frame="pinger_mission_start",
+                        alignment_frame="pinger_search",
+                        full_rotation=False,
+                        source_frame="taluy/base_link",
+                    ),
+                    transitions={
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                    },
+                )
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
+                        "succeeded": "OCTAGON_AFTER_SURFACE_TORPEDO",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "OCTAGON_AFTER_SURFACE_TORPEDO",
+                    OctagonTaskState(**octagon_params),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+            else:
+                smach.StateMachine.add(
+                    "OCTAGON_FIRST",
+                    OctagonTaskState(**octagon_params),
+                    transitions={
+                        "succeeded": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
+                        "preempted": "preempted",
+                        "aborted": "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
+                    },
+                )
+                smach.StateMachine.add(
+                    "SEARCH_FOR_PROP_BEFORE_DYNAMIC_PATH_OCTAGON_FIRST",
+                    SearchForPropState(
+                        look_at_frame="pinger_mission_start",
+                        alignment_frame="pinger_search",
+                        full_rotation=False,
+                        source_frame="taluy/base_link",
+                    ),
+                    transitions={
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                        "preempted": "preempted",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                    },
+                )
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
+                        "succeeded": "TORPEDO_SECOND",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "TORPEDO_SECOND",
+                    TorpedoTaskState(**torpedo_params),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
     def execute(self, userdata):
         rospy.loginfo("Starting Random Pinger SMACH Task")
