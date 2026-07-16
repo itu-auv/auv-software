@@ -683,11 +683,6 @@
     </include>
     <include>
       <uri>model://robosub_gate</uri>
-      <name>robosub_gate_3</name>
-      <pose>-5 -9.25 -1.5 0 0 -0.3</pose>
-    </include>
-    <include>
-      <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
       <pose>-5.000000 -22.482344 -1.500000 0.000000 0.000000 0.000000</pose>
     </include>
@@ -704,13 +699,8 @@
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
-      <name>robosub_torpedo_3</name>
-      <pose>7.3 -10.7 -2 1.57 0 2.56</pose>
-    </include>
-    <include>
-      <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>5.535094 -16.519724 -1.999833 1.570142 0.000453 -2.244907</pose>
+      <pose>8.665620 -15.808700 -2.000010 1.570030 -0.000209 -3.116060</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
@@ -727,11 +717,6 @@
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_3</name>
       <pose>8.3 -5.3 -1.6 0 0 0.35</pose>
-    </include>
-    <include>
-      <uri>model://robosub_bin</uri>
-      <name>robosub_bin_4</name>
-      <pose>8.718672 -24.459122 -1.600000 0.000000 0.000000 -2.305001</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
@@ -811,21 +796,6 @@
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_3</name>
       <pose>2.25 1.75 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_1</name>
-      <pose>-0.75 -7.75 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_2</name>
-      <pose>0.75 -7.0 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_3</name>
-      <pose>2.25 -7.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
