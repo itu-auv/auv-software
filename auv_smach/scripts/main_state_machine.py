@@ -152,7 +152,7 @@ class MainStateMachineNode:
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_topic = "acoustic/modem/transmitted"
+        self.acoustic_tx_topic = "acoustic/modem/transmit"
 
         # Acoustic receiver parameters
         self.acoustic_rx_expected_data = [1]
