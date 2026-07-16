@@ -6,11 +6,13 @@
   <arg name="marker_topic" default="acoustic/hydrophone/marker" />
   <arg name="base_link" default="$(arg namespace)/base_link" />
   <arg name="marker_length" default="1.5" />
+  <arg name="yaw_offset_deg" default="90.0" />
 
   <group ns="$(arg namespace)">
     <node name="hydrophone_tdoa_to_angle_node" pkg="auv_hardware_bridge" type="hydrophone_tdoa_to_angle_node.py" output="screen">
       <param name="base_link" value="$(arg base_link)" />
       <param name="marker_length" value="$(arg marker_length)" />
+      <param name="yaw_offset_deg" value="$(arg yaw_offset_deg)" />
       <remap from="acoustic/hydrophone/marker" to="$(arg marker_topic)" />
       <remap from="acoustic/hydrophone/base_angle" to="$(arg base_angle_topic)" />
       <remap from="acoustic/hydrophone/tdoa" to="$(arg tdoa_topic)" />

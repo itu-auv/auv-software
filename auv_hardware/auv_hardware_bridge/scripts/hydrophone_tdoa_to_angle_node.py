@@ -3,7 +3,7 @@
 import numpy as np
 import rospy
 from geometry_msgs.msg import Point
-from std_msgs.msg import Int16MultiArray, Float64
+from std_msgs.msg import Float32, Int16MultiArray
 from visualization_msgs.msg import Marker
 
 
@@ -20,11 +20,11 @@ SENSORS = np.array(
     ]
 )
 A = SENSORS[1:] - SENSORS[0]
-ROBOT_YAW_OFFSET = 90
+ROBOT_YAW_OFFSET_DEG = 90.0
 
 
 def normalize_angle(angle):
-    return (angle + 180.0) % 360.0 - 180.0
+    return np.arctan2(np.sin(angle), np.cos(angle))
 
 
 def calculate_angle(tdoa_samples):
@@ -39,7 +39,7 @@ def calculate_angle(tdoa_samples):
     else:
         k_est = np.array([0.0, 0.0])
 
-    return np.degrees(np.arctan2(k_est[1], k_est[0]))
+    return np.arctan2(k_est[1], k_est[0])
 
 
 def to_robot_angle(hydrophone_angle, yaw_offset):
@@ -49,15 +49,17 @@ def to_robot_angle(hydrophone_angle, yaw_offset):
 class HydrophoneTDOAToAngle:
     def __init__(self):
         rospy.init_node("hydrophone_tdoa_to_angle_node", anonymous=True)
-        self.yaw_offset = ROBOT_YAW_OFFSET
+        yaw_offset_deg = rospy.get_param(
+            "~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG
+        )
+        self.yaw_offset = np.radians(yaw_offset_deg)
         self.marker_length = rospy.get_param("~marker_length", 1.5)
-        self.namespace = rospy.get_param("~namespace", "taluy")
-        self.base_link = f"{self.namespace}/base_link"
+        self.base_link = rospy.get_param("~base_link", "taluy/base_link")
         self.marker_pub = rospy.Publisher(
             "acoustic/hydrophone/marker", Marker, queue_size=10
         )
         self.angle_pub = rospy.Publisher(
-            "acoustic/hydrophone/base_angle", Float64, queue_size=10
+            "acoustic/hydrophone/base_angle", Float32, queue_size=10
         )
         self.tdoa_sub = rospy.Subscriber(
             "acoustic/hydrophone/tdoa", Int16MultiArray, self.tdoa_callback
@@ -71,15 +73,14 @@ class HydrophoneTDOAToAngle:
         hydrophone_angle = calculate_angle(msg.data[0:3])
         robot_angle = to_robot_angle(hydrophone_angle, self.yaw_offset)
 
-        self.angle_pub.publish(Float64(data=robot_angle))
+        self.angle_pub.publish(Float32(data=float(robot_angle)))
 
         marker = self.make_marker(robot_angle, msg.data[3])
         self.marker_pub.publish(marker)
 
     def make_marker(self, robot_angle, magnitude):
-        angle_rad = np.radians(robot_angle)
-        end_x = np.cos(angle_rad) * self.marker_length
-        end_y = np.sin(angle_rad) * self.marker_length
+        end_x = np.cos(robot_angle) * self.marker_length
+        end_y = np.sin(robot_angle) * self.marker_length
 
         marker = Marker()
         marker.header.frame_id = self.base_link
