@@ -721,30 +721,10 @@
     <!-- **** 4 × OCTAGON **** -->
     <include>
       <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_1</name>
-      <pose>10.885654 16.376108 -1.950000 0.000000 0.000000 0.000000</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_3</name>
-      <pose>11 -9.25 -1.97 0 0 -1.1</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_4</name>
       <pose>9.934710 -12.970200 -1.950000 0.000000 0.000000 -0.300000</pose>
     </include>
     <!-- **** ANIMALS FOR ALL OCTAGONS **** -->
-    <include>
-      <uri>model://robosub_octagon_animals</uri>
-      <name>robosub_octagon_animals</name>
-      <pose>9.535654 16.376108 -0.600000 0.000000 0.000000 0.000000</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon_animals</uri>
-      <name>robosub_octagon_animals_3</name>
-      <pose>10.3876 -8.047 -0.62 0 0 -1.1</pose>
-    </include>
     <include>
       <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals_4</name>
