@@ -716,7 +716,7 @@
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_3</name>
-      <pose>8.3 -5.3 -1.6 0 0 0.35</pose>
+      <pose>6.841690 -7.873360 -1.600000 0.000000 0.000000 0.350000</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
@@ -726,18 +726,13 @@
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_2</name>
-      <pose>11 3.25 -1.97 0 0 0.3</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_3</name>
       <pose>11 -9.25 -1.97 0 0 -1.1</pose>
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_4</name>
-      <pose>9.941803 -20.647182 -1.97 0 0 -0.3</pose>
+      <pose>9.934710 -12.970200 -1.950000 0.000000 0.000000 -0.300000</pose>
     </include>
     <!-- **** ANIMALS FOR ALL OCTAGONS **** -->
     <include>
@@ -747,18 +742,13 @@
     </include>
     <include>
       <uri>model://robosub_octagon_animals</uri>
-      <name>robosub_octagon_animals_2</name>
-      <pose>9.7103 2.851 -0.62 0 0 0.3</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals_3</name>
       <pose>10.3876 -8.047 -0.62 0 0 -1.1</pose>
     </include>
     <include>
       <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals_4</name>
-      <pose>8.652103 -20.248182 -0.62 0 0 -0.3</pose>
+      <pose>8.645010 -12.571200 -0.600000 0.000000 0.000000 -0.300000</pose>
     </include>
     <!-- PATH MARKER -->
     <include>
