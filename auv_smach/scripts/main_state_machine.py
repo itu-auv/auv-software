@@ -111,7 +111,7 @@ class MainStateMachineNode:
 
         self.gate_search_depth = -0.4
         self.gate_depth = -0.7
-        self.roll_depth = -0.7
+        self.roll_depth = -0.4
 
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
@@ -135,7 +135,7 @@ class MainStateMachineNode:
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_depth = -1.25
+        self.torpedo_map_depth = -1.10
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
 
@@ -152,7 +152,7 @@ class MainStateMachineNode:
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_topic = "acoustic/modem/transmitted"
+        self.acoustic_tx_topic = "acoustic/modem/transmit"
 
         # Acoustic receiver parameters
         self.acoustic_rx_expected_data = [1]

@@ -1,28 +1,25 @@
-created_at: '2026-07-12T13:04:27.803244'
+created_at: '2026-07-16T10:14:24.975583'
 paths:
   - name: path1
-    ref_a: gate_exit
+    ref_a: gate_survey_repair_link
     ref_b: ''
     b_mode: 0
     b_reference_distance: 12.0
     waypoint_prefix: path
     waypoints:
-      - x: 1.899497487437186
-        y: -0.06030150753768915
+      - x: 3.507537688442211
+        y: -2.2110552763819094
         z: -1.0
         yaw: 0.0
-      - x: 3.8894472361809047
-        y: -2.834170854271356
+      - x: 10.683417085427136
+        y: -2.231155778894472
         z: -1.0
-        yaw: 5.000000000000001
-  - name: path2
-    ref_a: bin_exit
-    ref_b: ''
-    b_mode: 0
-    b_reference_distance: 12.0
-    waypoint_prefix: path
-    waypoints:
-      - x: 0.09045226130653283
-        y: 3.2361809045226133
+        yaw: 0.0
+      - x: 11.206030150753769
+        y: 1.7286432160804024
+        z: -1.0
+        yaw: 89.00000000000001
+      - x: 10.542713567839195
+        y: 4.080402010050252
         z: -1.0
         yaw: 0.0

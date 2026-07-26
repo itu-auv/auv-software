@@ -316,20 +316,20 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.4,
                 ),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_1",
-                AcousticTransmitter(acoustic_data=1),
-                transitions={
                     "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "TRANSMIT_ACOUSTIC_1",
+            #     AcousticTransmitter(acoustic_data=1),
+            #     transitions={
+            #         "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "PATH_TO_TORPEDO_CLOSE_APPROACH",
                 DynamicPathState(
@@ -623,20 +623,20 @@ class TorpedoTaskState(smach.State):
                     use_frame_depth=False,
                 ),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_4",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_4",
-                AcousticTransmitter(acoustic_data=4),
-                transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "TRANSMIT_ACOUSTIC_4",
+            #     AcousticTransmitter(acoustic_data=4),
+            #     transitions={
+            #         "succeeded": "CANCEL_ALIGN_CONTROLLER",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),

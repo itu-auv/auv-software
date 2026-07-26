@@ -6,7 +6,7 @@ from std_msgs.msg import UInt8MultiArray
 
 
 DEFAULT_ACOUSTIC_RX_TOPIC = "acoustic/modem/received"
-DEFAULT_ACOUSTIC_TX_TOPIC = "acoustic/modem/transmitted"
+DEFAULT_ACOUSTIC_TX_TOPIC = "acoustic/modem/transmit"
 
 
 def _normalize_data(data):
@@ -41,7 +41,9 @@ class AcousticTransmitter(smach.State):
         msg = UInt8MultiArray(data=self.acoustic_data)
 
         try:
-            self.acoustic_pub.publish(msg)
+            for i in range(0, 5):
+                self.acoustic_pub.publish(msg)
+                rospy.sleep(1)
         except rospy.ROSException as e:
             rospy.logerr(f"Error publishing acoustic data: {e}")
             return "aborted"

@@ -37,7 +37,7 @@ class GripperAngleOpenState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 2100
+        self.angle_value = 2300
 
     def execute(self, userdata) -> str:
         try:
@@ -66,7 +66,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 1100
+        self.angle_value = 1050
 
     def execute(self, userdata) -> str:
         try:
@@ -304,8 +304,9 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame="octagon_table_segment_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    closest_yaw=False,
-                    keep_orientation=True,
+                    closest_yaw_180=True,
+                    keep_orientation=False,
+                    angle_offset=1.7,
                     confirm_duration=1.0,
                     timeout=15.0,
                     max_linear_velocity=0.25,
@@ -389,7 +390,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_TO_DROP_OBJECT",
                 SetDepthState(
-                    depth=-0.95,
+                    depth=-0.90,
                     max_velocity=0.1,
                     confirm_duration=1.0,
                     depth_threshold=0.07,
@@ -979,6 +980,20 @@ class OctagonTaskState(smach.State):
                     max_linear_velocity=0.3,
                     max_angular_velocity=0.3,
                     cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "ROLE_BAKMA_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ROLE_BAKMA_DEPTH",
+                SetDepthState(
+                    depth=-0.1,
+                    timeout=10.0,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_ROLE_TARGET",

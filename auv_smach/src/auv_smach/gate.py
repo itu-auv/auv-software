@@ -303,9 +303,31 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
                     timeout=10.0,
-                    cancel_on_success=True,
+                    cancel_on_success=False,
                     keep_orientation=False,
                 ),
+                transitions={
+                    "succeeded": "newhat",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "newhat",
+                SetDepthState(
+                    depth=-0.9,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_1",
+                AcousticTransmitter(acoustic_data=[1, 1, 1]),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

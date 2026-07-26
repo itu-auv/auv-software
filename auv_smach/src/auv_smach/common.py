@@ -318,7 +318,10 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         max_angular_velocity: float = None,
         use_depth: bool = False,
         closest_yaw: bool = False,
+        closest_yaw_180: bool = False,
     ):
+        if closest_yaw and closest_yaw_180:
+            raise ValueError("closest_yaw and closest_yaw_180 cannot both be enabled")
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
@@ -326,6 +329,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.keep_orientation = keep_orientation
         align_request.use_depth = use_depth
         align_request.closest_yaw = closest_yaw
+        align_request.closest_yaw_180 = closest_yaw_180
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
         if max_angular_velocity is not None:
@@ -1031,6 +1035,7 @@ class CheckAlignmentState(smach.State):
         keep_orientation=False,
         use_frame_depth=False,
         closest_yaw=False,
+        closest_yaw_180=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -1043,6 +1048,7 @@ class CheckAlignmentState(smach.State):
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
         self.closest_yaw = closest_yaw
+        self.closest_yaw_180 = closest_yaw_180
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
@@ -1084,6 +1090,15 @@ class CheckAlignmentState(smach.State):
                     abs(
                         angles.shortest_angular_distance(
                             0, yaw + self.angle_offset + 3 * math.pi / 2
+                        )
+                    ),
+                )
+            elif self.closest_yaw_180:
+                yaw_error = min(
+                    yaw_with_offset,
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi
                         )
                     ),
                 )
@@ -1166,8 +1181,12 @@ class AlignFrame(smach.StateMachine):
         max_angular_velocity=None,
         use_frame_depth=False,
         closest_yaw=False,
+        closest_yaw_180=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
+
+        if closest_yaw and closest_yaw_180:
+            raise ValueError("closest_yaw and closest_yaw_180 cannot both be enabled")
 
         with self:
             watch_succeeded_transition = (
@@ -1185,6 +1204,7 @@ class AlignFrame(smach.StateMachine):
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -1206,6 +1226,7 @@ class AlignFrame(smach.StateMachine):
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
@@ -1856,6 +1877,7 @@ class AlignFrameWithTransformCheck(smach.Concurrence):
         max_angular_velocity=None,
         use_frame_depth=False,
         closest_yaw=False,
+        closest_yaw_180=False,
         transform_timeout: float = 60.0,
         allow_mutli_check_goal: bool = False,
     ):
@@ -1887,6 +1909,7 @@ class AlignFrameWithTransformCheck(smach.Concurrence):
                     max_angular_velocity=max_angular_velocity,
                     use_frame_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
                 ),
             )
 

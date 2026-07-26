@@ -772,14 +772,39 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_3",
+                    "succeeded": "find_aim_return_home",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # smach.StateMachine.add(
+            #     "TRANSMIT_ACOUSTIC_3",
+            #     AcousticTransmitter(acoustic_data=3),
+            #     transitions={
+            #         "succeeded": "CANCEL_ALIGN_CONTROLLER",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            smach.StateMachine.add(
+                "find_aim_return_home",
+                SearchForPropState(
+                    look_at_frame="odom",  # should entegrate kde frame here
+                    alignment_frame="return_search_melih",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                ),
+                transitions={
+                    "succeeded": "RETURN_HOME_melih",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_3",
-                AcousticTransmitter(acoustic_data=3),
+                "RETURN_HOME_melih",
+                DynamicPathState(
+                    plan_target_frame="odom",
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

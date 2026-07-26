@@ -11,6 +11,7 @@ from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
 from auv_smach.common import (
+    AlignFrame,
     CancelAlignControllerState,
     DynamicPathState,
     SetDepthState,
@@ -352,7 +353,7 @@ class RandomPingerTaskState(smach.State):
         torpedo_frame="torpedo_map_link_kde",
         octagon_frame="octagon_link_kde",
         source_frame=None,
-        pinger_depth=-1.7,
+        pinger_depth=-1.5,
         stabilization_time=2.0,
         sample_count=10,
         timeout=10.0,
@@ -381,14 +382,18 @@ class RandomPingerTaskState(smach.State):
                 "PINGER_MISSION_START",
                 SetStartFrameState(frame_name="pinger_mission_start"),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "ALIGN_TO_PINGER_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
+                "ALIGN_TO_PINGER_START",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="pinger_mission_start",
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "DEPTH_BEFORE_PINGER",
                     "preempted": "preempted",
@@ -499,6 +504,7 @@ class RandomPingerTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
             if surface_and_return_if_octagon_first:
                 smach.StateMachine.add(
                     "OCTAGON_SURFACE_FIRST",
