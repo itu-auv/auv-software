@@ -49,9 +49,7 @@ def to_robot_angle(hydrophone_angle, yaw_offset):
 class HydrophoneTDOAToAngle:
     def __init__(self):
         rospy.init_node("hydrophone_tdoa_to_angle_node", anonymous=True)
-        yaw_offset_deg = rospy.get_param(
-            "~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG
-        )
+        yaw_offset_deg = rospy.get_param("~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG)
         self.yaw_offset = np.radians(yaw_offset_deg)
         self.marker_length = rospy.get_param("~marker_length", 1.5)
         self.base_link = rospy.get_param("~base_link", "taluy/base_link")

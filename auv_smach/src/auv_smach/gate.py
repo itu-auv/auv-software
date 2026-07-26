@@ -327,7 +327,7 @@ class NavigateThroughGateState(smach.State):
 
             smach.StateMachine.add(
                 "TRANSMIT_ACOUSTIC_1",
-                AcousticTransmitter(acoustic_data=[1,1,1]),
+                AcousticTransmitter(acoustic_data=[1, 1, 1]),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
