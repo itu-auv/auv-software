@@ -1,0 +1,25 @@
+ARG BASE_IMAGE=auv-base:dev
+FROM ${BASE_IMAGE}
+
+COPY docker/ros_entrypoint.sh /ros_entrypoint.sh
+RUN chmod +x /ros_entrypoint.sh
+
+# Copy and build auv_software (creates build cache for incremental builds)
+COPY . /auv_ws/src/auv_software
+
+# Ignore hardware and teleop packages (not needed for simulation)
+RUN touch /auv_ws/src/auv_software/auv_hardware/CATKIN_IGNORE \
+    && touch /auv_ws/src/auv_software/auv_teleop/CATKIN_IGNORE
+
+# Install auv_software dependencies
+RUN apt-get update && \
+    rosdep install --from-paths /auv_ws/src/auv_software --ignore-src -r -y && \
+    pip3 install pyzmq && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN . /opt/ros/noetic/setup.sh && \
+    . /auv_ws/devel/setup.sh && \
+    catkin build -j4
+
+ENTRYPOINT ["/ros_entrypoint.sh"]
+CMD ["zsh"]
