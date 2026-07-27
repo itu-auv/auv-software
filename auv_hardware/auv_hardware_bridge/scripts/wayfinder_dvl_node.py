@@ -92,8 +92,30 @@ class WayfinderNode:
         self.set_enabled_service = rospy.Service(
             "enable", std_srvs.srv.SetBool, self.set_enable_handler
         )
+        self.dvl_enabled = False
+        self.previous_status = None
+        self.status_sub = rospy.Subscriber(
+            "propulsion_board/status", std_msgs.msg.Bool, self.status_callback
+        )
+
         rospy.loginfo("Wayfinder DVL ready.")
         rospy.loginfo("use enable service to start pinging..")
+
+    def status_callback(self, msg: std_msgs.msg.Bool):
+        current_status = msg.data
+
+        if self.previous_status and not current_status:
+            rospy.logwarn("Killswitch engaged. Disabling DVL.")
+            if self.dvl_enabled:
+                success = self.wayfinder.enter_command_mode()
+                if not success:
+                    rospy.logerr("Failed to stop pinging")
+                else:
+                    self.wayfinder.unregister_all_callbacks()
+                    self.dvl_enabled = False
+                    rospy.loginfo("Successfully stopped pinging")
+
+        self.previous_status = current_status
 
     def set_enable_handler(
         self, req: std_srvs.srv.SetBool
