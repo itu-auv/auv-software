@@ -13,6 +13,11 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_srvs
   tf
+  dynamic_reconfigure
+)
+
+generate_dynamic_reconfigure_options(
+  cfg/Aruco.cfg
 )
 
 catkin_package(
@@ -22,6 +27,7 @@ catkin_package(
     sensor_msgs
     std_srvs
     tf
+    dynamic_reconfigure
 )
 
 include_directories(
@@ -30,6 +36,7 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
+    scripts/aruco_detection_node.py
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
     scripts/yolo_to_mask_node.py
