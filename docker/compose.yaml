@@ -1,0 +1,37 @@
+services:
+  auv_software:
+    build:
+      context: .
+      dockerfile: Dockerfile.auv
+      args:
+        HOST: tegra
+      additional_contexts:
+        - wayfinder=/home/agxorin/Wayfinder
+    image: ghcr.io/itu-auv/auv-software-base:latest
+    container_name: auv_software
+    runtime: nvidia
+    network_mode: host
+    privileged: true
+    stdin_open: true
+    tty: true
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1  
+      - ROS_IP=192.168.1.101
+      - ROS_HOSTNAME=192.168.1.101
+      - ROS_MASTER_URI=http://192.168.1.101:11311
+      - COMPOSE_BAKE=true
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev
+      - /home/agxorin/.zsh_history:/root/.zsh_history
+      - /home/agxorin/bags:/root/bags
+
+    devices:
+      - /dev/auv_expansion_board:/dev/auv_expansion_board
+
+    command: ["/bin/zsh"]
