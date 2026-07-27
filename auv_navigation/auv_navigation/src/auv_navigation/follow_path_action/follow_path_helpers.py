@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import copy
 import numpy as np
 import rospy
 from nav_msgs.msg import Path
@@ -16,6 +17,74 @@ DYNAMIC_TARGET_FRAME: str = "dynamic_target"
 ODOM_FRAME: str = "odom"
 TIME_ZERO: rospy.Time = rospy.Time(0)
 TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(4.0)
+
+
+def normalize_angle(angle: float) -> float:
+    return np.arctan2(np.sin(angle), np.cos(angle))
+
+
+def get_pose_yaw(pose: PoseStamped) -> float:
+    orientation = pose.pose.orientation
+    _, _, yaw = euler_from_quaternion(
+        [orientation.x, orientation.y, orientation.z, orientation.w]
+    )
+    return yaw
+
+
+def limit_target_position(
+    robot_pose: PoseStamped, target_pose: PoseStamped, position_lookahead_m: float
+):
+    robot_position = robot_pose.pose.position
+    target_position = target_pose.pose.position
+    delta = np.array(
+        [
+            target_position.x - robot_position.x,
+            target_position.y - robot_position.y,
+            target_position.z - robot_position.z,
+        ]
+    )
+    distance = np.linalg.norm(delta)
+
+    if position_lookahead_m <= 0.0 or distance < ZERO_DISTANCE_TOLERANCE:
+        return copy.deepcopy(robot_position)
+    if distance <= position_lookahead_m:
+        return copy.deepcopy(target_position)
+
+    limited_position = copy.deepcopy(robot_position)
+    limited_delta = delta * (position_lookahead_m / distance)
+    limited_position.x += float(limited_delta[0])
+    limited_position.y += float(limited_delta[1])
+    limited_position.z += float(limited_delta[2])
+    return limited_position
+
+
+def apply_yaw_gate(
+    target_pose: PoseStamped,
+    robot_pose: PoseStamped,
+    yaw_gate_active: bool,
+    yaw_gate_enter_threshold_rad: float,
+    yaw_gate_exit_threshold_rad: float,
+    yaw_gate_position_lookahead_m: float,
+) -> Tuple[PoseStamped, bool]:
+    target_yaw = get_pose_yaw(target_pose)
+    robot_yaw = get_pose_yaw(robot_pose)
+    yaw_error = abs(normalize_angle(target_yaw - robot_yaw))
+
+    next_yaw_gate_active = yaw_gate_active
+
+    if yaw_gate_active:
+        if yaw_error <= yaw_gate_exit_threshold_rad:
+            next_yaw_gate_active = False
+    elif yaw_error >= yaw_gate_enter_threshold_rad:
+        next_yaw_gate_active = True
+
+    gated_target_pose = copy.deepcopy(target_pose)
+    if next_yaw_gate_active:
+        gated_target_pose.pose.position = limit_target_position(
+            robot_pose, target_pose, yaw_gate_position_lookahead_m
+        )
+
+    return gated_target_pose, next_yaw_gate_active
 
 
 def get_robot_pose(

@@ -19,3 +19,7 @@ catkin_install_python(PROGRAMS
   scripts/path_planner_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test)
+endif()
