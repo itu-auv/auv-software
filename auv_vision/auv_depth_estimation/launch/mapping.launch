@@ -1,0 +1,78 @@
+<launch>
+    <!-- ============================================================
+       Depth Anything + Octomap Mapping Pipeline
+       ============================================================ -->
+
+    <!-- Depth Anything Configuration (passed to included launch) -->
+    <arg name="zmq_host" default="localhost" />
+    <arg name="zmq_port" default="5555" />
+    <arg name="input_topic" default="/taluy/cameras/cam_front/image_raw" />
+    <arg name="camera_namespace" default="/taluy/cameras/cam_front" />
+    <arg name="camera_frame" default="taluy/base_link/front_camera_optical_link" />
+    <arg name="odom_frame" default="odom" />
+    <arg name="use_external_odom" default="false" />
+    <arg name="process_res" default="504" />
+    <arg name="max_batch_size" default="2" />
+    <arg name="context_window" default="0.5" />
+    <arg name="scale_factor" default="1.0" />
+    <arg name="shift_factor" default="0.0" />
+    <arg name="use_compressed" default="false" />
+
+    <!-- Octomap parameters -->
+    <arg name="octomap_resolution" default="0.1" />
+    <arg name="sensor_model_max_range" default="50.0" />
+
+    <!-- Internal topic names -->
+    <arg name="raw_cloud_topic" default="/depth_anything/points" />
+    <arg name="filtered_cloud_topic" default="/depth_anything/points_filtered" />
+
+    <!-- ============================================================
+       1. Include Depth Anything Launch
+       ============================================================ -->
+    <include file="$(find auv_depth_estimation)/launch/depth_anything.launch">
+        <arg name="zmq_host" value="$(arg zmq_host)" />
+        <arg name="zmq_port" value="$(arg zmq_port)" />
+        <arg name="input_topic" value="$(arg input_topic)" />
+        <arg name="output_topic" value="$(arg raw_cloud_topic)" />
+        <arg name="camera_namespace" value="$(arg camera_namespace)" />
+        <arg name="camera_frame" value="$(arg camera_frame)" />
+        <arg name="odom_frame" value="$(arg odom_frame)" />
+        <arg name="use_external_odom" value="$(arg use_external_odom)" />
+        <arg name="process_res" value="$(arg process_res)" />
+        <arg name="max_batch_size" value="$(arg max_batch_size)" />
+        <arg name="context_window" value="$(arg context_window)" />
+        <arg name="scale_factor" value="$(arg scale_factor)" />
+        <arg name="shift_factor" value="$(arg shift_factor)" />
+        <arg name="use_compressed" value="$(arg use_compressed)" />
+    </include>
+
+    <!-- ============================================================
+       2. PCL Statistical Outlier Removal Filter
+       ============================================================ -->
+    <node pkg="nodelet" type="nodelet" name="pcl_manager" args="manager" output="screen" />
+
+    <node pkg="nodelet" type="nodelet" name="statistical_outlier_removal"
+          args="load pcl/StatisticalOutlierRemoval pcl_manager" output="screen">
+        <remap from="~input" to="$(arg raw_cloud_topic)" />
+        <remap from="~output" to="$(arg filtered_cloud_topic)" />
+        <param name="mean_k" value="50" />
+        <param name="stddev" value="1.0" />
+    </node>
+
+    <!-- ============================================================
+       3. Octomap Server (3D Voxel Map + 2D Projected Map)
+       ============================================================ -->
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
+        <remap from="cloud_in" to="$(arg filtered_cloud_topic)" />
+        <param name="frame_id" value="$(arg odom_frame)" />
+        <param name="resolution" value="$(arg octomap_resolution)" />
+        <param name="sensor_model/max_range" value="$(arg sensor_model_max_range)" />
+        <param name="latch" value="false" />
+        <param name="filter_ground" value="false" />
+        <param name="sensor_model/hit" value="0.7" />
+        <param name="sensor_model/miss" value="0.4" />
+        <param name="sensor_model/min" value="0.12" />
+        <param name="sensor_model/max" value="0.97" />
+    </node>
+
+</launch>
