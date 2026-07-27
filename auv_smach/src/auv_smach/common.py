@@ -307,6 +307,94 @@ class CancelAlignControllerState(smach_ros.ServiceState):
         )
 
 
+class SaveBaseLinkSnapshotState(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.save_base_link_snapshot_service = rospy.ServiceProxy(
+            "save_base_link_snapshot", Trigger
+        )
+        self.save_object_map_snapshot_service = rospy.ServiceProxy(
+            "save_object_map_snapshot", Trigger
+        )
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        try:
+            rospy.wait_for_service("save_base_link_snapshot", timeout=5.0)
+            rospy.wait_for_service("save_object_map_snapshot", timeout=5.0)
+
+            base_link_response = self.save_base_link_snapshot_service(TriggerRequest())
+            if not base_link_response.success:
+                rospy.logerr(
+                    "SaveBaseLinkSnapshotState: save_base_link_snapshot failed: %s",
+                    base_link_response.message,
+                )
+                return "aborted"
+
+            object_map_response = self.save_object_map_snapshot_service(
+                TriggerRequest()
+            )
+            if not object_map_response.success:
+                rospy.logerr(
+                    "SaveBaseLinkSnapshotState: save_object_map_snapshot failed: %s",
+                    object_map_response.message,
+                )
+                return "aborted"
+
+            return "succeeded"
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr("SaveBaseLinkSnapshotState: Service call failed: %s", e)
+            return "aborted"
+
+
+class RecoverBaseLinkSnapshotState(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.recover_base_link_snapshot_service = rospy.ServiceProxy(
+            "recover_base_link_snapshot", Trigger
+        )
+        self.recover_object_map_snapshot_service = rospy.ServiceProxy(
+            "recover_object_map_snapshot", Trigger
+        )
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        try:
+            rospy.wait_for_service("recover_base_link_snapshot", timeout=5.0)
+            rospy.wait_for_service("recover_object_map_snapshot", timeout=5.0)
+
+            base_link_response = self.recover_base_link_snapshot_service(
+                TriggerRequest()
+            )
+            if not base_link_response.success:
+                rospy.logerr(
+                    "RecoverBaseLinkSnapshotState: recover_base_link_snapshot failed: %s",
+                    base_link_response.message,
+                )
+                return "aborted"
+
+            object_map_response = self.recover_object_map_snapshot_service(
+                TriggerRequest()
+            )
+            if not object_map_response.success:
+                rospy.logerr(
+                    "RecoverBaseLinkSnapshotState: recover_object_map_snapshot failed: %s",
+                    object_map_response.message,
+                )
+                return "aborted"
+
+            return "succeeded"
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr("RecoverBaseLinkSnapshotState: Service call failed: %s", e)
+            return "aborted"
+
+
 class SetAlignControllerTargetState(smach_ros.ServiceState):
     def __init__(
         self,

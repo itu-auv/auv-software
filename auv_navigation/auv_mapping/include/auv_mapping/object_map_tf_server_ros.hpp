@@ -33,6 +33,12 @@ class ObjectMapTFServerROS {
   bool clear_map_handler(std_srvs::Trigger::Request &req,
                          std_srvs::Trigger::Response &res);
 
+  bool save_snapshot_handler(std_srvs::Trigger::Request &req,
+                             std_srvs::Trigger::Response &res);
+
+  bool recover_snapshot_handler(std_srvs::Trigger::Request &req,
+                                std_srvs::Trigger::Response &res);
+
   bool set_transform_handler(auv_msgs::SetObjectTransform::Request &req,
                              auv_msgs::SetObjectTransform::Response &res);
 
@@ -54,11 +60,16 @@ class ObjectMapTFServerROS {
   std::string static_frame_;
   std::string base_link_frame_;
   FilterMap filters_;
+  std::unordered_map<std::string, std::vector<geometry_msgs::TransformStamped>>
+      snapshot_;
+  bool has_snapshot_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
   ros::ServiceServer clear_service_;
+  ros::ServiceServer save_snapshot_service_;
+  ros::ServiceServer recover_snapshot_service_;
   ros::Subscriber dynamic_sub_;
 };
 
