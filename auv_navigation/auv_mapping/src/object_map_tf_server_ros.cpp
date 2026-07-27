@@ -157,10 +157,15 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   // If object is a slalom gate or bin bottom, use a smaller distance threshold
   double current_distance_threshold_squared = distance_threshold_squared_;
-  if (is_slalom_gate || is_bin_bottom) {
+  if (is_slalom_gate) {
     current_distance_threshold_squared = 1.0;  // 1.0 metre'nin karesi
     ROS_DEBUG_STREAM(
         "Using special distance threshold for object: " << object_frame);
+  }
+  if (is_bin_bottom) {
+    current_distance_threshold_squared = 0.25;  // 0.5 metre'nin karesi
+    ROS_DEBUG_STREAM(
+        "Using bin distance threshold for object: " << object_frame);
   }
 
   // Find the closest filter to update
@@ -196,10 +201,17 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   // If no filter was updated, create a new one
   if (!filter_updated) {
-    filters_[object_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_DEBUG_STREAM("Created new filter for "
-                     << object_frame << " due to distance threshold.");
+    if (is_bin_bottom && it->second.size() >= 2) {
+      closest_filter_ptr->update(*static_transform, dt);
+      ROS_DEBUG_STREAM("Updated closest filter for "
+                       << object_frame
+                       << " because bin frames are limited to 2.");
+    } else {
+      filters_[object_frame].push_back(std::make_unique<ObjectPositionFilter>(
+          *static_transform, 1.0 / rate_));
+      ROS_DEBUG_STREAM("Created new filter for "
+                       << object_frame << " due to distance threshold.");
+    }
   }
 
   // Update the frame IDs based on distance from the static frame
@@ -213,11 +225,12 @@ void ObjectMapTFServerROS::update_filter_frame_index(
     return;
   }
 
-  // Calculate distances from base_link to each filter's position
+  const bool use_static_frame_indexing =
+      object_frame.find("bin_blood_link") != std::string::npos ||
+      object_frame.find("bin_fire_link") != std::string::npos;
+
   std::vector<std::pair<size_t, double>> filter_distances;
   filter_distances.reserve(it->second.size());
-
-  const std::string &base_link_frame = base_link_frame_;
 
   for (size_t i = 0; i < it->second.size(); ++i) {
     const auto &transform = it->second[i]->getFilteredTransform();
@@ -234,7 +247,7 @@ void ObjectMapTFServerROS::update_filter_frame_index(
     try {
       // Look up transform from static frame to base_link
       auto base_link_transform = tf_buffer_.lookupTransform(
-          base_link_frame, static_frame_, ros::Time(0), ros::Duration(1.0));
+          base_link_frame_, static_frame_, ros::Time(0), ros::Duration(1.0));
 
       // Transform the point to base_link frame
       geometry_msgs::PointStamped point_in_base_link;
@@ -258,9 +271,10 @@ void ObjectMapTFServerROS::update_filter_frame_index(
     }
   }
 
-  // Sort filters by distance (closest first)
-  std::sort(filter_distances.begin(), filter_distances.end(),
-            [](const auto &a, const auto &b) { return a.second < b.second; });
+  if (!use_static_frame_indexing) {
+    std::sort(filter_distances.begin(), filter_distances.end(),
+              [](const auto &a, const auto &b) { return a.second < b.second; });
+  }
 
   // Update frame IDs based on sorted distances
   for (size_t i = 0; i < filter_distances.size(); ++i) {
