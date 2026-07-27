@@ -42,6 +42,7 @@ class ProcessTrackerWithCloud {
   // Parameters
   std::string camera_info_topic_, lidar_topic_, yolo_result_topic_;
   std::string yolo_3d_result_topic_;
+  std::string pointcloud_frame_;  // Frame of the input point cloud
   float cluster_tolerance_, voxel_leaf_size_;
   int min_cluster_size_, max_cluster_size_;
   float roi_expansion_factor_;
@@ -111,6 +112,9 @@ class ProcessTrackerWithCloud {
                       1.1);  // 10% expansion
     pnh_.param<std::string>("tracker_enable_service", tracker_enable_service_,
                             "/tracker_node_realsense/enable");
+    // Frame of the input point cloud (e.g. realsense depth optical frame).
+    // If empty, cloud_msg->header.frame_id is used.
+    pnh_.param<std::string>("pointcloud_frame", pointcloud_frame_, "");
 
     std::vector<int> skip_ids;
     pnh_.getParam("skip_detection_ids", skip_ids);
@@ -236,6 +240,37 @@ class ProcessTrackerWithCloud {
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud =
         downsampleCloud(cloud);
 
+    // Transform point cloud from its source frame to the camera optical frame
+    // so that projection with the camera intrinsics is valid. This allows the
+    // point cloud source (e.g. RealSense depth) and the detection camera
+    // (e.g. torpedo camera) to be different physical sensors.
+    std::string cloud_frame_id = pointcloud_frame_.empty()
+                                     ? cloud_msg->header.frame_id
+                                     : pointcloud_frame_;
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(
+        new pcl::PointCloud<pcl::PointXYZ>);
+    if (!camera_optical_frame_.empty() &&
+        cloud_frame_id != camera_optical_frame_) {
+      try {
+        geometry_msgs::TransformStamped tf_stamped =
+            tf_buffer_.lookupTransform(camera_optical_frame_, cloud_frame_id,
+                                       ros::Time(0), ros::Duration(0.1));
+        pcl_ros::transformPointCloud(*downsampled_cloud, *transformed_cloud,
+                                     tf_stamped.transform);
+        transformed_cloud->header.frame_id = camera_optical_frame_;
+      } catch (const tf2::TransformException& ex) {
+        ROS_WARN_STREAM_THROTTLE(2.0, "Failed to transform cloud from '"
+                                          << cloud_frame_id << "' to '"
+                                          << camera_optical_frame_
+                                          << "': " << ex.what());
+        return;
+      }
+    } else {
+      // Already in the correct frame (or no frame specified) — use as-is
+      *transformed_cloud = *downsampled_cloud;
+    }
+
     // Prepare data structures for 3D detections
     vision_msgs::Detection3DArray detections3d_msg;
     sensor_msgs::PointCloud2 detection_cloud_msg;
@@ -268,7 +303,7 @@ class ProcessTrackerWithCloud {
           new pcl::PointCloud<pcl::PointXYZ>);
 
       // Use bounding box
-      processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
+      processPointsWithBbox(transformed_cloud, detection, detection_cloud);
 
       if (detection_cloud->points.empty()) {
         continue;

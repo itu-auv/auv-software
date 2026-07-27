@@ -42,9 +42,9 @@ cameras:
     image_out_topic: "/yolo_image_seg"
 
   realsense:
-    image_topic: "/{ns}/camera/color/image_raw"
-    camera_info_topic: "/{ns}/camera/color/camera_info"
-    optical_frame: "{ns}/camera_depth_optical_frame"
+    image_topic: "/{ns}/cameras/cam_torpedo/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_torpedo/camera_info"
+    optical_frame: "{ns}/base_link/torpedo_camera_optical_link"
     result_topic: "/yolo_result_realsense"
     image_out_topic: "/yolo_image_realsense"
 

@@ -12,8 +12,10 @@
   <arg name="yolo_result_topic_in" default="/yolo_result_realsense"/>
   <arg name="yolo_result_topic_out" default="/yolo_detections"/>
 
-  <!-- Camera optical frame argument -->
-  <arg name="camera_optical_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
+  <!-- Camera optical frame argument (detection camera, e.g. torpedo camera) -->
+  <arg name="camera_optical_frame" default="$(arg namespace)/base_link/torpedo_camera_optical_link"/>
+  <!-- Point cloud source frame (e.g. realsense depth optical frame) -->
+  <arg name="pointcloud_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
 
   <!-- YOLO Result Bridge Node (from auv_vision package) -->
   <node name="yolo_result_bridge" pkg="auv_vision" type="yolo_result_bridge.py" output="screen">
@@ -22,17 +24,18 @@
   <!-- Process Tracker With Cloud Node -->
   <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
     <!-- Parameters -->
-    <param name="camera_info_topic" value="/$(arg namespace)/camera/color/camera_info"/>
+    <param name="camera_info_topic" value="/$(arg namespace)/cameras/cam_torpedo/camera_info"/>
     <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
     <param name="yolo_result_topic" value="$(arg yolo_result_topic_out)"/>
     <param name="camera_optical_frame" value="$(arg camera_optical_frame)"/>
+    <param name="pointcloud_frame" value="$(arg pointcloud_frame)"/>
     <param name="cluster_tolerance" value="0.2"/>
     <param name="voxel_leaf_size" value="0.05"/>
     <param name="min_cluster_size" value="50"/>
     <param name="max_cluster_size" value="10000"/>
     <param name="roi_expansion_factor" value="0.70"/>
     <param name="base_link_frame" value="$(arg namespace)/base_link"/>
-    <param name="tracker_enable_service" value="/tracker_node_realsense/enable"/>
+    <param name="tracker_enable_service" value="/tracker_node_torpedo/enable"/>
     <!-- Remaps -->
     <remap from="update_object_transforms" to="/$(arg namespace)/map/object_transform_updates"/>
     <remap from="enable" to="/process_tracker_with_cloud/enable"/>
