@@ -27,7 +27,7 @@ class ObjectPositionFilter {
    * @param dt The initial time step.
    */
   ObjectPositionFilter(const geometry_msgs::TransformStamped &initial_transform,
-                       const double dt);
+                       const double dt, bool needs_ekf = true);
 
   ~ObjectPositionFilter() = default;
 
@@ -44,6 +44,7 @@ class ObjectPositionFilter {
   void updateFrameIndex(const std::string &new_frame_id);
   /// Get the filtered transform.
   geometry_msgs::TransformStamped getFilteredTransform() const;
+  int getUpdateCount() const;
 
  private:
   /**
@@ -61,6 +62,7 @@ class ObjectPositionFilter {
   tf2::Quaternion filtered_orientation_;  // Filtered orientation
   std::string static_frame_;              // Parent (static) frame id
   std::string child_frame_;               // Child frame id for this object
+  int update_count_;
 };
 
 }  // namespace auv_mapping
