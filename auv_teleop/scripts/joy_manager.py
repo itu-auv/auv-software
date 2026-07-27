@@ -159,19 +159,28 @@ class JoystickNode:
             rospy.logwarn(f"Service {service.resolved_name} is not available")
 
     def launch_torpedo1(self):
-        self.call_service_if_available(
-            self.torpedo1_service, "Torpedo 1 launched", "Failed to launch torpedo 1"
-        )
+        threading.Thread(
+            target=lambda: self.call_service_if_available(
+                self.torpedo1_service, "Torpedo 1 launched", "Failed to launch torpedo 1"
+            ),
+            daemon=True
+        ).start()
 
     def launch_torpedo2(self):
-        self.call_service_if_available(
-            self.torpedo2_service, "Torpedo 2 launched", "Failed to launch torpedo 2"
-        )
+        threading.Thread(
+            target=lambda: self.call_service_if_available(
+                self.torpedo2_service, "Torpedo 2 launched", "Failed to launch torpedo 2"
+            ),
+            daemon=True
+        ).start()
 
     def drop_dropper(self):
-        self.call_service_if_available(
-            self.dropper_service, "Ball dropped", "Failed to drop the ball"
-        )
+        threading.Thread(
+            target=lambda: self.call_service_if_available(
+                self.dropper_service, "Ball dropped", "Failed to drop the ball"
+            ),
+            daemon=True
+        ).start()
 
     def reset_orientation(self):
         self.call_service_if_available(
