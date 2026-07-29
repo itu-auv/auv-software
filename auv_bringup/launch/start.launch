@@ -8,6 +8,7 @@
   <arg name="enable_xsens" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="enable_dvl" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="enable_vectornav" default="$(eval arg('namespace') == 'taluy_mini')" />
+  <arg name="enable_hydrophone" default="true" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -40,6 +41,12 @@
   <!-- launch vectornav driver -->
   <group if="$(arg enable_vectornav)">
     <include file="$(find auv_bringup)/launch/inc/sensors/start_vectornav.launch">
+      <arg name="namespace" value="$(arg namespace)" />
+    </include>
+  </group>
+
+  <group if="$(arg enable_hydrophone)">
+    <include file="$(find auv_hardware_bridge)/launch/start_hydrophone_tdoa_to_angle.launch">
       <arg name="namespace" value="$(arg namespace)" />
     </include>
   </group>

@@ -37,7 +37,7 @@ from vision_msgs.msg import (
     BoundingBox2D,
 )
 from geometry_msgs.msg import Pose, Pose2D, Transform
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 from gazebo_msgs.msg import ModelStates
 
 import rospkg
@@ -548,6 +548,8 @@ class SimCamera:
         tf_buffer: tf2_ros.Buffer,
         gazebo: "GazeboInterface",
         objects: List[SimObject],
+        enabled_fn=None,
+        compressed_image_output: bool = False,
     ):
         self.name = name
         self.optical_frame = optical_frame
@@ -556,6 +558,8 @@ class SimCamera:
         self.bridge = CvBridge()
         self.gazebo = gazebo
         self.objects = objects
+        self.enabled_fn = enabled_fn
+        self.compressed_image_output = compressed_image_output
         self.class_names: Dict[int, str] = {obj.class_id: obj.name for obj in objects}
 
         self.intrinsics: Optional[Tuple[float, float, float, float]] = None
@@ -567,7 +571,8 @@ class SimCamera:
         self._debug_lock = threading.Lock()
 
         self.result_pub = rospy.Publisher(result_topic, YoloResult, queue_size=1)
-        self.image_pub = rospy.Publisher(image_out_topic, Image, queue_size=1)
+        image_msg_type = CompressedImage if compressed_image_output else Image
+        self.image_pub = rospy.Publisher(image_out_topic, image_msg_type, queue_size=1)
 
         rospy.Subscriber(camera_info_topic, CameraInfo, self._info_cb, queue_size=1)
         rospy.Subscriber(
@@ -580,6 +585,8 @@ class SimCamera:
         self.image_h = msg.height
 
     def _image_cb(self, msg: Image):
+        if self.enabled_fn is not None and not self.enabled_fn():
+            return
         if self.intrinsics is None:
             return
 
@@ -737,7 +744,12 @@ class SimCamera:
             self._draw_detections(cv_image, detections)
             if masks:
                 self._draw_seg_masks(cv_image, detections, masks)
-            out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
+            if self.compressed_image_output:
+                out_msg = self.bridge.cv2_to_compressed_imgmsg(
+                    cv_image, dst_format="jpg"
+                )
+            else:
+                out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
             out_msg.header.stamp = stamp
             self.image_pub.publish(out_msg)
         except Exception as e:
@@ -883,6 +895,15 @@ def load_config(config_path: str, ns: str) -> Tuple[List[SimObject], Dict]:
                     occlusion_mesh=occ_mesh,
                 )
             )
+
+    # A Gazebo model can have multiple detection definitions (for example, both
+    # gate labels or all torpedo holes).  Prefix matching is a model-level
+    # property, so enabling it on one definition must cover every definition
+    # backed by the same numbered model instances.
+    prefix_models = {obj.gazebo_model for obj in all_objects if obj.match_prefix}
+    for obj in all_objects:
+        if obj.gazebo_model in prefix_models:
+            obj.match_prefix = True
 
     return all_objects, camera_configs
 

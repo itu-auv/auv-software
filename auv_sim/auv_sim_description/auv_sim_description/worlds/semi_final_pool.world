@@ -52,6 +52,69 @@
       <elevation>0</elevation>
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
+    <!-- Woollett competition pool: 50 m x 25 yd x 7 ft (2.1336 m).
+         The pool is rendered directly as a blue box; no external pool mesh is
+         used. The eight longitudinal line centres are 2.74 m apart, with the
+         two outer line centres 1.84 m from the west/east inner walls. -->
+    <model name='woollett_lane_overlay'>
+      <static>1</static>
+      <pose>2 -3 -2.1376 0 0 0</pose>
+      <link name='woollett_lane_overlay_link'>
+        <visual name='woollett_floor_surface'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>22.84 49.98 0.008</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.83 0.85 1</ambient>
+            <diffuse>0.5 0.83 0.85 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+        <visual name='woollett_long_lane_1'>
+          <pose>-9.59 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_2'>
+          <pose>-6.85 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_3'>
+          <pose>-4.11 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_4'>
+          <pose>-1.37 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_5'>
+          <pose>1.37 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_6'>
+          <pose>4.11 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_7'>
+          <pose>6.85 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+        <visual name='woollett_long_lane_8'>
+          <pose>9.59 0 0.007 0 0 0</pose>
+          <geometry><box><size>0.25 46 0.006</size></box></geometry>
+          <material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
     <model name='pool_floor'>
       <static>1</static>
       <pose>2 -3 0 0 0 0</pose>
@@ -59,10 +122,10 @@
         <collision name='pool_floor_collision'>
           <geometry>
             <box>
-              <size>25 50 0.1</size>
+              <size>22.86 50 0.1</size>
             </box>
           </geometry>
-          <pose>0 0 -2.18 0 0 0</pose>
+          <pose>0 0 -2.1836 0 0 0</pose>
           <max_contacts>10</max_contacts>
           <surface>
             <friction>
@@ -77,33 +140,20 @@
             <bounce/>
           </surface>
         </collision>
-        <visual name='pool_floor_visual'>
-          <geometry>
-            <box>
-              <size>25 50 0.1</size>
-            </box>
-          </geometry>
-          <pose>0 0 -2.18 0 0 0</pose>
-          <material>
-            <ambient>0.5 0.83 0.85 1</ambient>
-            <diffuse>0.5 0.83 0.85 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
-          </material>
-        </visual>
         <self_collide>0</self_collide>
         <enable_wind>0</enable_wind>
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- Wall North (y=22) -->
+    <!-- North wall: inner face at y=22 (50 m water length). -->
     <model name='wall_north'>
       <static>1</static>
-      <pose>2 22 -1.065 0 0 0</pose>
+      <pose>2 22.15 -1.0668 0 0 0</pose>
       <link name='wall_north_link'>
         <collision name='wall_north_collision'>
           <geometry>
             <box>
-              <size>25 0.3 2.13</size>
+              <size>23.16 0.3 2.1336</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -123,13 +173,13 @@
         <visual name='wall_north_visual'>
           <geometry>
             <box>
-              <size>25 0.3 2.13</size>
+              <size>23.16 0.3 2.1336</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.5 0.83 0.85 1</ambient>
-            <diffuse>0.5 0.83 0.85 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>0.55 0.82 0.88 1</ambient>
+            <diffuse>0.55 0.82 0.88 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
           </material>
         </visual>
         <self_collide>0</self_collide>
@@ -137,15 +187,15 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- Wall South (y=-28) -->
+    <!-- South wall: inner face at y=-28 (50 m water length). -->
     <model name='wall_south'>
       <static>1</static>
-      <pose>2 -28 -1.065 0 0 0</pose>
+      <pose>2 -28.15 -1.0668 0 0 0</pose>
       <link name='wall_south_link'>
         <collision name='wall_south_collision'>
           <geometry>
             <box>
-              <size>25 0.3 2.13</size>
+              <size>23.16 0.3 2.1336</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -165,13 +215,13 @@
         <visual name='wall_south_visual'>
           <geometry>
             <box>
-              <size>25 0.3 2.13</size>
+              <size>23.16 0.3 2.1336</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.5 0.83 0.85 1</ambient>
-            <diffuse>0.5 0.83 0.85 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>0.55 0.82 0.88 1</ambient>
+            <diffuse>0.55 0.82 0.88 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
           </material>
         </visual>
         <self_collide>0</self_collide>
@@ -179,15 +229,15 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- Wall West (x=-10.5) -->
+    <!-- West wall: inner face at x=-9.43 (22.86 m / 25 yd water width). -->
     <model name='wall_west'>
       <static>1</static>
-      <pose>-10.5 -3 -1.065 0 0 0</pose>
+      <pose>-9.58 -3 -1.0668 0 0 0</pose>
       <link name='wall_west_link'>
         <collision name='wall_west_collision'>
           <geometry>
             <box>
-              <size>0.3 50 2.13</size>
+              <size>0.3 50 2.1336</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -207,13 +257,13 @@
         <visual name='wall_west_visual'>
           <geometry>
             <box>
-              <size>0.3 50 2.13</size>
+              <size>0.3 50 2.1336</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.5 0.83 0.85 1</ambient>
-            <diffuse>0.5 0.83 0.85 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>0.55 0.82 0.88 1</ambient>
+            <diffuse>0.55 0.82 0.88 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
           </material>
         </visual>
         <self_collide>0</self_collide>
@@ -221,15 +271,15 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- Wall East (x=14.5) -->
+    <!-- East wall: inner face at x=13.43 (22.86 m / 25 yd water width). -->
     <model name='wall_east'>
       <static>1</static>
-      <pose>14.5 -3 -1.065 0 0 0</pose>
+      <pose>13.58 -3 -1.0668 0 0 0</pose>
       <link name='wall_east_link'>
         <collision name='wall_east_collision'>
           <geometry>
             <box>
-              <size>0.3 50 2.13</size>
+              <size>0.3 50 2.1336</size>
             </box>
           </geometry>
           <max_contacts>10</max_contacts>
@@ -249,13 +299,13 @@
         <visual name='wall_east_visual'>
           <geometry>
             <box>
-              <size>0.3 50 2.13</size>
+              <size>0.3 50 2.1336</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.5 0.83 0.85 1</ambient>
-            <diffuse>0.5 0.83 0.85 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>0.55 0.82 0.88 1</ambient>
+            <diffuse>0.55 0.82 0.88 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
           </material>
         </visual>
         <self_collide>0</self_collide>
@@ -265,12 +315,12 @@
     </model>
     <model name='lane_marker_1'>
       <static>1</static>
-      <pose>2 7 -2.134 0 0 0</pose>
+      <pose>2 18.92 -2.1286 0 0 0</pose>
       <link name='lane_marker_1_link'>
         <visual name='lane_marker_1_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -286,12 +336,12 @@
     </model>
     <model name='lane_marker_2'>
       <static>1</static>
-      <pose>2 4.5 -2.134 0 0 0</pose>
+      <pose>2 16.18 -2.1286 0 0 0</pose>
       <link name='lane_marker_2_link'>
         <visual name='lane_marker_2_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -307,12 +357,12 @@
     </model>
     <model name='lane_marker_3'>
       <static>1</static>
-      <pose>2 2 -2.134 0 0 0</pose>
+      <pose>2 13.44 -2.1286 0 0 0</pose>
       <link name='lane_marker_3_link'>
         <visual name='lane_marker_3_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -328,12 +378,12 @@
     </model>
     <model name='lane_marker_4'>
       <static>1</static>
-      <pose>2 -0.5 -2.134 0 0 0</pose>
+      <pose>2 10.70 -2.1286 0 0 0</pose>
       <link name='lane_marker_4_link'>
         <visual name='lane_marker_4_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -349,12 +399,12 @@
     </model>
     <model name='lane_marker_5'>
       <static>1</static>
-      <pose>2 -3 -2.134 0 0 0</pose>
+      <pose>2 7.96 -2.1286 0 0 0</pose>
       <link name='lane_marker_5_link'>
         <visual name='lane_marker_5_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -370,12 +420,12 @@
     </model>
     <model name='lane_marker_6'>
       <static>1</static>
-      <pose>2 -5.5 -2.134 0 0 0</pose>
+      <pose>2 5.22 -2.1286 0 0 0</pose>
       <link name='lane_marker_6_link'>
         <visual name='lane_marker_6_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -391,12 +441,12 @@
     </model>
     <model name='lane_marker_7'>
       <static>1</static>
-      <pose>2 -8 -2.134 0 0 0</pose>
+      <pose>2 2.48 -2.1286 0 0 0</pose>
       <link name='lane_marker_7_link'>
         <visual name='lane_marker_7_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -412,12 +462,12 @@
     </model>
     <model name='lane_marker_8'>
       <static>1</static>
-      <pose>2 -10.5 -2.134 0 0 0</pose>
+      <pose>2 -0.26 -2.1286 0 0 0</pose>
       <link name='lane_marker_8_link'>
         <visual name='lane_marker_8_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -433,12 +483,12 @@
     </model>
     <model name='lane_marker_9'>
       <static>1</static>
-      <pose>2 -13 -2.134 0 0 0</pose>
+      <pose>2 -3.00 -2.1286 0 0 0</pose>
       <link name='lane_marker_9_link'>
         <visual name='lane_marker_9_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -454,12 +504,12 @@
     </model>
     <model name='lane_marker_10'>
       <static>1</static>
-      <pose>2 -15.5 -2.134 0 0 0</pose>
+      <pose>2 -5.74 -2.1286 0 0 0</pose>
       <link name='lane_marker_10_link'>
         <visual name='lane_marker_10_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -475,12 +525,12 @@
     </model>
     <model name='lane_marker_11'>
       <static>1</static>
-      <pose>2 -18 -2.134 0 0 0</pose>
+      <pose>2 -8.48 -2.1286 0 0 0</pose>
       <link name='lane_marker_11_link'>
         <visual name='lane_marker_11_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -496,12 +546,12 @@
     </model>
     <model name='lane_marker_12'>
       <static>1</static>
-      <pose>2 -20.5 -2.134 0 0 0</pose>
+      <pose>2 -11.22 -2.1286 0 0 0</pose>
       <link name='lane_marker_12_link'>
         <visual name='lane_marker_12_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -517,12 +567,12 @@
     </model>
     <model name='lane_marker_13'>
       <static>1</static>
-      <pose>2 -23 -2.134 0 0 0</pose>
+      <pose>2 -13.96 -2.1286 0 0 0</pose>
       <link name='lane_marker_13_link'>
         <visual name='lane_marker_13_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -538,12 +588,12 @@
     </model>
     <model name='lane_marker_14'>
       <static>1</static>
-      <pose>2 9.5 -2.134 0 0 0</pose>
+      <pose>2 -16.70 -2.1286 0 0 0</pose>
       <link name='lane_marker_14_link'>
         <visual name='lane_marker_14_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -559,12 +609,12 @@
     </model>
     <model name='lane_marker_15'>
       <static>1</static>
-      <pose>2 12 -2.134 0 0 0</pose>
+      <pose>2 -19.44 -2.1286 0 0 0</pose>
       <link name='lane_marker_15_link'>
         <visual name='lane_marker_15_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -580,12 +630,12 @@
     </model>
     <model name='lane_marker_16'>
       <static>1</static>
-      <pose>2 14.5 -2.134 0 0 0</pose>
+      <pose>2 -22.18 -2.1286 0 0 0</pose>
       <link name='lane_marker_16_link'>
         <visual name='lane_marker_16_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -601,12 +651,12 @@
     </model>
     <model name='lane_marker_17'>
       <static>1</static>
-      <pose>2 17 -2.134 0 0 0</pose>
+      <pose>2 -24.92 -2.1286 0 0 0</pose>
       <link name='lane_marker_17_link'>
         <visual name='lane_marker_17_visual'>
           <geometry>
             <box>
-              <size>24.4 0.2 0.01</size>
+              <size>22.26 0.2 0.01</size>
             </box>
           </geometry>
           <material>
@@ -620,164 +670,122 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- **** 5 × GATE **** -->
+    <!-- **** 4 × GATE **** -->
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_1</name>
-      <pose>-5 6 -1.5 0 0 0.4</pose>
+      <pose>-5.000000 15.750000 -1.500000 0.000000 0.000000 0.000187</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_2</name>
-      <pose>-5 -3 -1.5 0 0 0.2</pose>
-    </include>
-    <include>
-      <uri>model://robosub_gate</uri>
-      <name>robosub_gate_3</name>
-      <pose>-5 -12 -1.5 0 0 -0.3</pose>
+      <pose>-5 3.25 -1.5 0 0 0.2</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
-      <pose>-5 -21 -1.5 0 0 0</pose>
-    </include>
-    <include>
-      <uri>model://robosub_gate</uri>
-      <name>robosub_gate_5</name>
-      <pose>-5 15 -1.5 0 0 0</pose>
-    </include>
-    <include>
-      <uri>model://robosub_buoy</uri>
-      <name>robosub_buoy</name>
-      <pose>10 15 -1.5 0 0 0</pose>
+      <pose>-4.383510 -21.096700 -1.500000 0.000000 0.000000 0.446470</pose>
     </include>
     <!-- **** 4 × TORPEDO TARGET **** -->
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_1</name>
-      <pose>7 3.75 -2 1.57 0 2.94159</pose>
+      <pose>7.197310 20.681072 -2.108636 1.570116 -0.000414 3.136814</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_2</name>
-      <pose>7 -0.5 -2 1.57 0 3.79159</pose>
-    </include>
-    <include>
-      <uri>model://robosub_torpedo</uri>
-      <name>robosub_torpedo_3</name>
-      <pose>7 -14 -2 1.57 0 2.79159</pose>
+      <pose>8.4 8 -2 1.57 0 -2.9</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>7 -23 -2 1.57 0 3.11799</pose>
+      <pose>8.665620 -15.808700 -2.000010 1.570030 -0.000209 -3.116060</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_1</name>
-      <pose>7 8.0 -1.9 1.57 0 0</pose>
+      <pose>6.917767 13.716724 -1.607390 0.000000 0.000000 1.455293</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_2</name>
-      <pose>7 -5.25 -1.9 1.57 0 -0.25</pose>
+      <pose>4.7 6 -1.6 0 0 -0.25</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_3</name>
-      <pose>7 -9.5 -1.9 1.57 0 0.35</pose>
-    </include>
-    <include>
-      <uri>model://robosub_bin</uri>
-      <name>robosub_bin_4</name>
-      <pose>7 -19 -1.9 1.57 0 0</pose>
+      <pose>6.841690 -7.873360 -1.600000 0.000000 0.000000 0.350000</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
       <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_1</name>
-      <pose>11 5.5 -1.97 0 0 0</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_2</name>
-      <pose>11 -3 -1.97 0 0 0.3</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
-      <name>robosub_octagon_3</name>
-      <pose>11 -11.5 -1.97 0 0 -1.1</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_4</name>
-      <pose>11 -21 -1.97 0 0 -0.3</pose>
+      <pose>9.934710 -12.970200 -1.950000 0.000000 0.000000 -0.300000</pose>
+    </include>
+    <!-- **** ANIMALS FOR ALL OCTAGONS **** -->
+    <include>
+      <uri>model://robosub_octagon_animals</uri>
+      <name>robosub_octagon_animals_4</name>
+      <pose>8.645010 -12.571200 -0.600000 0.000000 0.000000 -0.300000</pose>
+    </include>
+    <!-- PATH MARKER -->
+    <include>
+      <uri>model://robosub_path</uri>
+      <name>robosub_path_1</name>
+      <pose>4.268290 -15.525900 -2.133600 0.000000 0.000000 2.336730</pose>
     </include>
     <!-- SLALOM PIPES -->
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_1</name>
-      <pose>-0.75 5.75 -1.35 0 0 1.57</pose>
+      <pose>-0.750791 16.256712 -2.087427 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_2</name>
-      <pose>0.75 6.5 -1.35 0 0 1.57</pose>
+      <pose>0.921462 17.575613 -1.888925 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_3</name>
-      <pose>2.25 5.75 -1.35 0 0 1.57</pose>
+      <pose>3.249127 16.511126 -2.183931 0.000000 0.000000 1.570000</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_1</name>
-      <pose>-0.75 -3.5 -1.35 0 0 1.57</pose>
+      <pose>-0.75 1.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_2</name>
-      <pose>0.75 -2.75 -1.35 0 0 1.57</pose>
+      <pose>0.75 2.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_3</name>
-      <pose>2.25 -3.5 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_1</name>
-      <pose>-0.75 -11.5 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_2</name>
-      <pose>0.75 -12.25 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3_3</name>
-      <pose>2.25 -11.5 -1.35 0 0 1.57</pose>
+      <pose>2.25 1.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_1</name>
-      <pose>-0.75 -20.5 -1.35 0 0 1.57</pose>
+      <pose>-0.746627 -19.014100 -1.350000 0.000000 0.000000 2.104880</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>0.75 -19.75 -1.35 0 0 1.57</pose>
+      <pose>1.136370 -17.553400 -1.350000 0.000000 0.000000 2.036010</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>2.25 -20.5 -1.35 0 0 1.57</pose>
+      <pose>2.831720 -15.332400 -1.879180 0.000000 0.000000 2.075350</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>-1.83265 9.56062 12.0698 0 0.603644 -1.51579</pose>
+        <!-- Lane A baseline: 3 m behind / above the spawn, looking down-lane. -->
+        <pose>-12.5 15.5 2.5 0 0.45 0</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>

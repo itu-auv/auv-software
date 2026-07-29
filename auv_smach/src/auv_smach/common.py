@@ -318,7 +318,10 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         max_angular_velocity: float = None,
         use_depth: bool = False,
         closest_yaw: bool = False,
+        closest_yaw_180: bool = False,
     ):
+        if closest_yaw and closest_yaw_180:
+            raise ValueError("closest_yaw and closest_yaw_180 cannot both be enabled")
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
@@ -326,6 +329,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.keep_orientation = keep_orientation
         align_request.use_depth = use_depth
         align_request.closest_yaw = closest_yaw
+        align_request.closest_yaw_180 = closest_yaw_180
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
         if max_angular_velocity is not None:
@@ -706,6 +710,25 @@ class ClearObjectMapState(smach_ros.ServiceState):
         return "succeeded"
 
 
+class ClearKDEMapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "kde_map/clear",
+            Trigger,
+            request=TriggerRequest(),
+            response_cb=self.response_cb,
+        )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("ClearKDEMapState: kde_map/clear failed")
+            return "aborted"
+
+        return "succeeded"
+
+
 class SetDetectionState(smach_ros.ServiceState):
     """
     Calls the service to enable or disable camera detections.
@@ -837,6 +860,7 @@ class SearchForPropState(smach.StateMachine):
         look_at_frame: str,
         alignment_frame: str,
         full_rotation: bool = False,
+        timeout: float = 30.0,
         source_frame: str = None,
         rotation_speed: float = 0.4,
         confirm_duration: float = 2.0,
@@ -882,6 +906,7 @@ class SearchForPropState(smach.StateMachine):
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
+                    timeout=timeout,
                     confirm_duration=confirm_duration,
                 ),
                 transitions={
@@ -934,7 +959,7 @@ class AimToProp(smach.Concurrence):
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    duration_time=60.0,
+                    duration_time=timeout,
                 ),
             )
 
@@ -1010,6 +1035,7 @@ class CheckAlignmentState(smach.State):
         keep_orientation=False,
         use_frame_depth=False,
         closest_yaw=False,
+        closest_yaw_180=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -1022,6 +1048,7 @@ class CheckAlignmentState(smach.State):
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
         self.closest_yaw = closest_yaw
+        self.closest_yaw_180 = closest_yaw_180
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
@@ -1048,6 +1075,25 @@ class CheckAlignmentState(smach.State):
                 angles.shortest_angular_distance(0, yaw + self.angle_offset)
             )
             if self.closest_yaw:
+                yaw_error = min(
+                    yaw_with_offset,
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi / 2
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + 3 * math.pi / 2
+                        )
+                    ),
+                )
+            elif self.closest_yaw_180:
                 yaw_error = min(
                     yaw_with_offset,
                     abs(
@@ -1135,8 +1181,12 @@ class AlignFrame(smach.StateMachine):
         max_angular_velocity=None,
         use_frame_depth=False,
         closest_yaw=False,
+        closest_yaw_180=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
+
+        if closest_yaw and closest_yaw_180:
+            raise ValueError("closest_yaw and closest_yaw_180 cannot both be enabled")
 
         with self:
             watch_succeeded_transition = (
@@ -1154,6 +1204,7 @@ class AlignFrame(smach.StateMachine):
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -1175,6 +1226,7 @@ class AlignFrame(smach.StateMachine):
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
@@ -1260,6 +1312,16 @@ class SetPlanningNotActive(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
+class GravityZEnable(smach_ros.ServiceState):
+    def __init__(self, enable):
+        smach_ros.ServiceState.__init__(
+            self,
+            "gravity_compensation_estimator/set_apply_updates",
+            SetBool,
+            request=SetBoolRequest(data=enable),
         )
 
 
@@ -1484,15 +1546,19 @@ class CreateRotatingFrameState(smach.State):
         source_frame: str,
         reference_frame: str = "odom",
         rotation_period: float = 15.0,
+        rotation_count: int = 1,
         rate_hz: int = 20,
         look_at_frame: str = None,
         full_rotation: bool = True,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        if rotation_count < 1:
+            raise ValueError("rotation_count must be at least 1")
         self.target_frame = target_frame
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
+        self.rotation_count = rotation_count
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.tf_buffer = get_tf_buffer()
@@ -1522,8 +1588,9 @@ class CreateRotatingFrameState(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo(
-            "Creating rotating frame '%s' for one rotation (%.2fs).",
+            "Creating rotating frame '%s' for %d rotation(s) (%.2fs each).",
             self.target_frame,
+            self.rotation_count,
             self.rotation_period,
         )
         try:
@@ -1561,7 +1628,9 @@ class CreateRotatingFrameState(smach.State):
             return "aborted"
 
         start_time = rospy.Time.now()
-        end_time = start_time + rospy.Duration(self.rotation_period)
+        end_time = start_time + rospy.Duration(
+            self.rotation_period * self.rotation_count
+        )
         angular_velocity = 2.0 * math.pi / self.rotation_period
 
         if not self.full_rotation and self.is_transform_available():
@@ -1621,6 +1690,7 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
         source_frame: str,
         rotating_frame_name: str,
         rotation_period: float = 15.0,
+        rotation_count: int = 1,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         look_at_frame: str = None,
@@ -1649,6 +1719,8 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     source_frame=source_frame,
                     reference_frame="odom",
                     rotation_period=rotation_period,
+                    rotation_count=rotation_count,
+                    rate_hz=20,
                     look_at_frame=look_at_frame,
                     full_rotation=full_rotation,
                 ),
@@ -1664,9 +1736,10 @@ class CheckForTransformState(smach.State):
     def __init__(
         self,
         source_frame: str,
-        target_frame: str,
+        target_frame,
         timeout: float = 60.0,
         check_rate_hz: int = 10,
+        allow_mutli_check_goal: bool = False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
@@ -1674,24 +1747,33 @@ class CheckForTransformState(smach.State):
         self.timeout = timeout
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
+        self.allow_mutli_check_goal = allow_mutli_check_goal
 
     def is_transform_available(self):
-        try:
-            lookup_fresh_transform(
-                self.tf_buffer,
-                self.source_frame,
-                self.target_frame,
-                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
-            )
-            return True
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logdebug(f"CheckForTransformState: Transform check failed: {e}")
-            return False
+        if self.allow_mutli_check_goal and isinstance(self.target_frame, list):
+            frames = self.target_frame
+        else:
+            frames = [self.target_frame]
+
+        for frame in frames:
+            if not frame:
+                continue
+            try:
+                lookup_fresh_transform(
+                    self.tf_buffer,
+                    self.source_frame,
+                    frame,
+                    rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                )
+                return True
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                pass
+        return False
 
     def execute(self, userdata):
         start_time = rospy.Time.now()
@@ -1730,14 +1812,15 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         self,
         plan_target_frame: str,
         transform_source_frame: str,
-        transform_target_frame: str,
-        align_source_frame: str = None,
+        transform_target_frame,
+        align_source_frame: str = "taluy/base_link",
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
         transform_timeout: float = 60.0,
+        allow_mutli_check_goal: bool = False,
     ):
         super().__init__(
             outcomes=["succeeded", "preempted", "aborted"],
@@ -1770,5 +1853,72 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     source_frame=transform_source_frame,
                     target_frame=transform_target_frame,
                     timeout=transform_timeout,
+                    allow_mutli_check_goal=allow_mutli_check_goal,
+                ),
+            )
+
+
+class AlignFrameWithTransformCheck(smach.Concurrence):
+
+    def __init__(
+        self,
+        source_frame,
+        target_frame,
+        transform_source_frame: str,
+        transform_target_frame,
+        angle_offset=0.0,
+        dist_threshold=0.1,
+        yaw_threshold=0.1,
+        timeout=30.0,
+        cancel_on_success=False,
+        confirm_duration=0.0,
+        keep_orientation=False,
+        max_linear_velocity=None,
+        max_angular_velocity=None,
+        use_frame_depth=False,
+        closest_yaw=False,
+        closest_yaw_180=False,
+        transform_timeout: float = 60.0,
+        allow_mutli_check_goal: bool = False,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"CHECK_FOR_TRANSFORM": "succeeded"},
+                "preempted": {"ALIGN_FRAME": "preempted"},
+                "aborted": {"ALIGN_FRAME": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,
+        )
+
+        with self:
+            smach.Concurrence.add(
+                "ALIGN_FRAME",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    angle_offset=angle_offset,
+                    dist_threshold=dist_threshold,
+                    yaw_threshold=yaw_threshold,
+                    timeout=timeout,
+                    cancel_on_success=cancel_on_success,
+                    confirm_duration=confirm_duration,
+                    keep_orientation=keep_orientation,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    use_frame_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
+                    closest_yaw_180=closest_yaw_180,
+                ),
+            )
+
+            smach.Concurrence.add(
+                "CHECK_FOR_TRANSFORM",
+                CheckForTransformState(
+                    source_frame=transform_source_frame,
+                    target_frame=transform_target_frame,
+                    timeout=transform_timeout,
+                    allow_mutli_check_goal=allow_mutli_check_goal,
                 ),
             )

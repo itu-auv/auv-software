@@ -10,7 +10,7 @@ class BatteryMonitorNode:
         rospy.init_node("battery_monitor_node", anonymous=True)
 
         # Parameters
-        self.voltage_threshold = rospy.get_param("~minimum_voltage_threshold", 13.0)
+        self.voltage_threshold = rospy.get_param("~minimum_voltage_threshold", 13.5)
         self.voltage_warn_threshold = rospy.get_param("~voltage_warn_threshold", 15.0)
         self.timeout_duration = rospy.get_param(
             "~power_message_timeout", 5

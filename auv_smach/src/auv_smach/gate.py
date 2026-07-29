@@ -94,6 +94,7 @@ class NavigateThroughGateState(smach.State):
         gate_search_depth: float,
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
+        gate_look_at_frame: str = "gate_middle_part",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -102,7 +103,7 @@ class NavigateThroughGateState(smach.State):
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
-        self.gate_look_at_frame = "gate_middle_part"
+        self.gate_look_at_frame = gate_look_at_frame
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
         self.roll_depth = roll_depth
@@ -114,9 +115,19 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_GATE",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "SET_INITIAL_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
+                    confirm_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -292,9 +303,31 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
                     timeout=10.0,
-                    cancel_on_success=True,
+                    cancel_on_success=False,
                     keep_orientation=False,
                 ),
+                transitions={
+                    "succeeded": "newhat",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "newhat",
+                SetDepthState(
+                    depth=-0.9,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_1",
+                AcousticTransmitter(acoustic_data=[1, 1, 1]),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

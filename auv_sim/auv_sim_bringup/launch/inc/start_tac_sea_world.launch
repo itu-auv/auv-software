@@ -3,6 +3,7 @@
     <arg name="debug" default="false" />
     <arg name="namespace" default="taluy" />
     <arg name="use_gui" default="true" />
+    <arg name="objects" default="" />
     <arg name="world_name" value="$(find auv_sim_description)/worlds/tac_sea.world" />
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">

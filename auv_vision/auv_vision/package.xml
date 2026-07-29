@@ -15,6 +15,7 @@
   <depend>python3-zmq</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tf</depend>
   <export/>
 </package>

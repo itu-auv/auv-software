@@ -5,11 +5,14 @@
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
-    <!-- State Mapping Definitions -->
+    <!-- State Mapping Definitions
+         Path tokens (path1, path2, ...) resolve dynamically against
+         /waypoint_gui/paths and don't need their own state class. -->
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
         slalom:NAVIGATE_THROUGH_SLALOM,
+        pinger:RANDOM_PINGER_TASK,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
@@ -19,6 +22,10 @@
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
         square:NAVIGATE_SQUARE_PATH
+        path1:path1,
+        path2:path2,
+        path3:path3,
+        path4:path4
     "/>
 
     <!-- Test Mode Configuration -->
@@ -30,6 +37,7 @@
     <arg name="square_depth" default="-1.0" doc="Depth for the square path SetDepth states"/>
     <arg name="square_max_linear_velocity" default="0.6" doc="Max linear velocity for the square path AlignFrame states"/>
     <arg name="square_max_angular_velocity" default="0.45" doc="Max angular velocity for the square path AlignFrame states"/>
+    <arg name="ignore_kde" default="false" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -63,9 +71,11 @@
             <param name="square_depth" value="$(arg square_depth)"/>
             <param name="square_max_linear_velocity" value="$(arg square_max_linear_velocity)"/>
             <param name="square_max_angular_velocity" value="$(arg square_max_angular_velocity)"/>
+            <param name="ignore_kde" value="$(arg ignore_kde)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
+            <remap from="kde_map/clear" to="map/kde_map/clear"/>
             <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
             <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
             <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
@@ -79,11 +89,14 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
+            <remap from="enable_da3_publisher" to="object_plane_fitter/enable"/>
+            <remap from="enable_da3_trt_inference" to="depth_anything_trt_node/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
