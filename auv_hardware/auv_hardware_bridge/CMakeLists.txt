@@ -5,15 +5,19 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
   roscpp
+  rospy
   rosserial_python
+  std_msgs
+  visualization_msgs
 )
 
 find_package(Boost REQUIRED COMPONENTS system)
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS geometry_msgs roscpp rospy rosserial_python std_msgs visualization_msgs
 )
 
 include_directories(
@@ -36,6 +40,7 @@ target_link_libraries(serial_to_ros_bridge_node
 catkin_install_python(PROGRAMS
   scripts/wayfinder_dvl_node.py
   scripts/expansion_bridge_remapper_node.py
+  scripts/hydrophone_tdoa_to_angle_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
