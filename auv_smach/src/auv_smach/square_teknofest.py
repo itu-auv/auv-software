@@ -237,6 +237,14 @@ class NavigateTeknofestSquarePathState(smach.State):
                 AlignFrame(
                     target_frame=self.start_frame,
                     angle_offset=math.pi / 2.0,
+                    **align_args,
+                ),
+                transitions={"succeeded": "ALIGN_START_NO_OFFSET", **outcomes},
+            )
+            smach.StateMachine.add(
+                "ALIGN_START_NO_OFFSET",
+                AlignFrame(
+                    target_frame=self.start_frame,
                     cancel_on_success=True,
                     **align_args,
                 ),
@@ -247,6 +255,5 @@ class NavigateTeknofestSquarePathState(smach.State):
                 SetDepthState(depth=0.0),
                 transitions={"succeeded": "succeeded", **outcomes},
             )
-
     def execute(self, userdata):
         return self.state_machine.execute(userdata)
