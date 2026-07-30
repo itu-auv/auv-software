@@ -20,6 +20,7 @@ class SimPingerMock:
         pinger_positions = {
             "octagon": (13.0, -4.25, -1.95),
             "torpedo": (5.25, -1.0, -1.95),
+            "teknofest_pinger": (5.066114, -0.076101, -0.949882),
         }
         if self.pinger_mode not in pinger_positions:
             rospy.logwarn(

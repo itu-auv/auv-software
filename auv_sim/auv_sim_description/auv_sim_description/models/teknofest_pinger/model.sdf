@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="teknofest_pinger">
+    <static>true</static>
+    <link name="gate">
+      <collision name="left_profile">
+        <pose>0 -0.515 0.745 0 0 0</pose>
+        <geometry><box><size>0.03 0.03 1.49</size></box></geometry>
+      </collision>
+      <collision name="right_profile">
+        <pose>0 0.515 0.745 0 0 0</pose>
+        <geometry><box><size>0.03 0.03 1.49</size></box></geometry>
+      </collision>
+      <collision name="bottom_profile">
+        <pose>0 0 0.015 0 0 0</pose>
+        <geometry><box><size>0.03 1.06 0.03</size></box></geometry>
+      </collision>
+      <collision name="top_profile">
+        <pose>0 0 1.475 0 0 0</pose>
+        <geometry><box><size>0.03 1.06 0.03</size></box></geometry>
+      </collision>
+      <collision name="pinger_socket">
+        <pose>0 0 1.54 0 0 0</pose>
+        <geometry><cylinder><radius>0.0125</radius><length>0.10</length></cylinder></geometry>
+      </collision>
+      <visual name="teknofest_pinger">
+        <geometry>
+          <mesh><uri>model://teknofest_pinger/meshes/teknofest_pinger.dae</uri></mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>
