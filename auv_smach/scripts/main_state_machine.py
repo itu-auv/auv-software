@@ -17,6 +17,7 @@ from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.square import NavigateSquarePathState
+from auv_smach.square_teknofest import NavigateTeknofestSquarePathState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
@@ -161,6 +162,9 @@ class MainStateMachineNode:
         self.square_max_angular_velocity = rospy.get_param(
             "~square_max_angular_velocity",
             rospy.get_param("/smach/max_angular_velocity", 0.45),
+        )
+        self.teknofest_circle_radius = rospy.get_param(
+            "~teknofest_circle_radius", 1.0
         )
 
         # Acoustic transmitter parameters
@@ -475,6 +479,16 @@ class MainStateMachineNode:
                 NavigateSquarePathState,
                 {
                     "side_length": self.square_side_length,
+                    "depth": self.square_depth,
+                    "max_linear_velocity": self.square_max_linear_velocity,
+                    "max_angular_velocity": self.square_max_angular_velocity,
+                },
+            ),
+            "NAVIGATE_TEKNOFEST_SQUARE_PATH": (
+                NavigateTeknofestSquarePathState,
+                {
+                    "side_length": self.square_side_length,
+                    "circle_radius": self.teknofest_circle_radius,
                     "depth": self.square_depth,
                     "max_linear_velocity": self.square_max_linear_velocity,
                     "max_angular_velocity": self.square_max_angular_velocity,

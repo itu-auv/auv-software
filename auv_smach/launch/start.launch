@@ -21,7 +21,8 @@
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
-        square:NAVIGATE_SQUARE_PATH
+        square:NAVIGATE_SQUARE_PATH,
+        square_teknofest:NAVIGATE_TEKNOFEST_SQUARE_PATH,
         path1:path1,
         path2:path2,
         path3:path3,
@@ -37,6 +38,7 @@
     <arg name="square_depth" default="-1.0" doc="Depth for the square path SetDepth states"/>
     <arg name="square_max_linear_velocity" default="0.6" doc="Max linear velocity for the square path AlignFrame states"/>
     <arg name="square_max_angular_velocity" default="0.45" doc="Max angular velocity for the square path AlignFrame states"/>
+    <arg name="teknofest_circle_radius" default="1.0" doc="Radius of the circle around the first square corner in meters"/>
     <arg name="ignore_kde" default="false" doc="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
@@ -71,6 +73,7 @@
             <param name="square_depth" value="$(arg square_depth)"/>
             <param name="square_max_linear_velocity" value="$(arg square_max_linear_velocity)"/>
             <param name="square_max_angular_velocity" value="$(arg square_max_angular_velocity)"/>
+            <param name="teknofest_circle_radius" value="$(arg teknofest_circle_radius)"/>
             <param name="ignore_kde" value="$(arg ignore_kde)"/>
 
             <!-- common.py -->
