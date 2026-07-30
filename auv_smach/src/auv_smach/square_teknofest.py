@@ -5,13 +5,21 @@ import smach
 import tf2_ros
 import tf.transformations as transformations
 
-from auv_smach.common import AlignFrame, CancelAlignControllerState, SetDepthState
+from auv_smach.common import (
+    AlignFrame,
+    CancelAlignControllerState,
+    NavigateToFrameState,
+    SetAlignControllerTargetState,
+    SetDepthState,
+)
+from auv_smach.initialize import DelayState
+from auv_smach.red_buoy import RotateAroundCenterState
 from auv_smach.square import CreateSquareFramesState
 from auv_smach.tf_utils import get_base_link
 
 
 class CreateTeknofestSquareFramesState(CreateSquareFramesState):
-    """Create the original square plus a circle around forward_right."""
+    """Create the original square plus the orbit starting frame."""
 
     def __init__(self, side_length=10.0, circle_radius=1.0):
         super().__init__(
@@ -22,9 +30,6 @@ class CreateTeknofestSquareFramesState(CreateSquareFramesState):
             right_frame="teknofest_square_right",
         )
         self.circle_radius = circle_radius
-        self.circle_frames = [
-            "teknofest_circle_{:02d}".format(index) for index in range(8)
-        ]
 
     def execute(self, userdata):
         if self.preempt_requested():
@@ -66,6 +71,12 @@ class CreateTeknofestSquareFramesState(CreateSquareFramesState):
             (self.forward_frame, side, 0.0, 0.0),
             (self.forward_right_frame, side, -side, -math.pi / 2.0),
             (self.right_frame, 0.0, -side, math.pi),
+            (
+                "teknofest_circle_start",
+                side,
+                -side + self.circle_radius,
+                -math.pi / 2.0,
+            ),
         ]
         for frame_name, forward, left, yaw_offset in square_specs:
             x, y = self._offset_from_start(
@@ -77,32 +88,11 @@ class CreateTeknofestSquareFramesState(CreateSquareFramesState):
             if not self._publish_frame(transform):
                 return "aborted"
 
-        # The centre is forward_right. circle_00 is on its upper side and its
-        # orientation matches the vehicle after ALIGN_FORWARD_RIGHT.
-        angle_step = 2.0 * math.pi / len(self.circle_frames)
-        for index, frame_name in enumerate(self.circle_frames):
-            if self.preempt_requested():
-                self.service_preempt()
-                return "preempted"
-
-            circle_angle = math.pi / 2.0 + index * angle_step
-            forward = side + self.circle_radius * math.cos(circle_angle)
-            left = -side + self.circle_radius * math.sin(circle_angle)
-            x, y = self._offset_from_start(
-                start_x, start_y, start_yaw, forward, left
-            )
-            inward_yaw = start_yaw + circle_angle + math.pi
-            transform = self._make_transform(
-                "odom", frame_name, x, y, start_z, inward_yaw
-            )
-            if not self._publish_frame(transform):
-                return "aborted"
-
         return "succeeded"
 
 
 class NavigateTeknofestSquarePathState(smach.State):
-    """The original square state machine with one circle inserted before b."""
+    """The original square with a RedBuoy-style continuous orbit before b."""
 
     def __init__(
         self,
@@ -123,9 +113,8 @@ class NavigateTeknofestSquarePathState(smach.State):
         self.forward_frame = "teknofest_square_forward"
         self.forward_right_frame = "teknofest_square_forward_right"
         self.right_frame = "teknofest_square_right"
-        self.circle_frames = [
-            "teknofest_circle_{:02d}".format(index) for index in range(8)
-        ]
+        self.circle_start_frame = "teknofest_circle_start"
+        self.circle_target_frame = "teknofest_circle_target"
 
         if max_linear_velocity is None:
             max_linear_velocity = rospy.get_param("/smach/max_linear_velocity", 0.3)
@@ -190,24 +179,50 @@ class NavigateTeknofestSquarePathState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_FORWARD_RIGHT",
                 AlignFrame(target_frame=self.forward_right_frame, **align_args),
-                transitions={"succeeded": "ALIGN_CIRCLE_00", **outcomes},
+                transitions={
+                    "succeeded": "SET_CIRCLE_ALIGN_CONTROLLER_TARGET",
+                    **outcomes,
+                },
             )
-
-            # This is the only addition to the original navigation sequence.
-            # Revisit circle_00 once to close the full 360-degree orbit.
-            circle_route = self.circle_frames + [self.circle_frames[0]]
-            for index, target_frame in enumerate(circle_route):
-                state_name = "ALIGN_CIRCLE_{:02d}".format(index)
-                next_state = (
-                    "ALIGN_CIRCLE_{:02d}".format(index + 1)
-                    if index + 1 < len(circle_route)
-                    else "b"
-                )
-                smach.StateMachine.add(
-                    state_name,
-                    AlignFrame(target_frame=target_frame, **align_args),
-                    transitions={"succeeded": next_state, **outcomes},
-                )
+            smach.StateMachine.add(
+                "SET_CIRCLE_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame=self.source_frame,
+                    target_frame=self.circle_target_frame,
+                ),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_CIRCLE_START",
+                    **outcomes,
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_CIRCLE_START",
+                NavigateToFrameState(
+                    self.source_frame,
+                    self.circle_start_frame,
+                    self.circle_target_frame,
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_CIRCLE_START_ALIGNMENT",
+                    **outcomes,
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_CIRCLE_START_ALIGNMENT",
+                DelayState(delay_time=4.0),
+                transitions={"succeeded": "ROTATE_AROUND_CORNER", **outcomes},
+            )
+            smach.StateMachine.add(
+                "ROTATE_AROUND_CORNER",
+                RotateAroundCenterState(
+                    base_frame=self.source_frame,
+                    center_frame=self.forward_right_frame,
+                    target_frame=self.circle_target_frame,
+                    radius=circle_radius,
+                    direction="cw",
+                ),
+                transitions={"succeeded": "b", **outcomes},
+            )
 
             smach.StateMachine.add(
                 "b",
@@ -237,6 +252,14 @@ class NavigateTeknofestSquarePathState(smach.State):
                 AlignFrame(
                     target_frame=self.start_frame,
                     angle_offset=math.pi / 2.0,
+                    **align_args,
+                ),
+                transitions={"succeeded": "ALIGN_START_NO_OFFSET", **outcomes},
+            )
+            smach.StateMachine.add(
+                "ALIGN_START_NO_OFFSET",
+                AlignFrame(
+                    target_frame=self.start_frame,
                     cancel_on_success=True,
                     **align_args,
                 ),
