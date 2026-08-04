@@ -1,0 +1,13 @@
+float64 start_latitude_deg
+float64 start_longitude_deg
+float64[] waypoint_latitudes_deg
+float64[] waypoint_longitudes_deg
+bool[] camera_enabled
+bool visit_nearest_first
+---
+bool success
+string message
+float64[] waypoint_x_m
+float64[] waypoint_y_m
+float64[] waypoint_distances_m
+string[] waypoint_frame_ids

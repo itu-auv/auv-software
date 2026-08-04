@@ -92,6 +92,8 @@ catkin_install_python(PROGRAMS
   scripts/pipeline_trajectory_publisher.py
   scripts/waypoint_gui.py
   scripts/waypoint_publisher.py
+  scripts/surface_waypoint_gui.py
+  scripts/surface_waypoint_publisher.py
   scripts/premap_publisher.py
   scripts/competition_map_gui.py
   scripts/kde_object_mapper.py

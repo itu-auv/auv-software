@@ -5,6 +5,7 @@ import cv2
 import os
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from std_srvs.srv import Trigger, TriggerResponse
 import time
 
 
@@ -20,6 +21,7 @@ class ImageSaver:
         )  # front|bottom|torpedo|realsense
         self.images_per_folder = int(rospy.get_param("~images_per_folder", 150))
         self.save_interval = float(rospy.get_param("~interval_seconds", 1.0))
+        self.continuous = bool(rospy.get_param("~continuous", True))
 
         # Save path: prefer explicit ~save_path, else build from ~base_dir + ~folder_name
         save_path_param = rospy.get_param("~save_path", None)
@@ -47,9 +49,11 @@ class ImageSaver:
 
         # ROS subscriber
         rospy.Subscriber(self.topic_name, Image, self.image_callback)
+        rospy.Service("~capture", Trigger, self.capture_image)
 
         # Timer: check frequently and save according to interval
-        rospy.Timer(rospy.Duration(0.1), self.save_timer_callback)
+        if self.continuous:
+            rospy.Timer(rospy.Duration(0.1), self.save_timer_callback)
 
         rospy.loginfo("Image saver node started.")
         rospy.loginfo(f"Namespace: {self.namespace}")
@@ -108,27 +112,43 @@ class ImageSaver:
             self.save_image()
             self.last_save_time = current_time
 
-    def save_image(self):
+    def capture_image(self, _request):
+        """Save one current frame when a waypoint has camera enabled."""
+        if self.latest_image is None:
+            return TriggerResponse(False, "No camera image has been received yet.")
+        waypoint_folder = rospy.get_param("~waypoint_folder", "manual_capture")
+        waypoint_folder = os.path.basename(str(waypoint_folder).strip())
+        if not waypoint_folder:
+            waypoint_folder = "manual_capture"
+        capture_folder = os.path.join(self.base_path, waypoint_folder)
+        os.makedirs(capture_folder, exist_ok=True)
+
+        if not self.save_image(capture_folder):
+            return TriggerResponse(False, "Could not save the camera image.")
+        return TriggerResponse(True, "One image saved.")
+
+    def save_image(self, folder=None):
         """Save the latest image to disk."""
         try:
             timestamp = rospy.Time.now().to_sec()
             filename = f"image_{self.image_count + 1}_{timestamp:.3f}.jpg"
-            filepath = os.path.join(self.current_folder, filename)
+            filepath = os.path.join(folder or self.current_folder, filename)
+            if not cv2.imwrite(filepath, self.latest_image):
+                rospy.logerr("Could not save image: %s", filepath)
+                return False
 
-            cv2.imwrite(filepath, self.latest_image)
             self.image_count += 1
-
             rospy.loginfo(f"Saved image: {filename} (Total: {self.image_count})")
-
             if self.image_count % self.images_per_folder == 0:
                 self.folder_count += 1
                 self.create_new_folder()
                 rospy.loginfo(
                     f"{self.images_per_folder} images saved. Switching to folder: output{self.folder_count}"
                 )
-
+            return True
         except Exception as e:
             rospy.logerr(f"Image save error: {e}")
+            return False
 
     def run(self):
         """Spin ROS node."""

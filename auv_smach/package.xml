@@ -50,6 +50,8 @@
   <build_export_depend>smach</build_export_depend>
   <build_export_depend>smach_ros</build_export_depend>
   <build_export_depend>std_srvs</build_export_depend>
+  <exec_depend>auv_bringup</exec_depend>
+  <exec_depend>auv_mapping</exec_depend>
   <exec_depend>auv_navigation</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>smach</exec_depend>
