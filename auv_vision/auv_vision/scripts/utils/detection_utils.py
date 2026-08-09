@@ -450,10 +450,20 @@ def transform_to_odom_and_publish(
     detection_stamp,
     tf_buffer,
     publisher,
+    rotation_quat=None,
 ):
     """Transform a detection from camera frame to odom and publish as TransformStamped.
 
     Uses detection_stamp for the header timestamp.
+
+    Args:
+        rotation_quat: Optional (x, y, z, w) in camera_frame.  When None
+            (default, legacy YOLO-bbox path) the published rotation is the
+            camera-frame identity quaternion — appropriate for a 2D bbox
+            detection that carries no orientation.  When supplied (PnP / any
+            6-DOF source), the orientation is transformed through TF along
+            with the position so the published rotation is the actual pose
+            in odom.
     """
     transform_stamped_msg = TransformStamped()
     transform_stamped_msg.header.stamp = detection_stamp
@@ -461,7 +471,15 @@ def transform_to_odom_and_publish(
     transform_stamped_msg.child_frame_id = child_frame_id
 
     transform_stamped_msg.transform.translation = Vector3(offset_x, offset_y, distance)
-    transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+    if rotation_quat is None:
+        transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+    else:
+        transform_stamped_msg.transform.rotation = Quaternion(
+            float(rotation_quat[0]),
+            float(rotation_quat[1]),
+            float(rotation_quat[2]),
+            float(rotation_quat[3]),
+        )
 
     try:
         pose_stamped = PoseStamped()
@@ -481,9 +499,16 @@ def transform_to_odom_and_publish(
         final_transform_stamped.transform.translation = (
             transformed_pose_stamped.pose.position
         )
-        final_transform_stamped.transform.rotation = (
-            transform_stamped_msg.transform.rotation
-        )
+        if rotation_quat is None:
+            # Legacy bbox behaviour: keep the camera-frame identity quat.
+            final_transform_stamped.transform.rotation = (
+                transform_stamped_msg.transform.rotation
+            )
+        else:
+            # Real 6-DOF pose: use the rotation as transformed into odom.
+            final_transform_stamped.transform.rotation = (
+                transformed_pose_stamped.pose.orientation
+            )
 
         publisher.publish(final_transform_stamped)
     except (
