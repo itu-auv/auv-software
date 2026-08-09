@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <!-- Initial object config for the detection node: an object name resolved
+       against auv_vision/config/vitpose/, or an absolute YAML path. Switch
+       at runtime via the ~set_config service. The process node loads ALL
+       object configs and dispatches on the result's object field. -->
+  <arg name="object" default="gate" />
+  <arg name="enabled" default="true" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_vision" type="vitpose_detection_node.py"
+          name="vitpose_detection_node" output="screen">
+      <param name="config" value="$(arg object)" />
+      <param name="enabled" value="$(arg enabled)" />
+    </node>
+
+    <node pkg="auv_vision" type="vitpose_process_node.py"
+          name="vitpose_process_node" output="screen">
+      <remap from="object_transform_updates"
+             to="map/object_transform_updates" />
+    </node>
+  </group>
+</launch>

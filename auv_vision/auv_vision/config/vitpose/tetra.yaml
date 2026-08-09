@@ -1,0 +1,41 @@
+# ViTPose object config: TEKNOFEST "yıldızlar" tetra (60 cm tetrahedron,
+# 3 letter keypoints + red/green/blue face masks, downward camera).
+# Three sections, one per pipeline stage — schema: auv_vision/VITPOSE_PLAN.md §6.
+# Model contract (geometry, chirality, decals): gate_tetra_overview.md §3.
+
+object: tetra
+
+model:
+  checkpoint: tetra_joint.pth # tetra/004: trained WITH random chirality
+  device: cuda
+  input_size: null # [H, W]; null = from checkpoint (256, 192)
+  decode: {use_udp: false, post_process: unbiased, kernel: 11}
+  # Never enable flip for tetra: mirrored letters don't exist and mirroring
+  # fakes the chirality (gate_tetra_overview.md §3.4).
+  flip_tta: false
+  flip_pairs: []
+  keypoint_names: [A, B, C] # per-image glyph centres, NOT fixed 3D points
+  # Channel order is contractual (profile declaration order). The colour
+  # arrangement on the solid is NOT fixed (50% mirror chirality) — downstream
+  # must derive letter<->colour from keypoint-in-mask lookup only.
+  mask_classes: [red, green, blue]
+  mask_threshold: null
+
+detection:
+  image_topic: /taluy/cameras/cam_bottom/image_raw
+  result_topic: /vitpose_result_bottom
+  bbox_provider: {type: full_frame}
+
+process:
+  camera:
+    frame: taluy/base_link/bottom_camera_optical_link
+    calibration_ns: cameras/cam_bottom
+  result_topic: /vitpose_result_bottom
+  image_topic: /taluy/cameras/cam_bottom/image_raw
+  skeleton: [] # letters have no skeleton
+  viz_conf_threshold: 0.5
+  operations:
+    # Scaffolding pass: stub only. Future: tetra_unfold (letter<->colour by
+    # keypoint-in-mask + unfolded-net debug) — sketch in VITPOSE_PLAN.md §5.
+    - type: stub
+      params: {log_period: 2.0}

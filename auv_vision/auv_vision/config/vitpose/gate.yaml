@@ -1,0 +1,41 @@
+# ViTPose object config: TEKNOFEST gate (9 keypoints + aperture mask).
+# Three sections, one per pipeline stage — schema: auv_vision/VITPOSE_PLAN.md §6.
+# Model contract (geometry, ids, decode): gate_tetra_overview.md §2.
+
+object: gate
+
+model: # consumed by vitpose_inference (via the detection node)
+  checkpoint: gate_joint.pth # resolved against auv_detection/models/
+  device: cuda
+  input_size: null # [H, W]; null = from checkpoint (256, 192)
+  # MSRA-encoded heads: use_udp must stay false (UDP decode measured ~3x
+  # worse). Both knobs exist for future checkpoints trained differently.
+  decode: {use_udp: false, post_process: unbiased, kernel: 11}
+  # Trained with flip augmentation; TTA off by default (reference parity —
+  # enable only after measuring a benefit).
+  flip_tta: false
+  flip_pairs: [[0, 1], [2, 3], [5, 7]]
+  keypoint_names: [FrameTL, FrameTR, FrameBR, FrameBL, MidTop, MidRight, MidBottom, MidLeft, PingerTop]
+  mask_classes: [gate] # the aperture membrane, not the frame silhouette
+  mask_threshold: null # null = from checkpoint (0.5)
+
+detection: # consumed by vitpose_detection_node
+  image_topic: /taluy/cameras/cam_front/image_raw
+  result_topic: /vitpose_result_front
+  # full_frame = "assume the target is already framed". Future objectness:
+  # {type: topic, topic: /vitpose_bbox_front, class_id: 0, max_age: 0.5}
+  bbox_provider: {type: full_frame}
+
+process: # consumed by vitpose_process_node
+  camera:
+    frame: taluy/base_link/front_camera_optical_link
+    calibration_ns: cameras/cam_front # CameraCalibrationFetcher namespace
+  result_topic: /vitpose_result_front
+  image_topic: /taluy/cameras/cam_front/image_raw # debug overlay only
+  skeleton: [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0], [4, 8]]
+  viz_conf_threshold: 0.5
+  operations:
+    # Scaffolding pass: stub only. Future: gate_pose (planar IPPE PnP +
+    # aperture-mask consistency) — design sketch in VITPOSE_PLAN.md §5.
+    - type: stub
+      params: {log_period: 2.0}
