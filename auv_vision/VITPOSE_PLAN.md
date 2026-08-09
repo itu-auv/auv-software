@@ -8,7 +8,17 @@ Normative model contract: `gate_tetra_overview.md` (repo root, untracked).
 
 > **Status 2026-08-09: scaffolding pass SHIPPED** on this branch (msgs →
 > runtime → nodes → configs, 3 commits). Parity + smoke evidence in the
-> commit messages. Everything under "Future ops" remains unimplemented.
+> commit messages.
+>
+> **Update, same day: `gate_pose` SHIPPED** (`vitpose_ops/gate_pose.py` +
+> `utils/pnp_utils.py` + gate.yaml op config) — implemented as a *fused*
+> estimator (design upgraded from the PnP-then-verify sketch below; the mask
+> is a measurement source, not just a validator). Verified offline against
+> pseudo-GT on gate_joint_1000 val (harness: dream:~/gate_fusion_verify):
+> clean = label-noise floor; occlusion workload (4 surviving collinear kps,
+> mask bottom corrupted) kp-only 4.7°/10 cm median (worst 30°) → fused
+> 2°/4 cm (worst 6°), ~14 ms/frame CPU. Details in pnp_utils.py's docstring.
+> `tetra_unfold` remains a sketch.
 
 ## Scope of THIS pass: scaffolding
 
@@ -185,36 +195,47 @@ the codebase's dynamic-import handler pattern.
 `draw()` callback (its name in a corner) to prove the overlay hook. That's it.
 It doubles as the documented template for writing real ops.
 
-### Future ops — design sketches only, NOT this pass
+### `gate_pose` — SHIPPED (implementation supersedes the original sketch)
 
-These are kept because the designs are worth keeping, not because they're
-scheduled. When their time comes, `utils/pnp_utils.py` gets the `PnPEstimator`
-carried over from `keypoint_pose_node` with its machinery intact:
-`solvePnPGeneric` (exposes both coplanar IPPE candidates; `solvePnPRansac` is
-unusable — it forces EPnP which breaks on coplanar points), reprojection inlier
-gating, inlier re-solve through the flip-aware picker, and the **IPPE
-flip-ambiguity guard** (near-equal reprojection errors → prefer the candidate
-whose plane normal agrees with the last accepted one). Handle-line code is
-dropped (valve-specific).
+`utils/pnp_utils.py` (`FusedPlanarPoseEstimator`, ROS-free) +
+`vitpose_ops/gate_pose.py`. The original sketch used the mask only as a
+post-hoc validator; offline verification showed the mask should be a
+**measurement source**: under bottom occlusion the surviving top keypoints
+are near-collinear (keypoint-only PnP loses pitch and IPPE degenerates to
+zero candidates), while the aperture's *side edges* in the mask carry
+exactly the missing information. What shipped:
 
-**`gate_pose` (sketch)** (uses keypoints *and* the mask):
-1. Gate confident kps (config threshold), require `min_keypoints` (default 5).
-2. Planar PnP via `PnPEstimator` (solver `ippe`, model points from config —
-   §2.2 geometry, all 9 coplanar in the gate's y=0 plane; flip guard active).
-   Model X = gate normal, consistent with the doc's frame.
-3. **Mask consistency check**: project the aperture polygon (x∈[−0.5,0.5],
-   z∈[0.06,1.46]) through the solved pose; compare against the thresholded
-   aperture mask (IoU in source px). Below `min_mask_iou` (default ~0.4) the
-   solve is rejected — this is the cheap "very reliable pose" validator that
-   catches mirror-flip and outlier-driven solves that reproject fine on 5 points
-   but put the aperture in the wrong place. Mask absent/empty → check abstains.
-4. Known error profile guard: post midpoints (ids 5, 7) dominate the tail —
-   they are listed in config as `soft_ids` and get a laxer inlier threshold
-   rather than poisoning the solve.
-5. Publish configured outputs (child frame + model-frame offset), e.g.
-   `gate_link` at origin and `gate_entrance_link` at the aperture centre
-   (0, 0, 0.76) — final naming per config, bare `_link` names per house rules.
-   Distance gate via `max_distance` (as before).
+1. **Init**: IPPE via `solvePnPGeneric` (`solvePnPRansac` unusable — forces
+   EPnP, breaks on coplanar points) with the **flip-ambiguity guard**
+   (near-equal reprojection errors → prefer the candidate whose plane normal
+   agrees with the prior); fallback ITERATIVE PnP seeded from the prior
+   (last accepted pose within `prior_timeout`, else a canonical face-on
+   guess at `prior_distance`).
+2. **Fused refinement** (RAPiD-style outer/inner loop, coarse-to-fine):
+   Huber LM over SE(3) with score-weighted keypoint reprojection residuals +
+   dense mask-edge residuals (0.5-crossing search along projected-boundary
+   normals, sharpness-weighted). Post midpoints (5, 7) contribute only their
+   perpendicular-to-post component (their known sliding error mode).
+   **Two-sided level test** per crossing (mask ~1 one side, ~0 the other)
+   rejects contamination boundaries — without it an occluder edge near the
+   true boundary captures the dense term and fusion *underperforms* kp-only.
+   (Leave-one-edge-out consensus was tried and rejected: with few keypoints
+   every edge is load-bearing.)
+3. **Validation**: projected-aperture IoU (`min_mask_iou` 0.4; empty mask
+   abstains), `max_distance`, behind-camera check. Rejected solves publish
+   nothing — the object map server Kalman-filters, so dropped frames are
+   cheap and wrong frames are not.
+4. Outputs per config with full orientation (`rotation_quat`): `gate_link`
+   (origin), `gate_entrance_link` (aperture centre (0, 0, 0.76)). NOTE:
+   these names collide with the YOLO gate pipeline — intended for
+   one-at-a-time operation; rename in config to run both.
+
+Verified numbers + harness pointer: pnp_utils.py docstring, status block
+above.
+
+### Future ops — design sketches only
+
+Kept because the designs are worth keeping, not because they're scheduled.
 
 **`tetra_unfold` (sketch)** (uses masks *and* keypoints; no PnP — tetra
 keypoints are per-image glyph centres, not fixed 3D points):
@@ -334,9 +355,8 @@ mask-IoU rejection under kp corruption; tetra_unfold association vs GT.)
 
 ## 11. Out of scope (explicit)
 
-- **`gate_pose` / `tetra_unfold` implementations** (sketches in §5 only).
-- `pnp_utils.py` port and the shape-factory/`build_pose_keypoints` helpers
-  (come with the first real PnP op).
+- **`tetra_unfold` implementation** (sketch in §5 only; `gate_pose` shipped
+  2026-08-09 — see §5).
 - TRT engine export & backend (stub only).
 - Objectness/tracker bbox provider (seam exists: Detection2DArray topic).
 - SMACH integration, mission states, `robosub.launch` wiring.

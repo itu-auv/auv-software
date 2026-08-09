@@ -35,7 +35,46 @@ process: # consumed by vitpose_process_node
   skeleton: [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0], [4, 8]]
   viz_conf_threshold: 0.5
   operations:
-    # Scaffolding pass: stub only. Future: gate_pose (planar IPPE PnP +
-    # aperture-mask consistency) — design sketch in VITPOSE_PLAN.md §5.
+    # Fused 6-DOF pose: keypoint PnP + dense aperture-mask edge refinement
+    # (VITPOSE_PLAN.md §5; verified offline on gate_joint_1000 val — see
+    # utils/pnp_utils.py docstring). Geometry: gate_tetra_overview.md §2,
+    # object frame Z-up, +Y = plane normal, all points in the y=0 plane.
+    - type: gate_pose
+      params:
+        # Keypoint model points, index = keypoint id 0..8.
+        model_points:
+          - [-0.53, 0.0, 1.49] # 0 FrameTL
+          - [0.53, 0.0, 1.49] # 1 FrameTR
+          - [0.53, 0.0, 0.03] # 2 FrameBR
+          - [-0.53, 0.0, 0.03] # 3 FrameBL
+          - [0.00, 0.0, 1.49] # 4 MidTop
+          - [0.53, 0.0, 0.76] # 5 MidRight
+          - [0.00, 0.0, 0.03] # 6 MidBottom
+          - [-0.53, 0.0, 0.76] # 7 MidLeft
+          - [0.00, 0.0, 1.59] # 8 PingerTop
+        # The aperture opening (= what the mask segments), corner loop.
+        aperture_polygon:
+          - [-0.5, 0.0, 0.06]
+          - [0.5, 0.0, 0.06]
+          - [0.5, 0.0, 1.46]
+          - [-0.5, 0.0, 1.46]
+        plane_normal: [0.0, 1.0, 0.0]
+        # Post midpoints slide along their post (the documented error tail);
+        # they contribute only perpendicular-to-post residuals.
+        slide_segments:
+          5: [[0.53, 0.0, 0.3], [0.53, 0.0, 1.2]]
+          7: [[-0.53, 0.0, 0.3], [-0.53, 0.0, 1.2]]
+        mask_class: gate
+        min_keypoints: 4
+        max_distance: 30.0 # house-wide range gate
+        min_mask_iou: 0.4 # projected-aperture consistency; empty mask abstains
+        prior_timeout: 5.0 # s; last accepted pose serves as init/flip prior
+        prior_distance: 3.0 # m; canonical face-on prior before first accept
+        # refine: {} # FusedPlanarPoseEstimator overrides (see DEFAULTS)
+        outputs:
+          # NOTE: name collision with the YOLO gate pipeline is intentional
+          # only if one of the two runs at a time; rename here otherwise.
+          - {child_frame: gate_link, offset_xyz: [0.0, 0.0, 0.0]}
+          - {child_frame: gate_entrance_link, offset_xyz: [0.0, 0.0, 0.76]}
     - type: stub
       params: {log_period: 2.0}
