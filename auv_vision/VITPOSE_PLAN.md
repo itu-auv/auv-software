@@ -291,9 +291,21 @@ the 100-image tetra_1000b val split — the checkpoint's own held-out data,
   **4 frames (0.4 s @10 Hz)**, 0 wrong locks, 100% correct;
 - **stress** (real evidence corrupted per frame, fraction ρ): one letter
   landing on a neighbouring face — filtered stays **100% up to ρ=0.7** while
-  raw per-frame falls to 64%; coherently-wrong frames — 98% at ρ=0.35
-  (1.3% wrong first-locks), degrading to 84% at ρ=0.5 and failing past
-  majority-lie, as it must; blurred/washed-out frames only slow the lock;
+  raw per-frame falls to 64%; coherently-wrong frames — **100% at ρ=0.35 and
+  98% at ρ=0.5**, blurred/washed-out frames only slow the lock;
+- **memory sweep** (the τ/`logp_clip` decision, `memory_sweep.png`): the
+  arrangement is static, so with independent frames the truth wins on
+  frequency alone whenever it stays the *plurality* — under this corruption
+  model each wrong world takes ρ/2, so that holds up to ρ=2/3, and indeed
+  every accumulating setting converges to 100% at ρ=0.35 and ρ=0.5 while
+  ρ=0.7 decays to ~6% (more memory = more confidently wrong; unfixable by
+  filtering). A short window is therefore a *ceiling*, not a safeguard: the
+  original τ=3 s plateaued at 98% / 84%. Forgetting still earns its keep
+  because model errors are time-correlated, not independent — recovery from
+  30 wrong-world frames costs 5 / 12 / 25 / 30 frames at τ = 3 / 10 / 30 / ∞.
+  **τ=10 s, clip=20** takes the accuracy for 1.2 s of recovery and locks no
+  slower (4 frames clean, 7 at ρ=0.35). A wrong first lock at ρ=0.5 still
+  happens ~10% of the time; it is transient — 98% correct by 6 s;
 - **averted letter** (one letter under the gate in every frame): the unseen
   letter's colour is recovered **100%** by the permutation constraint and
   flagged `inferred` 100% of the time;

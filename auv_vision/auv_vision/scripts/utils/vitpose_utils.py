@@ -494,9 +494,19 @@ TETRA_DEFAULTS = dict(
     max_mask_distance_px=40.0,  # nearest-mask fallback reach
     proximity_weight=0.6,  # fallback evidence is worth less than a hit
     eps=0.04,  # membership floor -> bounds one frame's influence
-    tau=3.0,  # s, evidence forgetting time constant
+    # Memory. tau/logp_clip together set the effective evidence window; the
+    # letter arrangement is STATIC, so the only reason to forget at all is to
+    # keep a wrong belief reversible (model errors are time-correlated, not
+    # independent). Swept on real evidence (dream:~/tetra_unfold_check,
+    # memory_sweep.png): with a third of frames lying, every accumulating
+    # setting reaches 100% — the truth wins on frequency as long as it stays
+    # the plurality — while tau=3 plateaued at 98%, and at half the frames
+    # lying tau=3 capped at 84% vs 98-100%. Longer memory only costs recovery:
+    # 5 / 12 / 25 / 30 frames to shake off 30 wrong frames at tau = 3/10/30/inf.
+    # tau=10 buys the accuracy for 1.2 s of recovery and locks no slower.
+    tau=10.0,  # s, evidence forgetting time constant
     gain=0.25,  # per-frame log-likelihood gain
-    logp_clip=8.0,  # log-posterior clamp (reversibility)
+    logp_clip=20.0,  # log-posterior clamp (reversibility)
     # Lock criteria. 0.99/10 over 0.9/5 by measurement (dream:~/tetra_unfold_check):
     # with 35% coherently-wrong frames it cuts first-lock errors 6.8% -> 1.2%,
     # costing one extra frame of latency on clean data (4 frames, 0.4 s @10 Hz).

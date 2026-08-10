@@ -55,10 +55,15 @@ process:
         max_mask_distance_px: 40.0 # nearest-mask fallback reach
         proximity_weight: 0.6 # a near miss is worth less than a hit
         eps: 0.04 # membership floor: bounds one frame's influence
-        # Time filter.
-        tau: 3.0 # s, evidence forgetting
+        # Time filter. The arrangement is static, so forgetting exists only to
+        # keep a wrong belief reversible. Swept on real evidence: tau=10 gets
+        # the accumulator's accuracy (100% / 98% correct with a third / half of
+        # frames lying, vs 98% / 84% at tau=3) and still shakes off 30 wrong
+        # frames in 12 (1.2 s). Raise tau for more stubbornness, lower it for
+        # faster reaction.
+        tau: 10.0 # s, evidence forgetting
         gain: 0.25 # per-frame log-likelihood gain
-        logp_clip: 8.0 # keeps a wrong lock reversible in ~a few hundred ms
+        logp_clip: 20.0 # keeps a wrong lock reversible (~1.2 s)
         # Lock criteria, chosen by measurement (see utils/vitpose_utils.py):
         # 0.99/10 costs one extra frame vs 0.9/5 on clean data and cuts
         # first-lock errors 6.8% -> 1.2% when a third of frames lie.
