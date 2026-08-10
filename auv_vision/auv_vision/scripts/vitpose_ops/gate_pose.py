@@ -26,7 +26,7 @@ import numpy as np
 import rospy
 import tf.transformations
 
-from utils.pnp_utils import FusedPlanarPoseEstimator, project_points
+from utils.vitpose_utils import FusedPlanarPoseEstimator, project_points
 
 _REQUIRED = ("model_points", "aperture_polygon")
 

@@ -35,7 +35,36 @@ process:
   skeleton: [] # letters have no skeleton
   viz_conf_threshold: 0.5
   operations:
-    # Scaffolding pass: stub only. Future: tetra_unfold (letter<->colour by
-    # keypoint-in-mask + unfolded-net debug) — sketch in VITPOSE_PLAN.md §5.
-    - type: stub
-      params: {log_period: 2.0}
+    # Letter<->face association: per-frame keypoint-in-mask lookup, filtered
+    # over time as a Bayesian posterior over the 6 letter permutations.
+    # Publishes tetra/letter_colors (String) and tetra_unfold_image/compressed
+    # (the unfolded net). Algorithm: utils/vitpose_utils.py SECTION 3.
+    - type: tetra_unfold
+      params:
+        # PLACEHOLDER — set from the real object before the competition.
+        # Cyclic order of mask_classes (red, green, blue) as they appear going
+        # CLOCKWISE in the bottom-camera image. Invariant to AUV yaw/roll, so
+        # one look at one frame fixes it. Only decides which corner of the
+        # drawn net each colour occupies; never used for the association.
+        chirality: cw
+        # Evidence gating (gate_tetra_overview.md §3.4: a letter on an averted
+        # face gets no training supervision, so its prediction is garbage —
+        # the score gate is the only defence).
+        min_score: 0.35
+        inside_min: 0.25 # mask prob at the kp that counts as "in this face"
+        max_mask_distance_px: 40.0 # nearest-mask fallback reach
+        proximity_weight: 0.6 # a near miss is worth less than a hit
+        eps: 0.04 # membership floor: bounds one frame's influence
+        # Time filter.
+        tau: 3.0 # s, evidence forgetting
+        gain: 0.25 # per-frame log-likelihood gain
+        logp_clip: 8.0 # keeps a wrong lock reversible in ~a few hundred ms
+        # Lock criteria, chosen by measurement (see utils/vitpose_utils.py):
+        # 0.99/10 costs one extra frame vs 0.9/5 on clean data and cuts
+        # first-lock errors 6.8% -> 1.2% when a third of frames lie.
+        lock_threshold: 0.99 # p_best needed to call it LOCKED ...
+        min_evidence: 10.0 # ... together with this much evidence mass
+        min_direct_evidence: 1.0 # below this a letter is flagged "inferred"
+        # Output.
+        publish_period: 0.5 # s; the String also fires immediately on change
+        net_size: 480 # px, square canvas of the unfolded net

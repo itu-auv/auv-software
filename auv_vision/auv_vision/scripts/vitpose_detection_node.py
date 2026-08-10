@@ -50,7 +50,7 @@ _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from utils.vitpose_config import (  # noqa: E402
+from utils.vitpose_utils import (  # noqa: E402
     load_object_config,
     model_kwargs,
     resolve_checkpoint_path,

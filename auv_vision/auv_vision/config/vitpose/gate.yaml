@@ -70,11 +70,10 @@ process: # consumed by vitpose_process_node
         min_mask_iou: 0.4 # projected-aperture consistency; empty mask abstains
         prior_timeout: 5.0 # s; last accepted pose serves as init/flip prior
         prior_distance: 3.0 # m; canonical face-on prior before first accept
-        # refine: {} # FusedPlanarPoseEstimator overrides (see DEFAULTS)
+        # refine: {} # FusedPlanarPoseEstimator overrides
+        # (utils/vitpose_utils.py FUSED_POSE_DEFAULTS)
         outputs:
           # NOTE: name collision with the YOLO gate pipeline is intentional
           # only if one of the two runs at a time; rename here otherwise.
           - {child_frame: gate_link, offset_xyz: [0.0, 0.0, 0.0]}
           - {child_frame: gate_entrance_link, offset_xyz: [0.0, 0.0, 0.76]}
-    - type: stub
-      params: {log_period: 2.0}

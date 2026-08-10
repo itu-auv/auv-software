@@ -17,21 +17,30 @@ Normative model contract: `gate_tetra_overview.md` (repo root, untracked).
 > pseudo-GT on gate_joint_1000 val (harness: dream:~/gate_fusion_verify):
 > clean = label-noise floor; occlusion workload (4 surviving collinear kps,
 > mask bottom corrupted) kp-only 4.7°/10 cm median (worst 30°) → fused
-> 2°/4 cm (worst 6°), ~14 ms/frame CPU. Details in pnp_utils.py's docstring.
-> `tetra_unfold` remains a sketch.
+> 2°/4 cm (worst 6°), ~14 ms/frame CPU.
+>
+> **Update 2026-08-10: `tetra_unfold` SHIPPED, and the utils files were
+> consolidated.** All shared vitpose code now lives in ONE module,
+> `utils/vitpose_utils.py`, in three banner-separated sections (config /
+> planar pose fusion / tetra association) — `pnp_utils.py` and
+> `vitpose_config.py` are gone, and by standing preference (Ufuk, 2026-08-10)
+> no new utils file is created per feature. The `stub` op is deleted; its
+> op-writing template lives in `vitpose_process_node.py`'s docstring.
+> Both real ops (`gate_pose`, `tetra_unfold`) now ship. Verification for
+> tetra is in §5 and the harness at dream:~/tetra_unfold_check.
 
-## Scope of THIS pass: scaffolding
+## Scope of the scaffolding pass (historical — both ops have since shipped)
 
-Everything below section 5's "Future ops" heading is **design sketch, not
-current work**. The deliverable of this pass, end to end:
+The first pass deliberately shipped no ops. Its deliverable, end to end:
 
 - feed images + calibrations in,
 - get inference **debug images** out (keypoints, skeleton, masks, bbox),
 - and have a **stub op** in the process node be called per frame with real
   `FrameData` — proving the op seam works.
 
-No gate_pose, no tetra_unfold, no pnp_utils. The framework must make it obvious
-where those plug in, nothing more.
+The framework had to make it obvious where the real ops plug in, nothing more.
+`gate_pose` (2026-08-09) and `tetra_unfold` (2026-08-10) then plugged in
+exactly there, and `stub` was deleted — see §5.
 
 ## 0. Decisions locked
 
@@ -188,16 +197,17 @@ the codebase's dynamic-import handler pattern.
   gated on `get_num_connections() > 0` (house style). Base layer draws
   keypoints (conf-coloured), skeleton from config, bbox, and translucent mask
   contours; ops add their own layers via `draw()`.
-### This pass ships exactly one op: `stub`
+### `stub` — DELETED (2026-08-10)
 
-`vitpose_ops/stub.py` — receives `FrameData`, logs a throttled one-line summary
-(kp count/mean score, mask coverage per class), and registers a trivial
-`draw()` callback (its name in a corner) to prove the overlay hook. That's it.
-It doubles as the documented template for writing real ops.
+The scaffolding pass shipped a `stub` op as the op-seam proof and the
+op-writing template. With two real ops in the tree it was only log noise, so
+it is gone from both YAMLs and from the repo; the op contract it documented
+(what `create_op`, `OpContext`, `FrameData` and `draw()` give you) is now in
+`vitpose_process_node.py`'s module docstring.
 
 ### `gate_pose` — SHIPPED (implementation supersedes the original sketch)
 
-`utils/pnp_utils.py` (`FusedPlanarPoseEstimator`, ROS-free) +
+`utils/vitpose_utils.py` SECTION 2 (`FusedPlanarPoseEstimator`, ROS-free) +
 `vitpose_ops/gate_pose.py`. The original sketch used the mask only as a
 post-hoc validator; offline verification showed the mask should be a
 **measurement source**: under bottom occlusion the surviving top keypoints
@@ -230,32 +240,71 @@ exactly the missing information. What shipped:
    these names collide with the YOLO gate pipeline — intended for
    one-at-a-time operation; rename in config to run both.
 
-Verified numbers + harness pointer: pnp_utils.py docstring, status block
-above.
+Verified numbers + harness pointer: the SECTION 2 banner in
+`utils/vitpose_utils.py`, and the status block above.
 
-### Future ops — design sketches only
+### `tetra_unfold` — SHIPPED 2026-08-10 (supersedes the sketch)
 
-Kept because the designs are worth keeping, not because they're scheduled.
+`vitpose_ops/tetra_unfold.py` + `utils/vitpose_utils.py` SECTION 3 +
+tetra.yaml op config. Uses masks *and* keypoints; no PnP (tetra keypoints are
+per-image glyph centres, not fixed 3D points).
 
-**`tetra_unfold` (sketch)** (uses masks *and* keypoints; no PnP — tetra
-keypoints are per-image glyph centres, not fixed 3D points):
-1. For each letter kp above its score gate: letter → colour by
-   **keypoint-in-mask** lookup on thresholded masks; fallback = nearest mask
-   within `max_mask_distance_px`; unmatched/low-score letters stay unassigned
-   (predictions for a letter on a fully averted face are unconstrained garbage
-   — the doc is explicit; the score gate is the only defense).
-2. Consistency: at most one letter per colour; conflicts resolved by score,
-   loser unassigned. If exactly two letters are confidently assigned, the third
-   association is **inferred** (the letter permutation is exhaustive) and
-   flagged as inferred.
-3. Publish association on `tetra/letter_colors` (`std_msgs/String`,
-   e.g. `"A:red B:blue C:green(inferred)"` — String-topic precedent:
-   `octagon/object_list`). Chirality is never assumed (50% mirror worlds);
-   association comes only from the per-frame lookup.
-4. Debug: an **unfolded-net image** — the canonical tetra net (3 colour
-   triangles around the base) with detected letters drawn on their associated
-   faces — published as `tetra_unfold_image/compressed` and mirrored into the
-   overlay via `draw()`.
+Two deltas from the original sketch, both deliberate:
+
+- **Chirality is a config constant** (`chirality: cw | ccw`), not something
+  the op avoids assuming. We now see the object before the competition, so
+  the arrangement is known. It is used *only* to lay the colours out in the
+  rendered net — never in the association, which still comes purely from the
+  per-frame lookup. No auto-detection, no observed-vs-config cross-check
+  (considered and dropped).
+- **The per-frame assignment + conflict rules became a Bayesian filter over
+  the 6 letter permutations.** One-letter-per-face is then structural rather
+  than a tie-break, the "third letter is inferred" case falls out of the
+  marginals quantitatively, and `p_best` is a real lock criterion.
+
+1. Per frame (`letter_face_membership`): letters below `min_score` contribute
+   nothing (a letter on an averted face has no training supervision — its
+   prediction is garbage, and the score gate is the only defence). Membership
+   = soft mask probability sampled at the keypoint; letters outside every
+   mask fall back to a nearest-mask proximity term (distance transforms
+   computed lazily, only in that case). Rows normalized and floored at `eps`,
+   which bounds any single frame's influence.
+2. Over time (`LetterFaceFilter`): `logp ← λ·logp + gain·loglik`,
+   `λ = exp(−dt/τ)`, clamped to ±`logp_clip` so a wrong lock stays reversible.
+3. Publishes `tetra/letter_colors` (`std_msgs/String`, **latched**, on change
+   or ≤2 Hz): `"A:red B:blue C:green p=0.97 state=LOCKED inferred=C"`.
+   Precedent: `octagon/object_list`. Plus `tetra_unfold/reset` (`Empty`).
+4. Publishes the unfolded net on `tetra_unfold_image/compressed` — the tetra
+   net *is* a triforce (three coloured corner triangles around the white
+   base), letters drawn on their faces, styled by confidence, with a footer
+   table of the filter marginals. **Rendered only while subscribed.** The op
+   deliberately has **no `draw()`**: the main overlay stays pure model output.
+
+**Verification** (harness dream:~/tetra_unfold_check, real tetra_joint.pth over
+the 100-image tetra_1000b val split — the checkpoint's own held-out data,
+18 ms/img on the 4060 Ti, kp error 1.46 px median):
+
+- single-frame association accuracy **100/100** — with a GT bbox the lookup is
+  near-trivial, which is why the filter is stress-tested rather than credited
+  by val alone;
+- 30-frame sequences built from same-permutation val images: locks in
+  **4 frames (0.4 s @10 Hz)**, 0 wrong locks, 100% correct;
+- **stress** (real evidence corrupted per frame, fraction ρ): one letter
+  landing on a neighbouring face — filtered stays **100% up to ρ=0.7** while
+  raw per-frame falls to 64%; coherently-wrong frames — 98% at ρ=0.35
+  (1.3% wrong first-locks), degrading to 84% at ρ=0.5 and failing past
+  majority-lie, as it must; blurred/washed-out frames only slow the lock;
+- **averted letter** (one letter under the gate in every frame): the unseen
+  letter's colour is recovered **100%** by the permutation constraint and
+  flagged `inferred` 100% of the time;
+- **recovery**: after 10 frames of a wrong world, re-locks on the truth in
+  7 frames (0.7 s);
+- lock criteria `0.99 / 10` were *chosen by sweep*, not guessed: vs `0.9 / 5`
+  they cost one extra frame on clean data and cut wrong first-locks
+  6.8% → 1.2% at ρ=0.35.
+- ROS smoke: val images replayed at 10 Hz through both nodes — association
+  converges, and the net topic published **0** frames while unsubscribed, 70
+  after `rqt_image_view` attached.
 
 ## 6. Config — one YAML per object, three sections
 
@@ -289,8 +338,8 @@ process:          # consumed by vitpose_process_node
   image_topic: /taluy/cameras/cam_front/image_raw   # debug overlay only
   skeleton: [[0,4],[4,1],[1,5],[5,2],[2,6],[6,3],[3,7],[7,0],[4,8]]
   operations:
-    - type: stub          # THIS PASS. Future: gate_pose with model_points,
-      params: {}          # solver, thresholds, outputs — see the sketches in §5.
+    - type: gate_pose     # model_points, aperture_polygon, thresholds,
+      params: {...}       # outputs — see gate.yaml and §5.
 ```
 
 Future `model_points` will use the last_dance2 shape-factory spec
@@ -298,8 +347,8 @@ Future `model_points` will use the last_dance2 shape-factory spec
 0-indexed ids like everything else (the valve YAML's 1-indexing dies with it).
 
 `tetra.yaml` deltas: bottom camera topics, no `flip_pairs`/`flip_tta: false`,
-`mask_classes: [red, green, blue]`, `keypoint_names: [A, B, C]`, same `stub`
-op, no skeleton.
+`mask_classes: [red, green, blue]`, `keypoint_names: [A, B, C]`, the
+`tetra_unfold` op, no skeleton.
 
 ## 7. Launch
 
@@ -336,11 +385,12 @@ valve launch's convenience includes.
    gate val error ~3×).
 2. **ROS smoke on dream** (GPU): publish val images via `image_publisher` /
    webcam, run both nodes, verify `VitposeResult` content, debug overlay
-   images (kps + masks drawn correctly on gate AND tetra), the stub op's log
-   line firing per frame, and the `~set_config` gate→tetra live switch.
+   images (kps + masks drawn correctly on gate AND tetra), each op's outputs
+   firing per frame, and the `~set_config` gate→tetra live switch.
 
-(Future, with real ops: op unit tests — gate_pose pose recovery vs GT +
-mask-IoU rejection under kp corruption; tetra_unfold association vs GT.)
+Both shipped ops carry their own offline verification harness on dream:
+`~/gate_fusion_verify` (gate_pose) and `~/tetra_unfold_check` (tetra_unfold,
+including the lock-criteria sweep and the corrupted-frame stress modes).
 
 ## 10. Work order
 
@@ -355,8 +405,6 @@ mask-IoU rejection under kp corruption; tetra_unfold association vs GT.)
 
 ## 11. Out of scope (explicit)
 
-- **`tetra_unfold` implementation** (sketch in §5 only; `gate_pose` shipped
-  2026-08-09 — see §5).
 - TRT engine export & backend (stub only).
 - Objectness/tracker bbox provider (seam exists: Detection2DArray topic).
 - SMACH integration, mission states, `robosub.launch` wiring.

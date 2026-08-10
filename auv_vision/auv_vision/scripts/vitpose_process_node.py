@@ -13,12 +13,26 @@ create_op(params, ctx) (same dynamic-import factory convention as
 scripts/handlers/). An op implements:
 
     process(frame)          required; frame is a FrameData
-    draw(image_bgr, frame)  optional; paint on the debug overlay
+    draw(image_bgr, frame)  optional; paint on the debug overlay, called only
+                            while the overlay has subscribers. An op with its
+                            own image topic (tetra_unfold) omits this so the
+                            overlay stays pure model output.
 
-and receives an OpContext with the camera frame id, lazy calibration,
-publish_tf() (routed through the object map TF server via
-object_transform_updates — never a raw TF broadcast) and publisher() for
-op-specific topics.
+and receives an OpContext with:
+
+    ctx.object_name         the config object name
+    ctx.camera_frame        camera optical frame id
+    ctx.calibration()       -> (K 3x3, D) or None until camera_info arrives
+    ctx.publish_tf(child_frame_id, xyz, stamp, rotation_quat=None)
+                            routed through the object map TF server via
+                            object_transform_updates — never a raw broadcast
+    ctx.publisher(topic, msg_type, queue_size=1, latch=False)
+                            lazily created, cached, for op-specific outputs
+
+FrameData gives ids/pixels/scores for all K keypoints with raw confidences
+(gate on them yourself), mask_probs (C, H, W) in [0, 1] with binary_masks()
+at the calibrated threshold, keypoint_names, mask_classes, bbox and stamp.
+Per-op init failures are contained: a bad op is disabled, the pipeline lives.
 
 Debug overlay per object on vitpose_process_image_<object>/compressed:
 keypoints (confidence-coloured, named), skeleton, bbox, translucent mask
@@ -51,7 +65,7 @@ if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
 from utils.detection_utils import transform_to_odom_and_publish  # noqa: E402
-from utils.vitpose_config import all_object_configs  # noqa: E402
+from utils.vitpose_utils import all_object_configs  # noqa: E402
 
 # Debug palette (BGR), indexed by mask class position. Deliberately matches
 # the tetra channel order (red, green, blue) for the first three classes.
@@ -140,11 +154,11 @@ class OpContext:
             rotation_quat=rotation_quat,
         )
 
-    def publisher(self, topic, msg_type, queue_size=1) -> rospy.Publisher:
+    def publisher(self, topic, msg_type, queue_size=1, latch=False) -> rospy.Publisher:
         """Lazily created, cached publisher for op-specific outputs."""
         if topic not in self._publishers:
             self._publishers[topic] = rospy.Publisher(
-                topic, msg_type, queue_size=queue_size
+                topic, msg_type, queue_size=queue_size, latch=latch
             )
         return self._publishers[topic]
 
