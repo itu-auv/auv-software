@@ -735,9 +735,17 @@ class SetDetectionState(smach_ros.ServiceState):
     """
 
     def __init__(self, camera_name: str, enable: bool):
-        if camera_name not in ["front", "bottom", "slalom", "torpedo", "segment"]:
+        if camera_name not in [
+            "front",
+            "bottom",
+            "slalom",
+            "torpedo",
+            "segment",
+            "pinger",
+        ]:
             raise ValueError(
-                "camera_name must be 'front', 'bottom', 'slalom', 'torpedo', or 'segment'"
+                "camera_name must be 'front', 'bottom', 'slalom', 'torpedo', "
+                "'segment', or 'pinger'"
             )
 
         service_name = f"enable_{camera_name}_camera_detections"

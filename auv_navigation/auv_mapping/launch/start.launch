@@ -36,6 +36,7 @@
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
       <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
+      <remap from="enable_pinger_camera_detections" to="vision/enable_pinger_camera_detections"/>
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
       <remap from="enable_all_camera_detections" to="vision/enable_all_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
@@ -146,6 +147,15 @@
     <node pkg="auv_mapping" type="pipeline_trajectory_publisher.py" name="pipeline_trajectory_publisher">
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
       <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <node pkg="auv_mapping" type="pinger_teknofest_trajectory_publisher.py" name="pinger_teknofest_trajectory_publisher" output="screen">
+      <param name="robot_frame" value="$(arg namespace)/base_link" />
+      <param name="source_frame" value="pinger_bbox" />
+      <param name="output_frame" value="pinger_close_approach" />
+      <param name="approach_distance" value="2.0" />
+      <remap from="toggle_pinger_teknofest_trajectory" to="toggle_pinger_teknofest_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
