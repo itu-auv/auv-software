@@ -47,7 +47,7 @@ class RotateAroundCenterState(smach.State):
         self.rate = rospy.Rate(10)
 
         self.linear_velocity = 0.2  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.2 # rospy.get_param("/smach/max_angular_velocity")
+        self.angular_velocity = 0.2  # rospy.get_param("/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:

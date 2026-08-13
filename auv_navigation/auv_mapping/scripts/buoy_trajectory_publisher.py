@@ -21,9 +21,7 @@ class BuoyTrajectoryPublisher:
         self.close_approach_frame = rospy.get_param(
             "~close_approach_frame", "buoy_close_approach"
         )
-        self.approach_distance_m = float(
-            rospy.get_param("~approach_distance_m", 3.0)
-        )
+        self.approach_distance_m = float(rospy.get_param("~approach_distance_m", 3.0))
         self.target_z_offset_m = float(rospy.get_param("~target_z_offset_m", 0.0))
         self.publish_rate_hz = float(rospy.get_param("~publish_rate_hz", 10.0))
         self.lookup_timeout_seconds = float(

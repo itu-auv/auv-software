@@ -523,9 +523,7 @@ class MainStateMachineNode:
                         "succeeded": next_state,
                         "preempted": "preempted",
                         "aborted": (
-                            "aborted"
-                            if state_name in FAIL_FAST_STATES
-                            else next_state
+                            "aborted" if state_name in FAIL_FAST_STATES else next_state
                         ),
                     },
                 )
