@@ -167,6 +167,10 @@ class BuoyWaypointPublisher:
 
         buoy_distance_m = math.hypot(buoy_x_m, buoy_y_m)
         surface_distance_m = math.hypot(surface_x_m, surface_y_m)
+        buoy_to_surface_yaw_rad = math.atan2(
+            surface_y_m - buoy_y_m,
+            surface_x_m - buoy_x_m,
+        )
         for label, distance_m in (
             ("Buoy", buoy_distance_m),
             ("Surface", surface_distance_m),
@@ -184,6 +188,7 @@ class BuoyWaypointPublisher:
                 surface_x_m,
                 surface_y_m,
                 surface_distance_m,
+                yaw_rad=buoy_to_surface_yaw_rad,
             ),
         ]
         return {
@@ -200,12 +205,20 @@ class BuoyWaypointPublisher:
             "points": points,
         }
 
-    def _point_config(self, frame_id, x_m, y_m, distance_from_start_m):
+    def _point_config(
+        self,
+        frame_id,
+        x_m,
+        y_m,
+        distance_from_start_m,
+        yaw_rad=0.0,
+    ):
         return {
             "frame_id": frame_id,
             "x_m": float(x_m),
             "y_m": float(y_m),
             "z_m": self.target_z_m,
+            "yaw_rad": float(yaw_rad),
             "distance_from_start_m": float(distance_from_start_m),
         }
 
@@ -236,10 +249,11 @@ class BuoyWaypointPublisher:
         for point in config["points"]:
             rospy.loginfo(
                 "[BuoyWaypoints] %s: x=%.3f m north, y=%.3f m west, "
-                "distance_from_start=%.3f m",
+                "yaw=%.3f rad, distance_from_start=%.3f m",
                 point["frame_id"],
                 point["x_m"],
                 point["y_m"],
+                point["yaw_rad"],
                 point["distance_from_start_m"],
             )
 
@@ -263,7 +277,9 @@ class BuoyWaypointPublisher:
         transform.transform.translation.x = point["x_m"]
         transform.transform.translation.y = point["y_m"]
         transform.transform.translation.z = point["z_m"]
-        transform.transform.rotation.w = 1.0
+        half_yaw_rad = point["yaw_rad"] / 2.0
+        transform.transform.rotation.z = math.sin(half_yaw_rad)
+        transform.transform.rotation.w = math.cos(half_yaw_rad)
         return transform
 
     def send_transforms(self, transforms):

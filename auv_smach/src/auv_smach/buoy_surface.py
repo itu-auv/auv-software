@@ -156,7 +156,7 @@ class BuoySurfaceTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_SURFACE_FRAME",
-                DynamicPathState(plan_target_frame=surface_frame,keep_orientation=True,),
+                DynamicPathState(plan_target_frame=surface_frame,),
                 transitions={
                     "succeeded": "ALIGN_TO_SURFACE_FRAME",
                     "preempted": "preempted",
