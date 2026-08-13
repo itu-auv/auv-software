@@ -398,10 +398,13 @@ class BuoyWaypointGUI:
         center_y_m = (min(ys) + max(ys)) / 2.0
         span_x_m = max(max(xs) - min(xs), 2.0)
         span_y_m = max(max(ys) - min(ys), 2.0)
-        scale = min(
-            (height - 2 * margin) / span_x_m,
-            (width - 2 * margin) / span_y_m,
-        ) * 0.75
+        scale = (
+            min(
+                (height - 2 * margin) / span_x_m,
+                (width - 2 * margin) / span_y_m,
+            )
+            * 0.75
+        )
 
         def to_canvas(x_m, y_m):
             # North (+x) is screen-up; west (+y) is screen-left.

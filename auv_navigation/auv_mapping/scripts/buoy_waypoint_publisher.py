@@ -24,13 +24,9 @@ def geodetic_delta_to_odom(
         (float(origin_latitude_deg) + float(target_latitude_deg)) / 2.0
     )
     sin_latitude = math.sin(mean_latitude_rad)
-    scale = math.sqrt(
-        1.0 - WGS84_ECCENTRICITY_SQUARED * sin_latitude * sin_latitude
-    )
+    scale = math.sqrt(1.0 - WGS84_ECCENTRICITY_SQUARED * sin_latitude * sin_latitude)
     meridional_radius_m = (
-        WGS84_SEMI_MAJOR_AXIS_M
-        * (1.0 - WGS84_ECCENTRICITY_SQUARED)
-        / (scale**3)
+        WGS84_SEMI_MAJOR_AXIS_M * (1.0 - WGS84_ECCENTRICITY_SQUARED) / (scale**3)
     )
     prime_vertical_radius_m = WGS84_SEMI_MAJOR_AXIS_M / scale
 
@@ -43,11 +39,7 @@ def geodetic_delta_to_odom(
     delta_longitude_rad = math.radians(delta_longitude_deg)
 
     north_m = delta_latitude_rad * meridional_radius_m
-    east_m = (
-        delta_longitude_rad
-        * prime_vertical_radius_m
-        * math.cos(mean_latitude_rad)
-    )
+    east_m = delta_longitude_rad * prime_vertical_radius_m * math.cos(mean_latitude_rad)
     return north_m, -east_m
 
 
@@ -186,9 +178,7 @@ class BuoyWaypointPublisher:
                 )
 
         points = [
-            self._point_config(
-                self.buoy_frame, buoy_x_m, buoy_y_m, buoy_distance_m
-            ),
+            self._point_config(self.buoy_frame, buoy_x_m, buoy_y_m, buoy_distance_m),
             self._point_config(
                 self.surface_frame,
                 surface_x_m,
@@ -261,8 +251,7 @@ class BuoyWaypointPublisher:
 
         stamp = rospy.Time.now()
         transforms = [
-            self.build_transform_message(point, stamp)
-            for point in config["points"]
+            self.build_transform_message(point, stamp) for point in config["points"]
         ]
         self.send_transforms(transforms)
 
