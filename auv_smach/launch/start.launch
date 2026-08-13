@@ -13,6 +13,7 @@
         gate:NAVIGATE_THROUGH_GATE,
         slalom:NAVIGATE_THROUGH_SLALOM,
         pinger:RANDOM_PINGER_TASK,
+        tekno_gate:NAVIGATE_TO_TEKNOFEST_PINGER_GATE,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
@@ -82,6 +83,7 @@
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
+            <remap from="enable_pinger_camera_detections" to="vision/enable_pinger_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
@@ -114,6 +116,9 @@
 
             <!--pipeline.py-->
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
+
+            <!--pinger_gate.py-->
+            <remap from="toggle_pinger_teknofest_trajectory" to="toggle_pinger_teknofest_trajectory"/>
 
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
