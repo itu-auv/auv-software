@@ -25,9 +25,7 @@ class RelativeApproachFramePublisher:
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.source_frame = rospy.get_param("~source_frame", "pinger_bbox")
-        self.output_frame = rospy.get_param(
-            "~output_frame", "pinger_close_approach"
-        )
+        self.output_frame = rospy.get_param("~output_frame", "pinger_close_approach")
         self.approach_distance = float(rospy.get_param("~approach_distance", 2.0))
         self.z_offset = float(rospy.get_param("~z_offset", 0.0))
         self.lookup_timeout = float(rospy.get_param("~lookup_timeout", 0.5))
