@@ -1,0 +1,18 @@
+bool use_geodetic
+float64 start_latitude_deg
+float64 start_longitude_deg
+float64 buoy_latitude_deg
+float64 buoy_longitude_deg
+float64 surface_latitude_deg
+float64 surface_longitude_deg
+float64 buoy_x_m
+float64 buoy_y_m
+float64 surface_x_m
+float64 surface_y_m
+---
+bool success
+string message
+string[] frame_ids
+float64[] x_m
+float64[] y_m
+float64[] distances_from_start_m
