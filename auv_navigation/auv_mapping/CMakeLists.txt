@@ -92,6 +92,7 @@ catkin_install_python(PROGRAMS
   scripts/pipeline_trajectory_publisher.py
   scripts/buoy_waypoint_gui.py
   scripts/buoy_waypoint_publisher.py
+  scripts/buoy_trajectory_publisher.py
   scripts/waypoint_gui.py
   scripts/waypoint_publisher.py
   scripts/premap_publisher.py
