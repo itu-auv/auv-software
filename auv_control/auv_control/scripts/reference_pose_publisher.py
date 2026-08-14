@@ -142,7 +142,6 @@ class ReferencePosePublisherNode:
         self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
 
-        self.max_z = rospy.get_param("~max_z", 0.0)
         pool_depth = rospy.get_param("/env/pool_depth", 2.2)
         self.min_z = -pool_depth
 
