@@ -41,7 +41,6 @@
     <arg name="octagon_object_y" value="$(eval -12.970200 if arg('world') == 'semi_final_pool' else -4.25)" />
     <arg name="octagon_object_z" value="$(eval -1.27 if arg('world') == 'semi_final_pool' else -1.3)" />
     <arg name="start_tf_gazebo_debug" default="false" />
-    <arg name="start_sim_bbox" default="$(eval arg('world') == 'teknofest_pipe')" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
@@ -173,11 +172,6 @@
         <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
         <remap from="set_heading_control" to="set_heading_control"/>
     </node>
-
-    <!-- Simulation ground truth bbox tracker -->
-    <include if="$(arg start_sim_bbox)" file="$(find auv_detection)/launch/tracker_sim.launch">
-        <arg name="namespace" value="$(arg namespace)" />
-    </include>
 
     <!-- TF-Gazebo Debug Node -->
     <node if="$(arg start_tf_gazebo_debug)" name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
