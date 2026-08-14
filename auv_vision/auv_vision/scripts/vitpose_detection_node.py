@@ -448,7 +448,6 @@ class VitposeNodeBase:
         return SetBoolResponse(success=True, message=message)
 
     def _handle_set_config(self, req):
-        # One lock scope: two concurrent calls cannot both reach _swap_config.
         with self._pipeline_lock:
             if self._pipeline is None:
                 # Cold: just record the name; loading waits for ~enable.
@@ -457,7 +456,11 @@ class VitposeNodeBase:
                     success=True,
                     message=f"config set to '{req.data}' (loads on ~enable)",
                 )
-            return self._swap_config(req.data)
+
+        # Do not hold _pipeline_lock while swapping. Pipeline shutdown may wait
+        # for an image callback, and callbacks use this same lock to check that
+        # their pipeline is still active.
+        return self._swap_config(req.data)
 
     def run(self):
         rospy.spin()
@@ -488,16 +491,16 @@ class VitposeDetectionNode(VitposeNodeBase):
         return _Pipeline(config, self._image_cb)
 
     def _swap_config(self, name_or_path):
-        """Called holding _pipeline_lock; loads on a worker thread so the old
-        model keeps serving until the swap."""
-        if self._swap_thread is not None and self._swap_thread.is_alive():
-            return SetStringResponse(
-                success=False, message="a config swap is already in progress"
+        """Load on a worker thread so the old model serves until the swap."""
+        with self._pipeline_lock:
+            if self._swap_thread is not None and self._swap_thread.is_alive():
+                return SetStringResponse(
+                    success=False, message="a config swap is already in progress"
+                )
+            self._swap_thread = threading.Thread(
+                target=self._swap_worker, args=(name_or_path,), daemon=True
             )
-        self._swap_thread = threading.Thread(
-            target=self._swap_worker, args=(name_or_path,), daemon=True
-        )
-        self._swap_thread.start()
+            self._swap_thread.start()
         return SetStringResponse(
             success=True,
             message=f"loading '{name_or_path}' in the background "

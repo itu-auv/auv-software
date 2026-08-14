@@ -362,18 +362,22 @@ class SimVitposeNode(VitposeNodeBase):
         )
 
     def _swap_config(self, name_or_path):
-        """Called holding _pipeline_lock. Builds in milliseconds, so the swap
-        is synchronous — and deliberately STRICTER than the real node: a bad
-        config fails the service call here instead of later in a log, because
-        sim testing is where config errors should surface."""
+        """Build synchronously and install with only a brief lock scope.
+
+        Sim is deliberately stricter than the real node: a bad config fails
+        the service call here instead of later in a log. The old pipeline is
+        shut down after releasing _pipeline_lock so an in-flight image
+        callback cannot deadlock the service while checking pipeline activity.
+        """
         try:
             new_pipeline = self._build_pipeline(name_or_path)
         except Exception as exc:
             message = f"set_config('{name_or_path}') failed: {exc}"
             rospy.logerr(message)
             return SetStringResponse(success=False, message=message)
-        old, self._pipeline = self._pipeline, new_pipeline
-        self._config_name = name_or_path
+        with self._pipeline_lock:
+            old, self._pipeline = self._pipeline, new_pipeline
+            self._config_name = name_or_path
         old.shutdown()
         self._missing_model_warned = False
         rospy.loginfo(
