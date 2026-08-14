@@ -55,6 +55,7 @@ from utils.vitpose_utils import (  # noqa: E402
     RateGate,
     is_detect_only,
     load_object_config,
+    runtime_detect_rate,
     validate_detect_only,
 )
 from vitpose_detection_node import (  # noqa: E402
@@ -239,11 +240,14 @@ class _SimPipeline:
     Runs the same detect-only validation — sim may be the only thing
     exercising a config before pool day."""
 
-    def __init__(self, config, sim_cameras, sim_objects, image_cb, info_cb):
+    def __init__(
+        self, config, sim_cameras, sim_objects, image_cb, info_cb, load_pose=True
+    ):
         self.config = config
         self.object_name = config["object"]
         detection_cfg = config["detection"]
-        self.detect_only = is_detect_only(config)
+        static_detect_only = is_detect_only(config)
+        self.detect_only = static_detect_only or not load_pose
 
         if self.object_name not in sim_objects:
             raise ValueError(
@@ -255,8 +259,14 @@ class _SimPipeline:
         self.optical_frame = camera_cfg["optical_frame"]
 
         provider_cfg = dict(detection_cfg.get("bbox_provider") or {})
-        if self.detect_only:
+        rate = detection_cfg.get("rate")
+        if static_detect_only:
             validate_detect_only(self.object_name, provider_cfg)
+        elif not load_pose:
+            # Mode 'detect' on a pose config: mirror the real node's output
+            # rate so SMACH sees representative heartbeats.
+            rate = runtime_detect_rate(detection_cfg)
+        if self.detect_only:
             self.keypoint_names: List[str] = []
             self.mask_classes: List[str] = []
             self.mask_threshold = 0.5
@@ -280,7 +290,7 @@ class _SimPipeline:
                 )
 
         self.class_id = int(provider_cfg.get("class_id", 0))
-        self._rate = RateGate(detection_cfg.get("rate"))
+        self._rate = RateGate(rate)
 
         # Per-camera state filled by callbacks.
         self.intrinsics: Optional[Tuple[float, float, float, float]] = None
@@ -351,7 +361,7 @@ class SimVitposeNode(VitposeNodeBase):
 
     # ------------------------------------------------------------- pipeline
 
-    def _build_pipeline(self, name_or_path) -> _SimPipeline:
+    def _build_pipeline(self, name_or_path, load_pose=True) -> _SimPipeline:
         config = load_object_config(name_or_path)
         return _SimPipeline(
             config,
@@ -359,6 +369,7 @@ class SimVitposeNode(VitposeNodeBase):
             self._sim_objects,
             self._image_cb,
             self._info_cb,
+            load_pose=load_pose,
         )
 
     def _swap_config(self, name_or_path):
@@ -367,14 +378,24 @@ class SimVitposeNode(VitposeNodeBase):
         config fails the service call here instead of later in a log, because
         sim testing is where config errors should surface."""
         try:
-            new_pipeline = self._build_pipeline(name_or_path)
+            new_pipeline = self._build_pipeline(
+                name_or_path, load_pose=(self.mode == "pose")
+            )
         except Exception as exc:
             message = f"set_config('{name_or_path}') failed: {exc}"
             rospy.logerr(message)
             return SetStringResponse(success=False, message=message)
         old, self._pipeline = self._pipeline, new_pipeline
         self._config_name = name_or_path
-        old.shutdown()
+        if new_pipeline.detect_only and self.mode == "pose":
+            # A detect-only config caps the mode.
+            self.mode = "detect"
+            rospy.logwarn(
+                f"'{new_pipeline.object_name}' is detect-only: "
+                "mode clamped to 'detect'"
+            )
+        self._dispose_pipeline(old)
+        self._publish_status(None)
         self._missing_model_warned = False
         rospy.loginfo(
             f"sim_vitpose_node switched to object '{new_pipeline.object_name}'"

@@ -11,13 +11,19 @@ no fire = no result; retries at `search_rate` while absent; an optional
 (external Detection2DArray). A config with no `model:` section is
 detect-only: objectness boxes only, empty detections[] as heartbeat.
 
-The node starts cold, holding just a config name. ~enable(true) loads
-checkpoints synchronously so its response reports success; ~set_config takes
-an object name or YAML path and, once loaded, swaps on a worker thread while
-the old model keeps serving. ~enabled (param, default false; Bool status at
-1 Hz) means "actually running".
+The node starts cold, holding just a config name, and runs in one of three
+modes (~set_mode, SetString): "off" (nothing loaded), "detect" (objectness
+boxes only — the joint model is not on the GPU; the frame gate falls back to
+`detection.detect_rate`, default `search_rate`, because there is no tracker
+to amortize the detector), "pose" (full pipeline). Loaded == enabled: a mode
+change loads/frees models synchronously so the response is truthful, and
+"off" returns the GPU memory (minus torch's CUDA context, which lives until
+the process exits). ~enable (SetBool) is the two-state alias: true = the
+fullest mode the config supports, false = off. ~set_config takes an object
+name or YAML path and, once loaded, swaps on a worker thread while the old
+model keeps serving. Status: ~enabled (Bool) + ~mode (String), latched, 1 Hz.
 
-VitposeNodeBase — the ~enable/~set_config/~enabled shell — is shared with
+VitposeNodeBase — the ~enable/~set_mode/~set_config shell — is shared with
 sim_vitpose_node, which is why torch is imported lazily here.
 """
 
@@ -27,8 +33,10 @@ import os
 # https://github.com/pytorch/pytorch/issues/91516).
 os.environ.setdefault("KINETO_DISABLED", "1")
 
+import gc
 import sys
 import threading
+import time
 
 import numpy as np
 import rospy
@@ -40,7 +48,7 @@ import cv2
 from auv_msgs.msg import Keypoint, VitposeResult
 from auv_msgs.srv import SetString, SetStringResponse
 from sensor_msgs.msg import Image
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from std_srvs.srv import SetBool, SetBoolResponse
 from vision_msgs.msg import (
     BoundingBox2D,
@@ -61,6 +69,7 @@ from utils.vitpose_utils import (  # noqa: E402
     load_object_config,
     model_kwargs,
     resolve_checkpoint_path,
+    runtime_detect_rate,
     validate_detect_only,
 )
 
@@ -250,26 +259,42 @@ class _Pipeline:
     the installed one, so a frame can never run through the wrong config's
     model even mid-swap.
 
-    Detect-only (`model:` absent): no joint model, no VitposeResult — the
-    only output is the provider's Detection2DArray, and `detection.rate` is
-    the cost control (every processed frame is a full objectness pass).
+    Detect-only behavior arises two ways: a config with no `model:` section
+    (permanent — `detection.rate` is the cost control), or load_pose=False
+    (mode 'detect' on a pose config — the joint model is simply not loaded,
+    the `tracker:` block is dropped because it propagates from joint output,
+    and the frame gate falls back to runtime_detect_rate). Either way: no
+    VitposeResult, the only output is the provider's Detection2DArray.
     """
 
-    def __init__(self, config, image_cb):
+    def __init__(self, config, image_cb, load_pose=True):
         self.config = config
         self.object_name = config["object"]
         detection_cfg = config["detection"]
-        self.detect_only = is_detect_only(config)
+        static_detect_only = is_detect_only(config)
+        self.detect_only = static_detect_only or not load_pose
 
         provider_cfg = dict(
             detection_cfg.get("bbox_provider") or {"type": "full_frame"}
         )
+        rate = detection_cfg.get("rate")
+
+        if static_detect_only:
+            validate_detect_only(self.object_name, provider_cfg)
+        elif not load_pose:
+            provider_cfg.pop("tracker", None)
+            provider_cfg["search_rate"] = None  # the frame gate below is the cap
+            rate = runtime_detect_rate(detection_cfg)
+            if not provider_cfg.get("publish_topic"):
+                rospy.logwarn(
+                    f"{self.object_name}: mode 'detect' will publish nothing "
+                    "(bbox_provider has no publish_topic)"
+                )
 
         if self.detect_only:
             self.model = None
             self.keypoint_names = []
             self.mask_classes = []
-            validate_detect_only(self.object_name, provider_cfg)
         else:
             from utils.vitpose_inference import load_vitpose  # torch: lazy
 
@@ -304,7 +329,7 @@ class _Pipeline:
             )
         self.provider = _BBOX_PROVIDERS[provider_type](provider_cfg)
 
-        self._rate = RateGate(detection_cfg.get("rate"))
+        self._rate = RateGate(rate)
 
         self.result_pub = (
             None
@@ -335,19 +360,29 @@ class _Pipeline:
 # ─────────────────────────────────────────────── node shell (shared with sim)
 
 
-class VitposeNodeBase:
-    """The ~enable / ~set_config / ~enabled shell, shared with
-    sim_vitpose_node so the two interfaces cannot drift. Subclasses provide:
+MODES = ("off", "detect", "pose")
 
-        log_name                  log-line prefix
-        _build_pipeline(name)     construct the pipeline flavour
-        _swap_config(name)        ~set_config once loaded; called HOLDING
-                                  _pipeline_lock
-        _image_cb(msg, pipeline)  per-frame work; must start with
-                                  _pipeline_active(pipeline)
+
+class VitposeNodeBase:
+    """The ~enable / ~set_mode / ~set_config shell, shared with
+    sim_vitpose_node so the two interfaces cannot drift.
+
+    Modes: "off" (nothing loaded), "detect" (bbox provider only, boxes out),
+    "pose" (provider + joint model, VitposeResult too). Loaded == enabled:
+    leaving a mode disposes its pipeline (GPU memory included, see
+    _dispose_pipeline). ~enable is the two-state alias: true = the fullest
+    mode the config supports, false = off. Subclasses provide:
+
+        log_name                        log-line prefix
+        _build_pipeline(name, load_pose) construct the pipeline flavour
+        _swap_config(name)              ~set_config once loaded; called
+                                        HOLDING _pipeline_lock
+        _image_cb(msg, pipeline)        per-frame work; must start with
+                                        _pipeline_active(pipeline)
+        _dispose_pipeline(pipeline)     teardown (default: just shutdown())
 
     _pipeline_lock guards the installed-pipeline reference (held briefly);
-    _load_lock serializes slow builds so concurrent ~enable calls cannot each
+    _load_lock serializes slow builds so concurrent mode calls cannot each
     build a pipeline and leak the loser's live subscribers.
     """
 
@@ -357,105 +392,132 @@ class VitposeNodeBase:
         """Call at the END of the subclass __init__: registers services, then
         honours ~enabled (which may synchronously load the pipeline)."""
         self.bridge = CvBridge()
-        self.enabled = False
+        self.mode = "off"
         self._pipeline_lock = threading.Lock()
         self._load_lock = threading.Lock()
         self._config_name = rospy.get_param("~config", "gate")
         self._pipeline = None
 
         rospy.Service("~enable", SetBool, self._handle_enable)
+        rospy.Service("~set_mode", SetString, self._handle_set_mode)
         rospy.Service("~set_config", SetString, self._handle_set_config)
         self._enabled_pub = rospy.Publisher("~enabled", Bool, queue_size=1, latch=True)
-        rospy.Timer(rospy.Duration(1.0), self._publish_enabled)
+        self._mode_pub = rospy.Publisher("~mode", String, queue_size=1, latch=True)
+        rospy.Timer(rospy.Duration(1.0), self._publish_status)
 
         if bool(rospy.get_param("~enabled", False)):
-            try:
-                self._ensure_pipeline()
-                self.enabled = True
-            except Exception as exc:
+            ok, message = self._enable_full()
+            if not ok:
                 rospy.logerr(
-                    f"{self.log_name}: ~enabled was true but loading "
-                    f"'{self._config_name}' failed: {exc}. Staying up and "
-                    "DISABLED — fix it and call ~enable."
+                    f"{self.log_name}: ~enabled was true but {message}. "
+                    "Staying up in mode 'off' — fix it and call ~enable."
                 )
-        self._publish_enabled(None)
+        self._publish_status(None)
 
         rospy.loginfo(
             f"{self.log_name} ready as '{rospy.get_name()}' "
-            f"(config={self._config_name}, enabled={self.enabled}, "
-            f"loaded={self._pipeline is not None})"
+            f"(config={self._config_name}, mode={self.mode})"
         )
 
     # ------------------------------------------------------------- hooks
 
-    def _build_pipeline(self, name_or_path):
+    def _build_pipeline(self, name_or_path, load_pose=True):
         raise NotImplementedError
 
     def _swap_config(self, name_or_path):
         raise NotImplementedError
 
+    def _dispose_pipeline(self, pipeline):
+        pipeline.shutdown()
+
     # ------------------------------------------------------------- pipeline
 
     def _pipeline_active(self, pipeline) -> bool:
-        """True iff enabled AND `pipeline` is the installed one. Subscribers
+        """True iff not off AND `pipeline` is the installed one. Subscribers
         exist before installation and until shutdown; this drops frames from
         both windows."""
-        if not self.enabled:
+        if self.mode == "off":
             return False
         with self._pipeline_lock:
             return pipeline is self._pipeline
 
-    def _ensure_pipeline(self):
-        """Load the configured pipeline if not up yet; raises on failure.
-        Synchronous on purpose: nothing is served yet, and the ~enable caller
-        gets a truthful success/failure."""
+    def _transition(self, target) -> tuple:
+        """Move to `target` mode; returns (success, message). Builds before
+        installing, so a failed load leaves the current mode serving.
+        Synchronous on purpose: the caller gets a truthful answer."""
         with self._load_lock:
+            if target == self.mode:
+                return True, f"already in mode '{self.mode}'"
+            if target == "off":
+                with self._pipeline_lock:
+                    old, self._pipeline = self._pipeline, None
+                    self.mode = "off"
+                if old is not None:
+                    self._dispose_pipeline(old)
+                self._publish_status(None)
+                return True, "mode 'off' (unloaded)"
+            try:
+                config = load_object_config(self._config_name)
+                if target == "pose" and is_detect_only(config):
+                    return False, (
+                        f"'{config['object']}' is detect-only (no `model:` "
+                        "section); mode 'pose' unavailable"
+                    )
+                pipeline = self._build_pipeline(
+                    self._config_name, load_pose=(target == "pose")
+                )
+            except Exception as exc:
+                return False, f"failed to load '{self._config_name}': {exc}"
             with self._pipeline_lock:
-                if self._pipeline is not None:
-                    return
-            pipeline = self._build_pipeline(self._config_name)
-            with self._pipeline_lock:
-                self._pipeline = pipeline
-            rospy.loginfo(
-                f"{self.log_name} loaded '{pipeline.object_name}' "
-                f"({'detect-only' if pipeline.detect_only else 'pose'})"
-            )
+                old, self._pipeline = self._pipeline, pipeline
+                self.mode = target
+            if old is not None:
+                self._dispose_pipeline(old)
+            self._publish_status(None)
+            return True, f"mode '{target}' (object={pipeline.object_name})"
+
+    def _enable_full(self) -> tuple:
+        """The fullest mode the current config supports."""
+        try:
+            config = load_object_config(self._config_name)
+        except Exception as exc:
+            return False, f"cannot read config '{self._config_name}': {exc}"
+        return self._transition("detect" if is_detect_only(config) else "pose")
 
     # ------------------------------------------------------------- services
 
-    def _publish_enabled(self, _event):
-        self._enabled_pub.publish(Bool(data=self.enabled))
+    def _publish_status(self, _event):
+        self._enabled_pub.publish(Bool(data=self.mode != "off"))
+        self._mode_pub.publish(String(data=self.mode))
 
     def _handle_enable(self, req):
-        if not bool(req.data):
-            self.enabled = False
-            self._publish_enabled(None)
-            # Pipeline stays loaded: re-enable is instant.
-            return SetBoolResponse(success=True, message="disabled")
-        try:
-            self._ensure_pipeline()
-        except Exception as exc:
-            self.enabled = False
-            self._publish_enabled(None)
-            message = f"failed to load '{self._config_name}': {exc}"
-            rospy.logerr(message)
-            return SetBoolResponse(success=False, message=message)
+        ok, message = self._enable_full() if req.data else self._transition("off")
+        (rospy.loginfo if ok else rospy.logerr)(f"{self.log_name}: {message}")
+        return SetBoolResponse(success=ok, message=message)
 
-        self.enabled = True
-        self._publish_enabled(None)
-        message = f"enabled (object={self._pipeline.object_name})"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+    def _handle_set_mode(self, req):
+        target = req.data.strip().lower()
+        if target not in MODES:
+            return SetStringResponse(
+                success=False,
+                message=f"unknown mode '{req.data}' (modes: {', '.join(MODES)})",
+            )
+        ok, message = self._transition(target)
+        (rospy.loginfo if ok else rospy.logerr)(
+            f"{self.log_name}: set_mode('{target}'): {message}"
+        )
+        return SetStringResponse(success=ok, message=message)
 
     def _handle_set_config(self, req):
         # One lock scope: two concurrent calls cannot both reach _swap_config.
         with self._pipeline_lock:
             if self._pipeline is None:
-                # Cold: just record the name; loading waits for ~enable.
+                # Cold: just record the name; loading waits for a mode call.
                 self._config_name = req.data
                 return SetStringResponse(
                     success=True,
-                    message=f"config set to '{req.data}' (loads on ~enable)",
+                    message=f"config set to '{req.data}' "
+                    "(loads on ~enable/~set_mode)",
                 )
             return self._swap_config(req.data)
 
@@ -476,7 +538,7 @@ class VitposeDetectionNode(VitposeNodeBase):
 
     # ------------------------------------------------------------- pipeline
 
-    def _build_pipeline(self, name_or_path):
+    def _build_pipeline(self, name_or_path, load_pose=True):
         config = load_object_config(name_or_path)
         camera = rospy.get_param("~camera", "")
         if camera:
@@ -485,7 +547,23 @@ class VitposeDetectionNode(VitposeNodeBase):
             rospy.logwarn(
                 f"~camera override: '{config['object']}' running on cam_{camera}"
             )
-        return _Pipeline(config, self._image_cb)
+        return _Pipeline(config, self._image_cb, load_pose=load_pose)
+
+    def _dispose_pipeline(self, pipeline):
+        """Teardown that actually returns the GPU memory: drop the model refs
+        once in-flight callbacks have drained (they may hold the old pipeline
+        for one more frame) and flush torch's allocator cache back to the
+        driver. Torch's CUDA context itself lives until the process exits."""
+        pipeline.shutdown()
+        time.sleep(0.5)  # wall time: sim time may be paused
+        pipeline.model = None
+        pipeline.provider = None
+        gc.collect()
+        if "torch" in sys.modules:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def _swap_config(self, name_or_path):
         """Called holding _pipeline_lock; loads on a worker thread so the old
@@ -505,16 +583,26 @@ class VitposeDetectionNode(VitposeNodeBase):
         )
 
     def _swap_worker(self, name_or_path):
-        try:
-            with self._load_lock:
-                new_pipeline = self._build_pipeline(name_or_path)
-        except Exception as exc:
-            rospy.logerr(f"set_config('{name_or_path}') failed: {exc}")
-            return
-        with self._pipeline_lock:
-            old, self._pipeline = self._pipeline, new_pipeline
-            self._config_name = name_or_path
-        old.shutdown()
+        with self._load_lock:
+            try:
+                new_pipeline = self._build_pipeline(
+                    name_or_path, load_pose=(self.mode == "pose")
+                )
+            except Exception as exc:
+                rospy.logerr(f"set_config('{name_or_path}') failed: {exc}")
+                return
+            with self._pipeline_lock:
+                old, self._pipeline = self._pipeline, new_pipeline
+                self._config_name = name_or_path
+                if new_pipeline.detect_only and self.mode == "pose":
+                    # A detect-only config caps the mode.
+                    self.mode = "detect"
+                    rospy.logwarn(
+                        f"'{new_pipeline.object_name}' is detect-only: "
+                        "mode clamped to 'detect'"
+                    )
+        self._dispose_pipeline(old)
+        self._publish_status(None)
         rospy.loginfo(
             f"vitpose_detection_node switched to object "
             f"'{new_pipeline.object_name}' ({new_pipeline.config['_path']})"
