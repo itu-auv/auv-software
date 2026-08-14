@@ -13,6 +13,7 @@
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
   <arg name="pinger_mode" default="octagon" />
   <arg name="pinger_publish_rate" default="1.0" />
+  <arg name="pinger_yaw_offset_deg" default="90.0" />
   <arg name="spawn_octagon_objects" value="$(eval arg('world') == 'semi_final_pool' or any(object.strip() in ['octagon', 'octagon_table'] for object in arg('objects').split(',')))" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
@@ -93,7 +94,17 @@
       <param name="robot_name" value="$(arg namespace)" />
       <param name="pinger_mode" value="$(arg pinger_mode)" />
       <param name="publish_rate" value="$(arg pinger_publish_rate)" />
-      <param name="topic_name" value="/$(arg namespace)/acoustic/hydrophone/base_angle" />
+      <param name="topic_name" value="acoustic/hydrophone/tdoa" />
+      <param name="yaw_offset_deg" value="$(arg pinger_yaw_offset_deg)" />
+      <param name="signal_magnitude" value="10000" />
+    </node>
+
+    <!-- Use the same TDOA-to-angle implementation in simulation and hardware. -->
+    <node name="hydrophone_tdoa_to_angle_node" pkg="auv_hardware_bridge"
+          type="hydrophone_tdoa_to_angle_node.py" output="screen">
+      <param name="base_link" value="$(arg namespace)/base_link" />
+      <param name="marker_length" value="1.5" />
+      <param name="yaw_offset_deg" value="$(arg pinger_yaw_offset_deg)" />
     </node>
   </group>
 

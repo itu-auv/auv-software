@@ -1,0 +1,104 @@
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <created>2026-08-14T00:32:49.813896</created>
+    <modified>2026-08-14T00:32:49.813899</modified>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="e2c783e5f9c04e1fbca3cfd45995095b" name="e2c783e5f9c04e1fbca3cfd45995095b">
+      <profile_COMMON>
+        <technique sid="common">
+          <phong>
+            <emission>
+              <color>0.0 0.0 0.0 1.0</color>
+            </emission>
+            <ambient>
+              <color>0.0 0.0 0.0 1.0</color>
+            </ambient>
+            <diffuse>
+              <color>0.0 0.0 0.0 1.0</color>
+            </diffuse>
+            <specular>
+              <color>0.0 0.0 0.0 1.0</color>
+            </specular>
+            <shininess>
+              <float>0.0</float>
+            </shininess>
+            <reflective>
+              <color>0.0 0.0 0.0 1.0</color>
+            </reflective>
+            <reflectivity>
+              <float>0.0</float>
+            </reflectivity>
+            <transparent>
+              <color>0.0 0.0 0.0 1.0</color>
+            </transparent>
+            <transparency>
+              <float>1.0</float>
+            </transparency>
+          </phong>
+        </technique>
+        <extra>
+          <technique profile="GOOGLEEARTH">
+            <double_sided>0</double_sided>
+          </technique>
+        </extra>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_geometries>
+    <geometry id="4e8cd291b05d4197aefdc7d815a8276a" name="b40b28f94a87464fac6c1a1c869040ea">
+      <mesh>
+        <source id="verts-array">
+          <float_array count="9" id="verts-array-array">-0.3 -0.1732051 1.060575e-17 0.3 -0.1732051 1.060575e-17 0 2.99976e-17 0.4898979</float_array>
+          <technique_common>
+            <accessor count="3" source="#verts-array-array" stride="3">
+              <param type="float" name="X"/>
+              <param type="float" name="Y"/>
+              <param type="float" name="Z"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="normals-array">
+          <float_array count="9" id="normals-array-array">0 -0.942809 0.3333333 0 -0.942809 0.3333333 0 -0.942809 0.3333333</float_array>
+          <technique_common>
+            <accessor count="3" source="#normals-array-array" stride="3">
+              <param type="float" name="X"/>
+              <param type="float" name="Y"/>
+              <param type="float" name="Z"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="verts-array-vertices">
+          <input semantic="POSITION" source="#verts-array"/>
+        </vertices>
+        <triangles count="1" material="material0">
+          <input offset="0" semantic="VERTEX" source="#verts-array-vertices"/>
+          <input offset="1" semantic="NORMAL" source="#normals-array"/>
+          <p>0 0 1 1 2 2</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_materials>
+    <material id="73895012e075404a973692d63b3978b6" name="defaultmaterial">
+      <instance_effect url="#e2c783e5f9c04e1fbca3cfd45995095b"/>
+    </material>
+  </library_materials>
+  <library_visual_scenes>
+    <visual_scene id="scene">
+      <node id="node0" name="node0">
+        <instance_geometry url="#4e8cd291b05d4197aefdc7d815a8276a">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="material0" target="#73895012e075404a973692d63b3978b6"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#scene"/>
+  </scene>
+</COLLADA>
