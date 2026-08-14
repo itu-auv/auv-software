@@ -13,6 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_srvs
   tf
+  ultralytics_ros
+  vision_msgs
 )
 
 catkin_package(
@@ -22,6 +24,8 @@ catkin_package(
     sensor_msgs
     std_srvs
     tf
+    ultralytics_ros
+    vision_msgs
 )
 
 include_directories(
@@ -31,6 +35,7 @@ include_directories(
 catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
+    scripts/detection2d_to_yolo_result_bridge.py
     scripts/yolo_result_bridge.py
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py
@@ -38,7 +43,7 @@ catkin_install_python(
     scripts/principal_point_overlay_node.py
     scripts/sim_bbox_node.py
     scripts/sim_tracker_node.py
-    scripts/sim_keypoint_node.py
+    scripts/sim_vitpose_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_sim_bridge_node.py
     scripts/depth_anything_zmq_client.py

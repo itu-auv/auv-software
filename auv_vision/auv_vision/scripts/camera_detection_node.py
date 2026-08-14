@@ -69,12 +69,10 @@ class CameraDetectionNode:
 
         # Camera enable flags
         self.camera_enabled = {
-            "front": True,
-            "front_kde": True,
-            "slalom": False,
-            "bottom": False,
-            "torpedo": False,
-            "bottom_seg": False,
+            cam_key: bool(
+                cam_cfg.get("default_enabled", cam_key in ("front", "front_kde"))
+            )
+            for cam_key, cam_cfg in self.config["cameras"].items()
         }
 
         tracker_enable_services = {
@@ -178,6 +176,12 @@ class CameraDetectionNode:
             SetBool,
             self._handle_enable_torpedo_camera,
         )
+        if "pinger" in self.handlers:
+            rospy.Service(
+                "enable_pinger_camera_detections",
+                SetBool,
+                self._handle_enable_pinger_camera,
+            )
         rospy.Service(
             "set_bottom_camera_focus",
             SetDetectionFocus,
@@ -316,6 +320,9 @@ class CameraDetectionNode:
 
     def _handle_enable_torpedo_camera(self, req):
         return self._handle_enable_camera("torpedo", req.data)
+
+    def _handle_enable_pinger_camera(self, req):
+        return self._handle_enable_camera("pinger", req.data)
 
     def _handle_enable_segment_camera(self, req):
         return self._handle_enable_camera("bottom_seg", req.data)

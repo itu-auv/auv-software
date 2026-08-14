@@ -1,0 +1,6 @@
+# Generic string setter (e.g. vitpose_detection_node ~set_config: an object
+# name like "gate"/"tetra" or an absolute path to a vitpose object YAML).
+string data
+---
+bool success
+string message

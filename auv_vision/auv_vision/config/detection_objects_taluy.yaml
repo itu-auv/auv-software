@@ -16,6 +16,16 @@ cameras:
       9: octagon_rescue_link
       10: octagon_search_link
       11: octagon_survey_link
+  pinger:
+    ns: "taluy/cameras/cam_front"
+    frame: "taluy/base_link/front_camera_optical_link_stabilized"
+    yolo_topic: "/yolo_result_pinger_vitpose"
+    handler: "front_camera_handler"
+    default_enabled: true
+    image_width: 640
+    image_height: 480
+    id_tf_map:
+      0: pinger_bbox
   bottom:
     ns: "taluy/cameras/cam_bottom"
     frame: "taluy/base_link/bottom_camera_optical_link"
@@ -121,6 +131,7 @@ props:
   octagon_rescue_link: {name: "octagon_rescue", real_height: 0.305, real_width: 0.305}
   octagon_search_link: {name: "octagon_search", real_height: 0.305, real_width: 0.305}
   octagon_survey_link: {name: "octagon_survey", real_height: 0.305, real_width: 0.305}
+  pinger_bbox: {name: "teknofest_pinger", real_height: 1.49, real_width: 1.06}
   bin_blood_link: {name: "bin_blood", real_height: 0.32, real_width: 0.32}
   bin_fire_link: {name: "bin_fire", real_height: 0.32, real_width: 0.32}
   electric_link: {name: "electric", real_height: 0.087, real_width: 0.087}

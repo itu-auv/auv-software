@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<!--
+  TEKNOFEST "yildizlar" — the ViTPose pipeline, run on TOP of an already
+  running stack (start.launch or start_gazebo.launch: object map server,
+  cameras + camera_info and TF are already up; YOLO trackers not needed).
+
+    roslaunch auv_bringup yildiz.launch
+
+  One pose node (loads at launch; a mission state switches the object live:
+  rosservice call /taluy/vitpose_detection_node/set_config "data: 'tetra'"),
+  one detect-only front-camera scan node (comes up cold, holding no GPU,
+  until: rosservice call /taluy/vitpose_scan_node/enable "data: true"),
+  and the process node. sim:=true swaps node TYPE, never names: ground-truth
+  twins with the same interface, no checkpoints needed.
+-->
+<launch>
+  <arg name="namespace" default="taluy" />
+  <!-- Object the pose node loads: a name under auv_vision/config/vitpose/
+       or an absolute YAML path. -->
+  <arg name="object" default="gate" />
+  <!-- Loading is lazy; `enabled` decides when checkpoints hit the GPU. A
+       failed load logs and leaves the node up but disabled. -->
+  <arg name="enabled" default="true" />
+  <arg name="scan" default="true" />
+  <arg name="scan_enabled" default="false" />
+  <arg name="sim" default="false" />
+  <!-- Bench-test override: run the pose pipeline on another camera, e.g.
+       camera:=front retargets image/calibration/frame to cam_front by the
+       standard layout (any cam_<name> camera works). Empty = per-config
+       cameras. Real nodes only — ignored under sim:=true. -->
+  <arg name="camera" default="" />
+
+  <group ns="$(arg namespace)">
+    <!-- Feed the existing pinger camera handler from the ViTPose gate bbox.
+         YoloResult is only a thin wrapper around Detection2DArray. -->
+    <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
+          name="vitpose_pinger_bbox_bridge" output="screen">
+      <param name="input_topic" value="/vitpose_bbox_gate_front" />
+      <param name="output_topic" value="/yolo_result_pinger_vitpose" />
+    </node>
+
+    <!-- Producer, GPU: image -> objectness bbox -> joint ViT -> VitposeResult. -->
+    <node unless="$(arg sim)"
+          pkg="auv_vision" type="vitpose_detection_node.py"
+          name="vitpose_detection_node" output="screen">
+      <param name="config" value="$(arg object)" />
+      <param name="enabled" value="$(arg enabled)" />
+      <param name="camera" value="$(arg camera)" />
+    </node>
+    <node if="$(arg sim)"
+          pkg="auv_vision" type="sim_vitpose_node.py"
+          name="vitpose_detection_node" output="screen">
+      <param name="config" value="$(arg object)" />
+      <param name="enabled" value="$(arg enabled)" />
+      <param name="namespace" value="$(arg namespace)" />
+    </node>
+
+    <!-- Detect-only front-camera scan (tetra_front.yaml). A separate
+         instance on purpose: ~set_config tears the pose node's pipeline down
+         as a unit, which would otherwise kill the scan on every switch. -->
+    <node if="$(eval arg('scan') and not arg('sim'))"
+          pkg="auv_vision" type="vitpose_detection_node.py"
+          name="vitpose_scan_node" output="screen">
+      <param name="config" value="tetra_front" />
+      <param name="enabled" value="$(arg scan_enabled)" />
+    </node>
+    <node if="$(eval arg('scan') and arg('sim'))"
+          pkg="auv_vision" type="sim_vitpose_node.py"
+          name="vitpose_scan_node" output="screen">
+      <param name="config" value="tetra_front" />
+      <param name="enabled" value="$(arg scan_enabled)" />
+      <param name="namespace" value="$(arg namespace)" />
+    </node>
+
+    <!-- Consumer, CPU: ops (gate_pose, tetra_unfold) + debug overlays.
+         Poses go through the object map TF server. -->
+    <node pkg="auv_vision" type="vitpose_process_node.py"
+          name="vitpose_process_node" output="screen">
+      <param name="camera" value="$(eval '' if arg('sim') else arg('camera'))" />
+      <remap from="object_transform_updates"
+             to="map/object_transform_updates" />
+    </node>
+  </group>
+</launch>

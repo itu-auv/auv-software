@@ -12,6 +12,7 @@ from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
+from auv_smach.pinger_gate import PingerGateTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
@@ -423,6 +424,10 @@ class MainStateMachineNode:
                     "torpedo_params": torpedo_task_params,
                     "octagon_params": octagon_task_params,
                 },
+            ),
+            "NAVIGATE_TO_TEKNOFEST_PINGER_GATE": (
+                PingerGateTaskState,
+                {},
             ),
             "NAVIGATE_TO_GPS_TARGET": (
                 NavigateToGpsTargetState,

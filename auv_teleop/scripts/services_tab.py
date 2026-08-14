@@ -47,6 +47,7 @@ class ROSServiceCaller:
             set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
             request = SetDepthRequest()
             request.target_depth = target_depth
+            request.frame_id = "odom"
             response = set_depth_service(request)
             return response.success
         except rospy.ServiceException as e:
@@ -216,7 +217,7 @@ class ServicesTab(QWidget):
         depth_group = QGroupBox("Depth Control")
         depth_layout = QHBoxLayout()
         self.depth_spin = QDoubleSpinBox()
-        self.depth_spin.setRange(-3.0, 0.0)
+        self.depth_spin.setRange(-rospy.get_param("/env/pool_depth", 3.0), 0.0)
         self.depth_spin.setValue(-1.0)
         self.depth_spin.setSingleStep(0.1)
         self.depth_spin.setDecimals(1)

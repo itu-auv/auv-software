@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!--
+  TEKNOFEST "yildizlar" 2nd-mission target: a 60 cm regular tetrahedron resting
+  on its white base, three coloured side faces carrying one letter each.
+
+  Meshes are converted from valve-vision's assets/tetra/tetrahedron.gltf by
+  scripts/tetra_gltf_to_collada.py — the asset the ViTPose tetra checkpoint was
+  trained on (gate_tetra_overview.md §3). Model frame is the asset's: origin at
+  the base centroid on the ground, Z up, apex at (0, 0, 0.4899).
+
+  Letters: A on red, B on blue, C on green. They are geometry (white plates
+  2 mm off each face), not decals, and the assignment is baked in by the
+  converter — rerun it with the "letters" option to change it. This is ONE of
+  the six permutations; tetra_unfold must read the association off the image,
+  never assume this one.
+
+  Colours below are the RAL swatches (#CC0605 / #57A639 / #354D73). They are
+  the asset's linear baseColorFactors converted to sRGB: Gazebo does no gamma
+  correction, so the linear values would render this thing nearly black.
+-->
+<sdf version="1.6">
+  <model name="teknofest_tetra">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+    <link name="tetra">
+      <pose>0 0 0 0 0 0</pose>
+
+      <!-- Bounding box, not the solid: the faces are single triangles (no
+           volume to collide with) and this prop is only ever looked at. -->
+      <collision name="body">
+        <pose>0 0 0.245 0 0 0</pose>
+        <geometry><box><size>0.6 0.52 0.49</size></box></geometry>
+      </collision>
+
+      <visual name="face_red">
+        <geometry>
+          <mesh><uri>model://teknofest_tetra/meshes/tetra_red.dae</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.28 0.008 0.007 1</ambient>
+          <diffuse>0.800 0.024 0.020 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="face_green">
+        <geometry>
+          <mesh><uri>model://teknofest_tetra/meshes/tetra_green.dae</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.119 0.228 0.078 1</ambient>
+          <diffuse>0.341 0.651 0.224 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="face_blue">
+        <geometry>
+          <mesh><uri>model://teknofest_tetra/meshes/tetra_blue.dae</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.073 0.106 0.158 1</ambient>
+          <diffuse>0.208 0.302 0.451 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="face_white">
+        <geometry>
+          <mesh><uri>model://teknofest_tetra/meshes/tetra_white.dae</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.35 0.35 0.35 1</ambient>
+          <diffuse>1.0 1.0 1.0 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+      <visual name="letters">
+        <geometry>
+          <mesh><uri>model://teknofest_tetra/meshes/tetra_letters.dae</uri></mesh>
+        </geometry>
+        <material>
+          <ambient>0.35 0.35 0.35 1</ambient>
+          <diffuse>1.0 1.0 1.0 1</diffuse>
+          <specular>0.05 0.05 0.05 1</specular>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

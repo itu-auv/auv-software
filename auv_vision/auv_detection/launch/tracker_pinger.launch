@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Ground-truth detector for the Teknofest pinger gate mesh. -->
+  <arg name="namespace" default="taluy"/>
+  <arg name="config" default="$(find auv_vision)/config/sim_bbox_pinger_objects.yaml"/>
+
+  <node name="tracker_pinger_sim_bbox" pkg="auv_vision" type="sim_bbox_node.py" output="screen">
+    <param name="namespace" value="$(arg namespace)"/>
+    <param name="config" value="$(arg config)"/>
+  </node>
+</launch>

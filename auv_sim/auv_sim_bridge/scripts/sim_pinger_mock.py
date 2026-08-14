@@ -3,10 +3,39 @@ import math
 import rospy
 import numpy as np
 from geometry_msgs.msg import Pose
-from std_msgs.msg import Float32
+from std_msgs.msg import Int16MultiArray
 from gazebo_msgs.srv import SpawnModel, SetModelState, GetModelState
 from gazebo_msgs.msg import ModelState
 from tf.transformations import quaternion_matrix
+
+
+SOUND_SPEED = 1504.34
+SAMPLE_RATE = 250000
+HYDROPHONE_WIDTH = 0.65
+HYDROPHONE_LENGTH = 0.35
+HYDROPHONE_SENSORS = np.array(
+    [
+        [HYDROPHONE_WIDTH, HYDROPHONE_LENGTH],
+        [0.0, HYDROPHONE_LENGTH],
+        [0.0, 0.0],
+        [HYDROPHONE_WIDTH, 0.0],
+    ]
+)
+HYDROPHONE_BASELINES = HYDROPHONE_SENSORS[1:] - HYDROPHONE_SENSORS[0]
+ROBOT_YAW_OFFSET_DEG = 90.0
+
+
+def robot_angle_to_tdoa_samples(robot_angle, yaw_offset):
+    """Invert hydrophone_tdoa_to_angle_node.calculate_angle.
+
+    The real converter solves A * (-k) = c * tdoa and then rotates the
+    hydrophone angle into base_link. Generate the corresponding sample delays
+    here so simulation follows the same raw-data path as hardware.
+    """
+    hydrophone_angle = robot_angle - yaw_offset
+    direction = np.array([math.cos(hydrophone_angle), math.sin(hydrophone_angle)])
+    tdoa_seconds = HYDROPHONE_BASELINES.dot(-direction) / SOUND_SPEED
+    return np.rint(tdoa_seconds * SAMPLE_RATE).astype(np.int16)
 
 
 class SimPingerMock:
@@ -20,6 +49,7 @@ class SimPingerMock:
         pinger_positions = {
             "octagon": (13.0, -4.25, -1.95),
             "torpedo": (5.25, -1.0, -1.95),
+            "teknofest_pinger": (5.066114, -0.076101, -6.449882),
         }
         if self.pinger_mode not in pinger_positions:
             rospy.logwarn(
@@ -32,11 +62,14 @@ class SimPingerMock:
         )
 
         self.publish_rate = rospy.get_param("~publish_rate", 1.0)
-        self.topic_name = rospy.get_param(
-            "~topic_name", "/taluy/acoustic/hydrophone/base_angle"
+        self.topic_name = rospy.get_param("~topic_name", "acoustic/hydrophone/tdoa")
+        yaw_offset_deg = rospy.get_param("~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG)
+        self.yaw_offset = math.radians(yaw_offset_deg)
+        self.signal_magnitude = int(
+            np.clip(rospy.get_param("~signal_magnitude", 10000), -32768, 32767)
         )
 
-        self.pub = rospy.Publisher(self.topic_name, Float32, queue_size=1)
+        self.pub = rospy.Publisher(self.topic_name, Int16MultiArray, queue_size=1)
 
         rospy.loginfo("[sim_pinger_mock] Waiting for Gazebo services...")
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
@@ -136,13 +169,17 @@ class SimPingerMock:
                 v_world = np.array([dx, dy, dz])
                 v_local = R.T.dot(v_world)
 
-                angle = math.atan2(v_local[1], v_local[0])
-
-                self.pub.publish(Float32(data=angle))
+                robot_angle = math.atan2(v_local[1], v_local[0])
+                tdoa_samples = robot_angle_to_tdoa_samples(robot_angle, self.yaw_offset)
+                self.pub.publish(
+                    Int16MultiArray(
+                        data=tdoa_samples.tolist() + [self.signal_magnitude]
+                    )
+                )
 
             except Exception as e:
                 rospy.logwarn_throttle(
-                    5.0, f"[sim_pinger_mock] Error calculating angle: {e}"
+                    5.0, f"[sim_pinger_mock] Error calculating TDOA: {e}"
                 )
 
             rate.sleep()
