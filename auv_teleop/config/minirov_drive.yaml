@@ -1,0 +1,24 @@
+max_pwm: 1800
+min_pwm: 1200
+default_pwm: 1500
+publish_topic: /minirov/drive_pulse
+
+motors:
+  - id: 0
+    name: left_x
+    type: x
+    axis: [1, 7]
+  - id: 1
+    name: right_x
+    type: x
+    axis: 4
+  - id: 2
+    name: left_z
+    type: z
+    axis: 2
+    toggle_button: 4
+  - id: 3
+    name: right_z
+    type: z
+    axis: 5
+    toggle_button: 5
