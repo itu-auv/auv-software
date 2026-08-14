@@ -89,6 +89,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 catkin_install_python(
   PROGRAMS
     scripts/oak_cam.py
+    scripts/exposure_control_node.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
