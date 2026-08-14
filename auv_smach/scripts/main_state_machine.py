@@ -148,7 +148,7 @@ class MainStateMachineNode:
         self.pipeline_depth = -0.75
 
         # Pipe follower parameters
-        self.pipe_map_depth = -2.0
+        self.pipe_map_depth = -8.0
         self.pipe_target_frame = "pipe_carrot"
         self.pipe_method = rospy.get_param("~pipe_method", "new")
 
