@@ -22,6 +22,17 @@ class PingerTrajectoryPublisherState(smach_ros.ServiceState):
         )
 
 
+class VitposeDetectionState(smach_ros.ServiceState):
+    """Enable or pause the pose-producing ViTPose node."""
+
+    def __init__(self, enable: bool):
+        super().__init__(
+            "vitpose_detection_node/enable",
+            SetBool,
+            request=SetBoolRequest(data=enable),
+        )
+
+
 class PingerGateTaskState(smach.State):
     """Initial, bbox-based approach phase of the Teknofest pinger gate task."""
 
@@ -29,6 +40,8 @@ class PingerGateTaskState(smach.State):
         self,
         pinger_bbox_frame: str = "pinger_bbox",
         close_approach_frame: str = "pinger_close_approach",
+        gate_closer_frame: str = "gate_closer",
+        gate_farther_frame: str = "gate_farther",
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
@@ -94,6 +107,67 @@ class PingerGateTaskState(smach.State):
                 AlignFrame(
                     source_frame=self.base_link,
                     target_frame=close_approach_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=3.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "ENABLE_VITPOSE_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_VITPOSE_DETECTION",
+                VitposeDetectionState(enable=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_GATE_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_GATE_FRAME",
+                DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_GATE_CLOSER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_GATE_CLOSER",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame=gate_closer_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=3.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "FEVZI",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FEVZI",
+                DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_GATE_FARTHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_GATE_FARTHER",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame=gate_farther_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=3.0,

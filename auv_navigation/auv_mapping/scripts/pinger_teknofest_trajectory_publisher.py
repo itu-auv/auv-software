@@ -9,6 +9,8 @@ from geometry_msgs.msg import Point, Pose, Quaternion, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from auv_mapping.cfg import PingerTeknofestTrajectoryConfig
+from dynamic_reconfigure.server import Server
 
 
 class RelativeApproachFramePublisher:
@@ -26,7 +28,20 @@ class RelativeApproachFramePublisher:
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.source_frame = rospy.get_param("~source_frame", "pinger_bbox")
         self.output_frame = rospy.get_param("~output_frame", "pinger_close_approach")
+        self.gate_frame = rospy.get_param("~gate_frame", "gate_link")
+        self.gate_closer_frame = rospy.get_param(
+            "~gate_closer_frame", "gate_closer"
+        )
+        self.gate_farther_frame = rospy.get_param(
+            "~gate_farther_frame", "gate_farther"
+        )
         self.approach_distance = float(rospy.get_param("~approach_distance", 2.0))
+        self.gate_closer_distance = float(
+            rospy.get_param("~gate_closer_distance", 1.0)
+        )
+        self.gate_farther_distance = float(
+            rospy.get_param("~gate_farther_distance", 1.0)
+        )
         self.z_offset = float(rospy.get_param("~z_offset", 0.0))
         self.lookup_timeout = float(rospy.get_param("~lookup_timeout", 0.5))
         self.publish_rate = float(rospy.get_param("~publish_rate", 10.0))
@@ -41,6 +56,9 @@ class RelativeApproachFramePublisher:
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.reconfigure_server = Server(
+            PingerTeknofestTrajectoryConfig, self.reconfigure_callback
+        )
 
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
@@ -59,6 +77,11 @@ class RelativeApproachFramePublisher:
             self.output_frame,
             self.approach_distance,
         )
+
+    def reconfigure_callback(self, config, _level):
+        self.gate_closer_distance = config.gate_closer_distance
+        self.gate_farther_distance = config.gate_farther_distance
+        return config
 
     def handle_enable_service(self, request):
         self.is_enabled = request.data
@@ -180,11 +203,49 @@ class RelativeApproachFramePublisher:
         transform = self.build_transform_message(self.output_frame, approach_pose)
         self.send_transform(transform)
 
+    def publish_gate_frames(self):
+        """Publish approach frames at +/- local Y of the ViTPose gate frame."""
+        gate_transform = self.lookup_transform(self.gate_frame)
+        if gate_transform is None:
+            return
+
+        gate_translation = gate_transform.transform.translation
+        gate_rotation = gate_transform.transform.rotation
+        gate_quaternion = (
+            gate_rotation.x,
+            gate_rotation.y,
+            gate_rotation.z,
+            gate_rotation.w,
+        )
+        gate_rotation_matrix = tf.transformations.quaternion_matrix(gate_quaternion)
+        frame_quaternion = tf.transformations.quaternion_multiply(
+            gate_quaternion,
+            tf.transformations.quaternion_from_euler(0.0, 0.0, math.pi / 2.0),
+        )
+
+        for child_frame, local_y in (
+            (self.gate_closer_frame, -self.gate_closer_distance),
+            (self.gate_farther_frame, self.gate_farther_distance),
+        ):
+            offset_x = gate_rotation_matrix[0][1] * local_y
+            offset_y = gate_rotation_matrix[1][1] * local_y
+            offset_z = gate_rotation_matrix[2][1] * local_y
+            pose = Pose(
+                position=Point(
+                    gate_translation.x + offset_x,
+                    gate_translation.y + offset_y,
+                    gate_translation.z + offset_z,
+                ),
+                orientation=Quaternion(*frame_quaternion),
+            )
+            self.send_transform(self.build_transform_message(child_frame, pose))
+
     def run(self):
         rate = rospy.Rate(self.publish_rate)
         while not rospy.is_shutdown():
             if self.is_enabled:
                 self.publish_approach_frame()
+                self.publish_gate_frames()
             rate.sleep()
 
 

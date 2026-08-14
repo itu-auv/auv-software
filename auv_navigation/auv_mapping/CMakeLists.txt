@@ -54,6 +54,7 @@ endif()
 generate_dynamic_reconfigure_options(
   cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
+  cfg/PingerTeknofestTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
 )
