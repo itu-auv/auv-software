@@ -47,5 +47,8 @@
       <param name="open_kernel_size" value="$(arg pipe_legacy_open_kernel_size)" />
       <param name="min_contour_area" value="$(arg pipe_legacy_min_contour_area)" />
     </node>
+
+    <!-- Interactive Mask Drawing Node -->
+
   </group>
 </launch>
