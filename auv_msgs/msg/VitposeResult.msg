@@ -1,31 +1,13 @@
-# One ViTPose inference result: keypoints + segmentation for a single object
-# instance. Produced by auv_vision/vitpose_detection_node, consumed by
-# vitpose_process_node. Full contract: auv_vision/VITPOSE_PLAN.md.
+# One ViTPose inference result for a single object instance.
+# Producer: auv_vision/vitpose_detection_node; consumer: vitpose_process_node.
 
 std_msgs/Header header
-
-# Config object name this result belongs to, e.g. "gate", "tetra".
-string object
-
-# [x, y, w, h] in source-image pixels: the bbox fed to the model.
-# Empty when the whole frame was used.
-float64[] bbox
-
-# All K keypoints, always present, 0-indexed ids, source-image pixels,
-# raw heatmap-peak confidences. Consumers apply their own confidence gates.
-Keypoint[] keypoints
-
-# Index-aligned with keypoint ids (keypoint_names[k.id] names keypoint k).
-string[] keypoint_names
-
-# Mask class names in model channel order (= profile declaration order).
-string[] mask_classes
-
-# One mono8 probability map per mask class (0..255 = probability 0..1),
-# already inverse-warped to source-image resolution. Index-aligned with
-# mask_classes. Threshold with mask_threshold for binary masks; never
-# binarize before any further warping.
-sensor_msgs/Image[] masks
-
-# Calibrated binarization threshold for the masks (from the checkpoint).
-float32 mask_threshold
+string object                 # config object name, e.g. "gate", "tetra"
+float64[] bbox                # [x, y, w, h] px fed to the model; empty = full frame
+auv_msgs/Keypoint[] keypoints # all K, 0-indexed ids, source px, raw confidences
+string[] keypoint_names       # keypoint_names[k.id] names keypoint k
+string[] mask_classes         # model channel order
+sensor_msgs/Image[] masks     # mono8 probability maps (0..255 = 0..1), source
+                              # resolution, aligned with mask_classes; threshold
+                              # with mask_threshold AFTER any further warping
+float32 mask_threshold        # calibrated binarization threshold (checkpoint)

@@ -1,0 +1,25 @@
+# Tetra on the FRONT camera, detect-only: no `model:` section (no joint
+# model, no VitposeResult) and no `process:` section (no ops, no overlay).
+# The single output is the Detection2DArray below — "is the tetra out in
+# front of us, and where" while the bottom camera does the real work. The
+# same tetra_objectness.pth serves both cameras (trained on forward and
+# nadir views).
+
+object: tetra_front
+
+detection:
+  image_topic: /taluy/cameras/cam_front/image_raw
+  # The only cost control: no joint model means no tracker to seed, so every
+  # processed frame is a full objectness pass (~27 ms).
+  rate: 1.0
+  bbox_provider:
+    type: model
+    checkpoint: tetra_objectness.pth
+    device: cuda
+    threshold: 0.5
+    measure_threshold: 0.7
+    # Published every processed frame; empty detections[] = the heartbeat
+    # that tells "looking, don't see it" from "node is dead".
+    publish_topic: /vitpose_bbox_tetra_front
+    # No `tracker:` block — the node rejects one here (nothing to propagate
+    # the crop from).

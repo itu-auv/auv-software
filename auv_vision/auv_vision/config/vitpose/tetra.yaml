@@ -1,75 +1,83 @@
-# ViTPose object config: TEKNOFEST "yıldızlar" tetra (60 cm tetrahedron,
-# 3 letter keypoints + red/green/blue face masks, downward camera).
-# Three sections, one per pipeline stage — schema: auv_vision/VITPOSE_PLAN.md §6.
-# Model contract (geometry, chirality, decals): gate_tetra_overview.md §3.
+# TEKNOFEST "yıldızlar" tetra (60 cm tetrahedron, 3 letter + 4 vertex
+# keypoints, red/green/blue face masks, bottom camera). Geometry, chirality,
+# decals: gate_tetra_overview.md §3.
 
 object: tetra
 
 model:
   checkpoint: tetra_joint.pth # tetra/004: trained WITH random chirality
   device: cuda
-  input_size: null # [H, W]; null = from checkpoint (256, 192)
-  decode: {use_udp: false, post_process: unbiased, kernel: 11}
-  # Never enable flip for tetra: mirrored letters don't exist and mirroring
-  # fakes the chirality (gate_tetra_overview.md §3.4).
+  decode: {use_udp: false, post_process: unbiased, kernel: 11} # contractual
+  # Never flip tetra: mirrored letters don't exist and mirroring fakes the
+  # chirality.
   flip_tta: false
   flip_pairs: []
-  keypoint_names: [A, B, C] # per-image glyph centres, NOT fixed 3D points
-  # Channel order is contractual (profile declaration order). The colour
-  # arrangement on the solid is NOT fixed (50% mirror chirality) — downstream
-  # must derive letter<->colour from keypoint-in-mask lookup only.
+  # 0-2 = letter glyph centres (per-image, not fixed 3D points) — the mission
+  # payload. 3-6 = the solid's vertices, chirality-resolved names; predicted
+  # but consumed by nothing yet (the hook for a real 6-DOF pose op).
+  keypoint_names: [A, B, C, Apex, VertexRG, VertexGB, VertexBR]
+  # Channel order contractual. The colour arrangement on the solid is NOT
+  # fixed (50% mirror chirality) — associate via keypoint-in-mask only.
   mask_classes: [red, green, blue]
   mask_threshold: null
 
 detection:
   image_topic: /taluy/cameras/cam_bottom/image_raw
   result_topic: /vitpose_result_bottom
-  bbox_provider: {type: full_frame}
+  bbox_provider:
+    type: model
+    checkpoint: tetra_objectness.pth
+    device: cuda
+    threshold: 0.5 # detect
+    measure_threshold: 0.7 # box EXTENT only — real ramp is wider than sim
+    search_rate: 5.0 # Hz cap on detector retries while the object is absent
+    # Topic names the OBJECT: Detection2DArray has no object field.
+    publish_topic: /vitpose_bbox_tetra_bottom
+    # Objectness only seeds; the crop is carried by the model's own mask
+    # silhouette (CropTracker, vitpose_utils SECTION 4). Remove the block to
+    # detect every frame.
+    tracker:
+      seed_period: 2.0 # s; the detector re-runs at least this often
+      propagate_from: mask # the 3 face masks union to the silhouette
+      margin: 0.18
+      min_mask_pixels: 200
+      border_slack_px: 4.0
+      max_area_ratio: 2.5
+      min_confidence: 0.2
+      # Judge health on the vertices, never the letters (an averted-face
+      # letter's score is meaningless).
+      confidence_ids: [3, 4, 5, 6]
 
 process:
   camera:
     frame: taluy/base_link/bottom_camera_optical_link
     calibration_ns: cameras/cam_bottom
+  # result_topic / image_topic repeat the detection: values — each section is
+  # read by a different node. Keep them in sync.
   result_topic: /vitpose_result_bottom
   image_topic: /taluy/cameras/cam_bottom/image_raw
   skeleton: [] # letters have no skeleton
   viz_conf_threshold: 0.5
   operations:
-    # Letter<->face association: per-frame keypoint-in-mask lookup, filtered
-    # over time as a Bayesian posterior over the 6 letter permutations.
-    # Publishes tetra/letter_colors (String) and tetra_unfold_image/compressed
-    # (the unfolded net). Algorithm: utils/vitpose_utils.py SECTION 3.
+    # Letter<->face association (vitpose_utils SECTION 3). Publishes
+    # tetra/letter_colors + the unfolded net.
     - type: tetra_unfold
       params:
-        # PLACEHOLDER — set from the real object before the competition.
-        # Cyclic order of mask_classes (red, green, blue) as they appear going
-        # CLOCKWISE in the bottom-camera image. Invariant to AUV yaw/roll, so
-        # one look at one frame fixes it. Only decides which corner of the
-        # drawn net each colour occupies; never used for the association.
+        # PLACEHOLDER — set from the real object before the competition:
+        # cyclic order of (red, green, blue) going CLOCKWISE in the
+        # bottom-camera image. Only lays out the drawn net.
         chirality: cw
-        # Evidence gating (gate_tetra_overview.md §3.4: a letter on an averted
-        # face gets no training supervision, so its prediction is garbage —
-        # the score gate is the only defence).
-        min_score: 0.35
+        min_score: 0.35 # averted-face letters are garbage; the only defence
         inside_min: 0.25 # mask prob at the kp that counts as "in this face"
         max_mask_distance_px: 40.0 # nearest-mask fallback reach
         proximity_weight: 0.6 # a near miss is worth less than a hit
         eps: 0.04 # membership floor: bounds one frame's influence
-        # Time filter. The arrangement is static, so forgetting exists only to
-        # keep a wrong belief reversible. Swept on real evidence: tau=10 gets
-        # the accumulator's accuracy (100% / 98% correct with a third / half of
-        # frames lying, vs 98% / 84% at tau=3) and still shakes off 30 wrong
-        # frames in 12 (1.2 s). Raise tau for more stubbornness, lower it for
-        # faster reaction.
+        # Swept values — rationale at TETRA_DEFAULTS (vitpose_utils).
         tau: 10.0 # s, evidence forgetting
         gain: 0.25 # per-frame log-likelihood gain
         logp_clip: 20.0 # keeps a wrong lock reversible (~1.2 s)
-        # Lock criteria, chosen by measurement (see utils/vitpose_utils.py):
-        # 0.99/10 costs one extra frame vs 0.9/5 on clean data and cuts
-        # first-lock errors 6.8% -> 1.2% when a third of frames lie.
         lock_threshold: 0.99 # p_best needed to call it LOCKED ...
         min_evidence: 10.0 # ... together with this much evidence mass
         min_direct_evidence: 1.0 # below this a letter is flagged "inferred"
-        # Output.
         publish_period: 0.5 # s; the String also fires immediately on change
         net_size: 480 # px, square canvas of the unfolded net

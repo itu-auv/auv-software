@@ -1,36 +1,20 @@
 #!/usr/bin/env python3
-"""ViTPose pipeline utilities — ONE module, three sections.
+"""ViTPose pipeline utilities — ONE module, four sections.
 
-House rule (Ufuk, 2026-08-10): **no new utils file per feature.** Shared
-vitpose code goes in here as a new section, not a new module. Two files stay
-outside on purpose:
+House rule (Ufuk, 2026-08-10): **no new utils file per feature** — shared
+vitpose code becomes a section here. Outside on purpose: vitpose_inference.py
+(imports torch, which keeps the process node torch-free) and
+slim_checkpoint.py (standalone CLI). Everything here is ROS-free so it can be
+exercised offline.
 
-  * ``vitpose_inference.py`` — imports torch; keeping it separate is what
-    keeps the *process* node torch-free (it only ever needs numpy/cv2/scipy).
-  * ``slim_checkpoint.py`` — standalone CLI tool, imported by nobody.
+Sections (``grep -n "^# ===" vitpose_utils.py``):
 
-Navigation — jump to a banner (``grep -n "^# ===" vitpose_utils.py``):
-
-  SECTION 1 — CONFIG
-      Per-object YAML loading (``config/vitpose/<object>.yaml``), checkpoint
-      path resolution, `model:`-section → VitposeModel kwargs.
-      Used by: vitpose_detection_node, vitpose_process_node.
-
-  SECTION 2 — PLANAR POSE FUSION
-      ``FusedPlanarPoseEstimator``: 6-DOF pose of a known planar object from
-      keypoints + one boundary mask (IPPE/iterative init, then joint LM over
-      keypoint reprojection and dense mask-edge residuals). Plus the small
-      projection helpers around it.
-      Used by: vitpose_ops/gate_pose.
-
-  SECTION 3 — TETRA LETTER↔FACE ASSOCIATION
-      ``letter_face_membership`` (keypoint-in-mask / nearest-mask lookup),
-      ``LetterFaceFilter`` (Bayesian filter over the 6 letter permutations),
-      ``render_tetra_net`` (the unfolded-tetrahedron "triforce" image).
-      Used by: vitpose_ops/tetra_unfold.
-
-Everything here is ROS-free (numpy / cv2 / scipy / yaml / rospkg only) so it
-can be exercised offline; the ROS glue lives in the nodes and the ops.
+  1 CONFIG              per-object YAML loading, checkpoint paths, shared
+                        validation, RateGate
+  2 PLANAR POSE FUSION  FusedPlanarPoseEstimator — used by gate_pose
+  3 TETRA ASSOCIATION   letter_face_membership, LetterFaceFilter,
+                        render_tetra_net — used by tetra_unfold
+  4 CROP TRACKING       CropTracker — used by the `model` bbox provider
 """
 
 import glob
@@ -53,9 +37,9 @@ _rospack = rospkg.RosPack()
 # SECTION 1 — CONFIG
 # =============================================================================
 #
-# One YAML per object under auv_vision/config/vitpose/<object>.yaml with three
-# sections — `model:` (vitpose_inference), `detection:` (vitpose_detection_node),
-# `process:` (vitpose_process_node). Schema: auv_vision/VITPOSE_PLAN.md §6.
+# One YAML per object under config/vitpose/<object>.yaml: `object` +
+# `detection` required, `model` + `process` optional (no `model:` =
+# detect-only).
 
 
 def config_dir() -> str:
@@ -81,13 +65,87 @@ def resolve_checkpoint_path(checkpoint: str) -> str:
 
 
 def load_object_config(name_or_path: str) -> dict:
+    """Load one object config. all_object_configs() loads every YAML in the
+    dir, so raising here takes down the whole process node — keep the
+    required set minimal (`object`, `detection`)."""
     path = resolve_config_path(name_or_path)
     with open(path, "r") as handle:
         config = yaml.safe_load(handle)
-    for section in ("object", "model", "detection", "process"):
+    for section in ("object", "detection"):
         if section not in config:
             raise ValueError(f"{path}: missing required section '{section}'")
     config["_path"] = path
+    return config
+
+
+def is_detect_only(config: dict) -> bool:
+    """True for a config with no `model:` section: boxes out, no joint model."""
+    return not config.get("model")
+
+
+def validate_detect_only(object_name: str, provider_cfg: dict) -> None:
+    """Reject detect-only misconfigurations that would otherwise fail
+    silently. Shared by the real node and the sim twin. `provider_cfg` is the
+    raw `detection.bbox_provider` mapping (still containing `type`)."""
+    provider_cfg = provider_cfg or {}
+    provider_type = provider_cfg.get("type", "full_frame")
+    if provider_type != "model":
+        raise ValueError(
+            f"{object_name}: detect-only (no `model:` section) needs "
+            f"bbox_provider type 'model', got '{provider_type}' — an "
+            "objectness detector is the only thing left to run."
+        )
+    if provider_cfg.get("tracker"):
+        raise ValueError(
+            f"{object_name}: detect-only cannot use a `tracker:` block. "
+            "CropTracker is propagated by the JOINT model's output via "
+            "provider.feedback(); with no joint model the crop would "
+            "silently freeze at the first seed forever. Use "
+            "`detection.rate` to control the cost instead."
+        )
+    if not provider_cfg.get("publish_topic"):
+        raise ValueError(
+            f"{object_name}: detect-only needs "
+            "`bbox_provider.publish_topic` — it is the only output."
+        )
+
+
+class RateGate:
+    """`detection.rate` (Hz): due(now_sec) is True at most once per period;
+    falsy rate = no gating. Shared by the real node and the sim twin."""
+
+    def __init__(self, rate):
+        self._min_period = 1.0 / float(rate) if rate else 0.0
+        self._last: Optional[float] = None
+
+    def due(self, now: float) -> bool:
+        if self._min_period <= 0.0:
+            return True
+        if self._last is None or now - self._last >= self._min_period:
+            self._last = now
+            return True
+        return False
+
+
+def apply_camera_override(config: dict, camera: str, ns: str) -> dict:
+    """Point a loaded config at another camera (bench-test knob, `~camera`).
+
+    One token derives everything by the repo's standard camera layout:
+    image `/{ns}/cameras/cam_<camera>/image_raw`, calibration
+    `cameras/cam_<camera>`, frame `{ns}/base_link/<camera>_camera_optical_link`
+    — so `front`/`bottom` work, and so does any camera published in that
+    layout (e.g. a webcam masquerading as cam_webcam). Mutates and returns
+    `config`. Result/bbox topics are left alone.
+    """
+    image_topic = f"/{ns}/cameras/cam_{camera}/image_raw"
+    config["detection"]["image_topic"] = image_topic
+    process = config.get("process")
+    if process:
+        process["image_topic"] = image_topic
+        process["camera"] = {
+            "frame": f"{ns}/base_link/{camera}_camera_optical_link",
+            "calibration_ns": f"cameras/cam_{camera}",
+        }
     return config
 
 
@@ -111,7 +169,6 @@ def model_kwargs(config: dict) -> dict:
     model = config["model"]
     kwargs = dict(
         device=model.get("device", "cuda"),
-        input_size=model.get("input_size"),
         decode=model.get("decode"),
         flip_tta=bool(model.get("flip_tta", False)),
         flip_pairs=model.get("flip_pairs"),
@@ -124,44 +181,38 @@ def model_kwargs(config: dict) -> dict:
 # SECTION 2 — PLANAR POSE FUSION  (keypoint PnP + dense mask-edge refinement)
 # =============================================================================
 #
-# Design + empirical verification: VITPOSE_PLAN.md §5 and the offline harness
-# at dream:~/gate_fusion_verify (2026-08-09). Verified against pseudo-GT on the
-# gate_joint_1000 val split:
-#   - clean images: fused == kp-only == label-noise floor (~0.5 deg / 1 cm);
-#   - occlusion workload (only the 4 near-collinear top kps survive, bottom of
-#     the mask corrupted): kp-only 4.7 deg / 10 cm median, worst 30 deg —
-#     fused 2 deg / 4 cm median, worst 6 deg, nearly flat in the occluded
-#     fraction (the aperture side edges carry the pitch information).
+# Verified vs pseudo-GT on gate_joint_1000 val (dream:~/gate_fusion_verify):
+# clean = label-noise floor; under occlusion (only the 4 near-collinear top
+# kps survive) kp-only 4.7 deg / 10 cm median, worst 30 deg -> fused
+# 2 deg / 4 cm, worst 6 — the aperture side edges carry the missing pitch.
 #
-# Formulation (RAPiD-style outer/inner loop over SE(3)):
-#   outer: project the known planar boundary polygon under the current pose;
-#          for each boundary sample, search along its image normal in the mask
-#          probability map for the 0.5 crossing -> fixed 1D targets.
-#   inner: scipy least_squares over (rvec, tvec), Huber loss:
-#          - keypoint reprojection residuals, score-weighted; "soft" keypoints
-#            (the gate post midpoints, which slide along their edge) contribute
-#            only the residual component perpendicular to their projected
-#            slide segment;
-#          - mask residuals: normal-projected distance to the crossing targets,
-#            sharpness-weighted.
-#   The normal-search range shrinks per outer iteration (coarse-to-fine).
+# RAPiD-style outer/inner loop over SE(3):
+#   0:     IPPE-RANSAC zeroes confidently-wrong keypoints. Huber only dampens
+#          a bad point — a large outlier still drags the init into a wrong
+#          basin the local LM cannot escape.
+#   outer: project the boundary polygon; search along each sample's image
+#          normal for the 0.5 mask crossing (range shrinks per iteration).
+#   inner: Huber LM over (rvec, tvec): score-weighted kp reprojection (soft
+#          keypoints contribute only perpendicular-to-slide) +
+#          sharpness-weighted crossing residuals.
 #
-# Two robustness elements that verification proved necessary:
-#   1. Two-sided LEVEL TEST per crossing: a genuine boundary edge separates
-#      confident mask (P ~ 1) from confident background (P ~ 0); a
-#      contamination boundary (occluder cut, uncertain region) has a mid-level
-#      far side. Crossings failing the test carry zero weight. Without this,
-#      an occluder edge near the true boundary captures the dense term and
-#      fusion underperforms kp-only. (Leave-one-edge-out consensus was tried
-#      and REJECTED: with few keypoints every edge is load-bearing, so the
-#      leave-out pose drifts and good edges get dropped.)
-#   2. IPPE degenerates outright (zero candidates) when the surviving
-#      keypoints are near-collinear — exactly the occlusion case. estimate()
-#      therefore falls back to ITERATIVE PnP seeded from a prior pose (last
-#      accepted pose, or a canonical face-on guess).
+# Two elements verification proved necessary:
+#   1. Two-sided LEVEL TEST per crossing (mask ~1 one side, ~0 the other):
+#      without it an occluder edge near the true boundary captures the dense
+#      term and fusion LOSES to kp-only. (Leave-one-edge-out consensus tried
+#      and rejected — with few keypoints every edge is load-bearing.)
+#   2. IPPE returns zero candidates when the surviving kps are near-collinear
+#      — exactly the occlusion case — hence the ITERATIVE fallback seeded
+#      from a prior pose.
 
 FUSED_POSE_DEFAULTS = dict(
     score_gate=0.10,  # kps below this are dropped entirely
+    # Needs >= 5 gated kps (4 leave nothing to vote with). If < 4 survive the
+    # filter, the solve abstains and the frame publishes NOTHING — downstream
+    # Kalman-filters, so a dropped frame is cheap and a bad one is not.
+    ransac=True,
+    ransac_reproj_px=8.0,  # inlier bound, px
+    ransac_iterations=126,  # subset cap; C(9,4)=126 = exhaustive for the gate
     huber_px=3.0,
     lam_mask=3.0,  # global mask-term weight multiplier
     n_per_edge=24,  # boundary samples per polygon edge
@@ -319,6 +370,79 @@ class FusedPlanarPoseEstimator:
 
     # ------------------------------------------------------------ solving
 
+    def _kp_residuals(self, kps, ids, rvec, tvec, K, D):
+        """Per-keypoint image residual under a pose, respecting soft slides.
+
+        For a soft keypoint (known slide-along-edge error mode) the residual
+        is only the component perpendicular to its projected slide segment —
+        the same notion refine() optimizes, so RANSAC and LM agree on what
+        counts as an error.
+        """
+        proj = project_points(self.model_points[ids], rvec, tvec, K, D)
+        res = np.zeros(len(ids))
+        for j, kid in enumerate(ids):
+            d = proj[j] - kps[kid]
+            if kid in self.soft:
+                a, b = self.soft[kid]
+                seg = project_points(np.stack([a, b]), rvec, tvec, K, D)
+                t = seg[1] - seg[0]
+                t /= max(np.linalg.norm(t), 1e-9)
+                res[j] = abs(np.array([-t[1], t[0]]) @ d)
+            else:
+                res[j] = np.linalg.norm(d)
+        return res
+
+    def ransac_filter(self, kps, scores, K, D):
+        """IPPE-RANSAC over the gated keypoints: (scores, n_outliers) with
+        outliers zeroed (a copy; input never mutated). Below 5 gated points a
+        4-point solve fits anything, so the filter passes through."""
+        cfg = self.cfg
+        ids = np.nonzero(scores >= cfg["score_gate"])[0]
+        if len(ids) < 5:
+            return scores, 0
+
+        subsets = list(itertools.combinations(range(len(ids)), 4))
+        if len(subsets) > cfg["ransac_iterations"]:
+            rng = np.random.default_rng(0)  # deterministic across frames
+            subsets = [
+                subsets[i]
+                for i in rng.choice(
+                    len(subsets), cfg["ransac_iterations"], replace=False
+                )
+            ]
+
+        thresh = cfg["ransac_reproj_px"]
+        best_inliers = None
+        best_score = (-1, np.inf)  # (count, mean residual): max count, min res
+        for subset in subsets:
+            sub_ids = ids[list(subset)]
+            try:
+                cands = solve_ippe(self.model_points[sub_ids], kps[sub_ids], K, D)
+            except cv2.error:
+                continue
+            for rvec, tvec, _err in cands:
+                if tvec[2] <= 0:
+                    continue
+                res = self._kp_residuals(kps, ids, rvec, tvec, K, D)
+                inliers = res < thresh
+                count = int(inliers.sum())
+                mean_res = float(res[inliers].mean()) if count else np.inf
+                if (count, -mean_res) > (best_score[0], -best_score[1]):
+                    best_score = (count, mean_res)
+                    best_inliers = inliers
+            # Full consensus cannot be beaten: a clean frame costs one subset.
+            if best_score[0] == len(ids):
+                break
+
+        if best_inliers is None:
+            return scores, 0
+        n_out = int((~best_inliers).sum())
+        if n_out == 0:
+            return scores, 0
+        filtered = np.array(scores, dtype=float, copy=True)
+        filtered[ids[~best_inliers]] = 0.0
+        return filtered, n_out
+
     def init_pose(self, kps, scores, K, D, prior=None):
         """Initial pose from gated keypoints.
 
@@ -427,12 +551,23 @@ class FusedPlanarPoseEstimator:
         )
 
     def estimate(self, kps, scores, mask_prob, K, D, prior=None):
-        """init_pose + refine in one call. Returns refine()'s dict or None."""
+        """ransac_filter + init_pose + refine in one call.
+
+        Returns refine()'s dict (plus "n_outliers") or None. The RANSAC stage
+        zeroes outlier keypoint scores, so init AND refine both run on the
+        consensus set only; the dense mask term is untouched (its own level
+        test guards it against contamination).
+        """
+        n_outliers = 0
+        if self.cfg["ransac"]:
+            scores, n_outliers = self.ransac_filter(kps, scores, K, D)
         init = self.init_pose(kps, scores, K, D, prior=prior)
         if init is None:
             return None
         rvec0, tvec0, _ = init
-        return self.refine(kps, scores, mask_prob, K, D, rvec0, tvec0)
+        result = self.refine(kps, scores, mask_prob, K, D, rvec0, tvec0)
+        result["n_outliers"] = n_outliers
+        return result
 
     # ------------------------------------------------------------ validation
 
@@ -456,37 +591,23 @@ class FusedPlanarPoseEstimator:
 # SECTION 3 — TETRA LETTER↔FACE ASSOCIATION
 # =============================================================================
 #
-# The TEKNOFEST "yildizlar" tetra (gate_tetra_overview.md §3): a 60 cm regular
-# tetrahedron on its white base, three coloured side faces (red/green/blue),
-# one of the letters A/B/C painted on each. The mission payload is the
-# association letter <-> face colour. The letter keypoints are per-image glyph
-# centres, NOT fixed 3D points, so there is no pose to solve here — only an
-# association to decide, and to keep deciding as the view changes.
+# The mission payload is the association letter <-> face colour
+# (gate_tetra_overview.md §3). Letter keypoints are per-image glyph centres,
+# not fixed 3D points — no pose to solve, only an association to keep
+# deciding.
 #
-# Two-step design:
+#   1. PER FRAME: keypoint-in-mask lookup on the soft mask probabilities,
+#      nearest-mask fallback just outside. Letters under the score gate
+#      contribute nothing — an averted-face letter has no training
+#      supervision, so its prediction is garbage and the score is the only
+#      defence.
+#   2. OVER TIME: log-posterior over the 6 bijections {A,B,C}->{r,g,b} with
+#      exponential forgetting. One-letter-per-face is then structural, two
+#      seen letters pin the third ("inferred"), p_best is a real lock
+#      criterion, and the clamp keeps a wrong lock reversible.
 #
-#   1. PER FRAME (letter_face_membership): keypoint-in-mask lookup on the soft
-#      mask probabilities, with a nearest-mask fallback for letters that land
-#      just outside every face. Letters below the score gate contribute
-#      nothing at all — a letter on a fully averted face gets no supervision
-#      during training, so its prediction is unconstrained garbage and the
-#      score is the only defence (overview §3.4).
-#
-#   2. OVER TIME (LetterFaceFilter): there are exactly 6 possible worlds — the
-#      bijections {A,B,C} -> {red,green,blue} — so instead of assigning per
-#      frame and voting, keep a log-posterior over those 6 hypotheses and
-#      update it with each frame's log-likelihood, with exponential forgetting.
-#      Consequences that fall out for free:
-#        - one-letter-per-face is structural, not a tie-break rule;
-#        - two confidently-seen letters pin the third (the "inferred" case)
-#          quantitatively, via the marginals;
-#        - p_best is a real confidence, usable as a lock criterion;
-#        - clamping the log-posterior keeps the filter reversible: a wrong
-#          early lock decays away in a few hundred ms instead of sticking.
-#
-# The chirality (which way the colours run around the solid) is NOT estimated
-# and not cross-checked — by decision it is a config constant, used only to
-# lay the colours out in the rendered net.
+# Chirality is a config constant used only to lay out the drawn net — never
+# estimated, never part of the association.
 
 TETRA_DEFAULTS = dict(
     min_score=0.35,  # letters below this contribute no evidence at all
@@ -494,22 +615,16 @@ TETRA_DEFAULTS = dict(
     max_mask_distance_px=40.0,  # nearest-mask fallback reach
     proximity_weight=0.6,  # fallback evidence is worth less than a hit
     eps=0.04,  # membership floor -> bounds one frame's influence
-    # Memory. tau/logp_clip together set the effective evidence window; the
-    # letter arrangement is STATIC, so the only reason to forget at all is to
-    # keep a wrong belief reversible (model errors are time-correlated, not
-    # independent). Swept on real evidence (dream:~/tetra_unfold_check,
-    # memory_sweep.png): with a third of frames lying, every accumulating
-    # setting reaches 100% — the truth wins on frequency as long as it stays
-    # the plurality — while tau=3 plateaued at 98%, and at half the frames
-    # lying tau=3 capped at 84% vs 98-100%. Longer memory only costs recovery:
-    # 5 / 12 / 25 / 30 frames to shake off 30 wrong frames at tau = 3/10/30/inf.
-    # tau=10 buys the accuracy for 1.2 s of recovery and locks no slower.
+    # Memory: the arrangement is static, so forgetting exists only to keep a
+    # wrong belief reversible (model errors are time-correlated). Swept on
+    # real evidence (dream:~/tetra_unfold_check): tau=10/clip=20 matches the
+    # pure accumulator's accuracy (100%/98% at 1/3 / 1/2 frames lying, vs
+    # tau=3's 98%/84%) and still shakes off 30 wrong frames in ~1.2 s.
     tau=10.0,  # s, evidence forgetting time constant
     gain=0.25,  # per-frame log-likelihood gain
     logp_clip=20.0,  # log-posterior clamp (reversibility)
-    # Lock criteria. 0.99/10 over 0.9/5 by measurement (dream:~/tetra_unfold_check):
-    # with 35% coherently-wrong frames it cuts first-lock errors 6.8% -> 1.2%,
-    # costing one extra frame of latency on clean data (4 frames, 0.4 s @10 Hz).
+    # Lock criteria by sweep: 0.99/10 vs 0.9/5 costs one clean frame and cuts
+    # wrong first-locks 6.8% -> 1.2% at 35% corrupted frames.
     lock_threshold=0.99,  # p_best needed to call the association LOCKED
     min_evidence=10.0,  # ... and this much accumulated letter evidence
     min_direct_evidence=1.0,  # below this, a letter's colour is "inferred"
@@ -562,22 +677,10 @@ def letter_face_membership(
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     """Per-frame evidence that letter l sits on face colour c.
 
-    Args:
-        pixels: (L, 2) letter keypoints in source-image px.
-        scores: (L,) raw heatmap peak values.
-        mask_probs: (C, H, W) face probabilities in [0, 1], source resolution.
-        mask_threshold: calibrated binarization threshold (fallback only).
-        config: overrides for the TETRA_DEFAULTS keys used here
-            (min_score, inside_min, max_mask_distance_px, proximity_weight, eps).
-
-    Returns:
-        m: (L, C) membership, each active row a distribution over colours.
-        w: (L,) evidence weight per letter (0 = ignore this letter).
-        sources: per-letter "in" | "near" | "none" | "low" (debug/telemetry).
-
-    The nearest-mask distance transforms are computed lazily — only when some
-    active letter falls outside every mask — because they cost ~1 ms/class at
-    640x480 and most frames never need them.
+    Returns m (L, C) membership rows, w (L,) evidence weights (0 = ignore),
+    and per-letter sources "in" | "near" | "none" | "low". The nearest-mask
+    distance transforms are lazy — ~1 ms/class and most frames never need
+    them.
     """
     cfg = dict(TETRA_DEFAULTS)
     cfg.update(config)
@@ -685,10 +788,8 @@ class LetterFaceFilter:
             posterior[best] >= cfg["lock_threshold"]
             and total_evidence >= cfg["min_evidence"]
         )
-        # "Inferred" = this letter's colour rests on the permutation constraint
-        # rather than on its own observations. Only meaningful once the frame
-        # as a whole carries enough evidence — otherwise every letter is
-        # trivially "under-observed" in the first frames.
+        # "Inferred" = rests on the permutation constraint, not observations;
+        # only meaningful once the filter as a whole has evidence.
         inferred = (self.evidence < cfg["min_direct_evidence"]) & (
             total_evidence >= cfg["min_evidence"]
         )
@@ -912,3 +1013,240 @@ def render_tetra_net(
                 cv2.LINE_AA,
             )
     return image
+
+
+# =============================================================================
+# SECTION 4 — CROP TRACKING  (carry the crop between sparse objectness seeds)
+# =============================================================================
+#
+# Objectness is 82% of the pipeline's GPU time (21.7 vs 4.8 ms forward on a
+# 4060 Ti; ViT-S at 640x480 = 1200 tokens vs the joint ViT-B's 192) — on an
+# AGX Orin the difference between ~7 and ~30 Hz. So it only seeds, and the
+# crop is carried from the model's own output for zero extra compute.
+# Measured on the ITU pool clip: carried-box output IoU 0.724 vs VitTrack's
+# 0.606 (4.4 ms/frame), and FLAT in the seed interval — the residual is
+# one-frame lag, not drift. The clip is 2.5 Hz, a worst case; re-validate on
+# high-rate footage. Health checks matter more than the propagation: a crop
+# that quietly stopped containing the object produces confident nonsense, and
+# the top-down model has no "I am lost" signal of its own.
+#
+# `propagate_from` — "the masks are the silhouette" is a tetra fact, not a
+# general one:
+#   mask       union of the mask planes (tetra: 3 faces = the solid's
+#              outline). The measured mode; default.
+#   keypoints  bbox of the confident keypoints. Gate's one mask class is the
+#              aperture MEMBRANE — inside the frame, missing feet and pinger
+#              pole — so a mask box would starve the pole out of the crop and
+#              trip the border check on every close-range frame. Gate's 9
+#              keypoints ARE its silhouette.
+# Decoded keypoints exist for all K even when nothing supervised them (the
+# averted-letter case), hence propagate_min_score / propagate_ids.
+
+CROP_TRACKER_DEFAULTS = dict(
+    seed_period=2.0,  # s; the detector re-runs at least this often
+    propagate_from="mask",  # mask | keypoints (see above)
+    margin=0.18,  # padding around the extent, fraction of its size
+    min_mask_pixels=200,  # mask mode: a silhouette smaller than this is not an object
+    propagate_min_score=0.2,  # keypoints mode: score for a kp to bound the box
+    propagate_ids=None,  # keypoints mode: which kps may bound it (None = all)
+    min_keypoints=4,  # keypoints mode: fewer usable kps than this = re-seed
+    border_slack_px=4.0,  # extent this close to the CROP edge = outgrown it
+    max_area_ratio=2.5,  # frame-to-frame box area jump that must be a mistake
+    min_confidence=0.0,  # mean score over confidence_ids below this = re-seed
+    confidence_ids=None,  # which keypoints to judge on (None = all)
+    # The border test must use the crop the model actually SAW (box grown to
+    # the model aspect then padded 1.25x — box2cs), not the box: a correct
+    # silhouette routinely extends past the box that produced it.
+    crop_pad=1.25,
+    crop_aspect=192.0 / 256.0,  # model input W/H
+)
+
+
+class CropTracker:
+    """Carry the joint model's crop between objectness seeds.
+
+    Usage per frame, from the bbox provider:
+
+        if tracker.needs_seed(now):
+            box, score = detector.predict(image)   # the expensive path
+            tracker.seed(box, now)
+        box = tracker.box                          # feed this to the model
+        ...
+        tracker.update(kps, scores, mask_probs, threshold, image_shape)
+
+    `update` both propagates (next box from the segmentation) and validates
+    (health checks); a failed check clears the box so `needs_seed` fires next
+    frame. `last_reason` carries why, for logging.
+    """
+
+    def __init__(self, **config):
+        self.cfg = dict(CROP_TRACKER_DEFAULTS)
+        unknown = set(config) - set(CROP_TRACKER_DEFAULTS)
+        if unknown:
+            raise ValueError(f"unknown CropTracker config: {sorted(unknown)}")
+        self.cfg.update(config)
+        if self.cfg["propagate_from"] not in ("mask", "keypoints"):
+            raise ValueError(
+                f"CropTracker propagate_from must be 'mask' or 'keypoints', "
+                f"got {self.cfg['propagate_from']!r}"
+            )
+        ids = self.cfg["confidence_ids"]
+        self._confidence_ids = None if ids is None else [int(i) for i in ids]
+        ids = self.cfg["propagate_ids"]
+        self._propagate_ids = None if ids is None else [int(i) for i in ids]
+        self.reset()
+
+    def reset(self):
+        self.box: Optional[List[float]] = None
+        self._seed_time: Optional[float] = None
+        self.last_reason = "no box yet"
+        self.seeds = 0
+        self.carried = 0
+
+    # ------------------------------------------------------------- seeding
+
+    def needs_seed(self, now: float) -> bool:
+        if self.box is None:
+            return True
+        if self._seed_time is None:
+            return True
+        return (now - self._seed_time) >= self.cfg["seed_period"]
+
+    def seed(self, box, now: float) -> None:
+        """Install a detector box (None = detector found nothing)."""
+        self.box = None if box is None else [float(v) for v in box]
+        self._seed_time = now
+        if self.box is None:
+            self.last_reason = "detector found nothing"
+        else:
+            self.seeds += 1
+            self.last_reason = "seeded"
+
+    # ------------------------------------------------------------- carrying
+
+    def update(self, kps, scores, mask_probs, mask_threshold, image_shape) -> bool:
+        """Propagate + validate from one frame's model output.
+
+        Returns True if the crop survives into the next frame, False if a
+        health check dropped it (the next frame will re-seed).
+        """
+        if self.box is None:
+            return False
+        confidence = self._mean_confidence(scores)
+        if confidence is not None and confidence < self.cfg["min_confidence"]:
+            return self._drop(f"keypoint confidence {confidence:.2f} too low")
+
+        if self.cfg["propagate_from"] == "mask":
+            extent = self._mask_extent(mask_probs, mask_threshold)
+        else:
+            extent = self._keypoint_extent(kps, scores)
+        if extent is None:
+            return False  # the extent helper already dropped with a reason
+        x0, y0, x1, y1 = extent
+
+        # Both propagation sources live inside the crop the model was given,
+        # so an extent pressed against the CROP border (not the box's) means
+        # the object likely continues past it — the one failure a
+        # self-propagating box cannot see its way out of.
+        slack = self.cfg["border_slack_px"]
+        bw, bh = self.box[2], self.box[3]
+        cx0, cy0, cx1, cy1 = self._crop_rect(self.box)
+        if (
+            x0 <= cx0 + slack
+            or y0 <= cy0 + slack
+            or x1 >= cx1 - slack
+            or y1 >= cy1 - slack
+        ):
+            return self._drop(
+                f"{self.cfg['propagate_from']} extent touches the crop border"
+            )
+
+        width, height = x1 - x0 + 1.0, y1 - y0 + 1.0
+        mx, my = self.cfg["margin"] * width, self.cfg["margin"] * height
+        img_h, img_w = image_shape[:2]
+        nx0 = max(x0 - mx, 0.0)
+        ny0 = max(y0 - my, 0.0)
+        nx1 = min(x1 + mx, img_w - 1.0)
+        ny1 = min(y1 + my, img_h - 1.0)
+        new_box = [nx0, ny0, nx1 - nx0 + 1.0, ny1 - ny0 + 1.0]
+
+        ratio = (new_box[2] * new_box[3]) / max(bw * bh, 1.0)
+        limit = self.cfg["max_area_ratio"]
+        if ratio > limit or ratio < 1.0 / limit:
+            return self._drop(f"box area jumped {ratio:.1f}x")
+
+        self.box = new_box
+        self.carried += 1
+        self.last_reason = "carried"
+        return True
+
+    # ------------------------------------------------------------- internals
+
+    def _mask_extent(self, mask_probs, mask_threshold):
+        """(x0, y0, x1, y1) of the union of the thresholded mask planes."""
+        if mask_probs is None or not len(mask_probs):
+            self._drop("no masks to propagate from")
+            return None
+        silhouette = (np.asarray(mask_probs) >= mask_threshold).any(axis=0)
+        pixels = int(silhouette.sum())
+        if pixels < self.cfg["min_mask_pixels"]:
+            self._drop(f"silhouette {pixels} px below minimum")
+            return None
+        ys, xs = np.nonzero(silhouette)
+        return float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())
+
+    def _keypoint_extent(self, kps, scores):
+        """(x0, y0, x1, y1) spanned by the usable keypoints."""
+        if kps is None or scores is None or not len(kps):
+            self._drop("no keypoints to propagate from")
+            return None
+        points = np.asarray(kps, dtype=np.float64).reshape(-1, 2)
+        values = np.asarray(scores, dtype=np.float64).reshape(-1)
+        usable = values >= self.cfg["propagate_min_score"]
+        if self._propagate_ids is not None:
+            allowed = np.zeros_like(usable)
+            for i in self._propagate_ids:
+                if 0 <= i < len(allowed):
+                    allowed[i] = True
+            usable &= allowed
+        count = int(usable.sum())
+        if count < self.cfg["min_keypoints"]:
+            self._drop(f"only {count} usable keypoints")
+            return None
+        chosen = points[usable]
+        return (
+            float(chosen[:, 0].min()),
+            float(chosen[:, 1].min()),
+            float(chosen[:, 0].max()),
+            float(chosen[:, 1].max()),
+        )
+
+    def _crop_rect(self, box) -> Tuple[float, float, float, float]:
+        """(x0, y0, x1, y1) the model actually sees for `box` — mirrors
+        vitpose_inference.box2cs (kept local so this module stays torch-free)."""
+        x, y, w, h = box
+        cx, cy = x + w * 0.5, y + h * 0.5
+        aspect = self.cfg["crop_aspect"]
+        if w > aspect * h:
+            h = w / aspect
+        elif w < aspect * h:
+            w = h * aspect
+        half_w = w * self.cfg["crop_pad"] * 0.5
+        half_h = h * self.cfg["crop_pad"] * 0.5
+        return cx - half_w, cy - half_h, cx + half_w, cy + half_h
+
+    def _mean_confidence(self, scores) -> Optional[float]:
+        if scores is None or self.cfg["min_confidence"] <= 0.0:
+            return None
+        values = np.asarray(scores, dtype=np.float64).reshape(-1)
+        if self._confidence_ids is not None:
+            ids = [i for i in self._confidence_ids if 0 <= i < len(values)]
+            if not ids:
+                return None
+            values = values[ids]
+        return float(values.mean()) if len(values) else None
+
+    def _drop(self, reason: str) -> bool:
+        self.box = None
+        self.last_reason = reason
+        return False

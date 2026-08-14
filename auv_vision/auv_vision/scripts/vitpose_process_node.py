@@ -1,43 +1,30 @@
 #!/usr/bin/env python3
 """ViTPose process node: VitposeResult -> configured operations + debug overlay.
 
-Operation framework (auv_vision/VITPOSE_PLAN.md §5). At startup every object
-YAML under config/vitpose/ is loaded and its `process:` section built into an
-object pipeline: camera calibration, an operation list, and a debug overlay
-publisher. Incoming VitposeResult messages dispatch on msg.object — the
-process node therefore never needs config switching; only the detection node
-(which holds the one GPU model) switches.
+Loads every YAML under config/vitpose/ at startup and dispatches incoming
+results on msg.object — this node never switches configs; only the detection
+node does. Detect-only objects (no `process:` section) are skipped. A bad op
+is disabled at init; the pipeline lives.
 
-Operations are modules under scripts/vitpose_ops/, each exporting
-create_op(params, ctx) (same dynamic-import factory convention as
-scripts/handlers/). An op implements:
+Ops are modules under scripts/vitpose_ops/, each exporting
+create_op(params, ctx) (dynamic-import factory, as scripts/handlers/):
 
     process(frame)          required; frame is a FrameData
-    draw(image_bgr, frame)  optional; paint on the debug overlay, called only
-                            while the overlay has subscribers. An op with its
-                            own image topic (tetra_unfold) omits this so the
-                            overlay stays pure model output.
+    draw(image_bgr, frame)  optional overlay layer, called only while the
+                            debug topic has subscribers
 
-and receives an OpContext with:
+OpContext: object_name, camera_frame, calibration() -> (K, D) | None,
+publish_tf(child_frame_id, xyz, stamp, rotation_quat=None) — routed through
+the object map TF server, never a raw broadcast — publisher(topic, type).
+FrameData: ids/pixels/scores for all K keypoints (raw confidences — gate
+yourself), mask_probs (C, H, W in [0, 1]) + binary_masks(), names, bbox,
+stamp.
 
-    ctx.object_name         the config object name
-    ctx.camera_frame        camera optical frame id
-    ctx.calibration()       -> (K 3x3, D) or None until camera_info arrives
-    ctx.publish_tf(child_frame_id, xyz, stamp, rotation_quat=None)
-                            routed through the object map TF server via
-                            object_transform_updates — never a raw broadcast
-    ctx.publisher(topic, msg_type, queue_size=1, latch=False)
-                            lazily created, cached, for op-specific outputs
-
-FrameData gives ids/pixels/scores for all K keypoints with raw confidences
-(gate on them yourself), mask_probs (C, H, W) in [0, 1] with binary_masks()
-at the calibrated threshold, keypoint_names, mask_classes, bbox and stamp.
-Per-op init failures are contained: a bad op is disabled, the pipeline lives.
-
-Debug overlay per object on vitpose_process_image_<object>/compressed:
-keypoints (confidence-coloured, named), skeleton, bbox, translucent mask
-tints, then each op's draw() layer. All overlay work is gated on subscriber
-count.
+Debug overlay per object on vitpose_process_image_<object>/compressed,
+subscriber-gated. When no result arrives for _IDLE_TIMEOUT the raw frame
+goes out dimmed with a banner instead — an objectness producer publishes
+nothing when it does not fire, and a frozen image would be indistinguishable
+from a hung node.
 """
 
 import importlib
@@ -65,10 +52,10 @@ if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
 from utils.detection_utils import transform_to_odom_and_publish  # noqa: E402
-from utils.vitpose_utils import all_object_configs  # noqa: E402
+from utils.vitpose_utils import all_object_configs, apply_camera_override  # noqa: E402
 
-# Debug palette (BGR), indexed by mask class position. Deliberately matches
-# the tetra channel order (red, green, blue) for the first three classes.
+# Debug palette (BGR); first three deliberately match tetra's (red, green,
+# blue) channel order.
 _MASK_COLORS = [
     (60, 60, 235),
     (90, 210, 60),
@@ -82,6 +69,10 @@ _COLOR_KP_LOWCONF = (140, 140, 140)
 _COLOR_SKELETON = (0, 160, 0)
 _COLOR_BBOX = (0, 200, 255)
 _COLOR_TEXT = (255, 255, 255)
+_COLOR_IDLE = (60, 200, 255)
+
+_IDLE_TIMEOUT = 0.5  # s without a VitposeResult before the banner takes over
+_IDLE_RATE = 5.0  # Hz; readable, not smooth
 
 
 # ─────────────────────────────────────────────── data passed to ops
@@ -176,6 +167,8 @@ class ObjectPipeline:
     image_topic: str
     skeleton: List[List[int]] = field(default_factory=list)
     viz_conf_threshold: float = 0.5
+    last_result: Optional[float] = None  # None = nothing ever arrived
+    last_idle_publish: float = 0.0
 
 
 class VitposeProcessNode:
@@ -189,15 +182,26 @@ class VitposeProcessNode:
             "object_transform_updates", TransformStamped, queue_size=10
         )
 
-        # Ring buffers of recent raw frames, one per image topic, so the
-        # overlay is drawn on the exact frame the result came from (matched
-        # by header stamp). Filled only while someone watches a debug topic.
+        # Recent raw frames per topic, so the overlay is drawn on the frame
+        # the result came from. Filled only while a debug topic is watched.
         self._image_lock = threading.Lock()
         self._image_bufs: Dict[str, Deque[Tuple[float, np.ndarray]]] = {}
 
         self.pipelines: Dict[str, ObjectPipeline] = {}
         result_topics = set()
+        # Bench-test knob: retargets EVERY object at the named camera (must
+        # match the detection node's ~camera; one object runs at a time).
+        camera_override = rospy.get_param("~camera", "")
         for name, config in all_object_configs().items():
+            if camera_override:
+                ns = rospy.get_namespace().strip("/") or "taluy"
+                apply_camera_override(config, camera_override, ns)
+            if not config.get("process"):
+                rospy.loginfo(
+                    f"vitpose object '{name}': no `process:` section "
+                    "(detect-only) — no ops, no overlay."
+                )
+                continue
             try:
                 pipeline = self._build_pipeline(name, config)
             except Exception as exc:
@@ -275,8 +279,6 @@ class VitposeProcessNode:
         )
 
     def _image_cb(self, msg, topic):
-        # Ring buffer feeds only the debug overlay — skip decode + copy
-        # entirely while nobody is watching (house style).
         if not self._debug_wanted(topic):
             return
         try:
@@ -286,6 +288,7 @@ class VitposeProcessNode:
             return
         with self._image_lock:
             self._image_bufs[topic].append((msg.header.stamp.to_sec(), img))
+        self._maybe_publish_idle(topic, img, msg.header)
 
     def _nearest_image(self, topic, stamp) -> Optional[np.ndarray]:
         target = stamp.to_sec()
@@ -305,6 +308,7 @@ class VitposeProcessNode:
                 f"(configured: {sorted(self.pipelines)})",
             )
             return
+        pipeline.last_result = rospy.get_time()
 
         frame = self._unpack(msg)
         for op in pipeline.ops:
@@ -446,10 +450,70 @@ class VitposeProcessNode:
                     f"draw() raised: {exc}",
                 )
 
+        self._publish_compressed(pipeline, vis, msg.header)
+
+    # ------------------------------------------------------------- idle overlay
+
+    def _maybe_publish_idle(self, topic, image, header):
+        """Keep the debug topic alive while no results arrive for an object."""
+        now = rospy.get_time()
+        for pipeline in self.pipelines.values():
+            if pipeline.image_topic != topic:
+                continue
+            if pipeline.debug_pub.get_num_connections() == 0:
+                continue
+            if (
+                pipeline.last_result is not None
+                and now - pipeline.last_result < _IDLE_TIMEOUT
+            ):
+                continue
+            if now - pipeline.last_idle_publish < 1.0 / _IDLE_RATE:
+                continue
+            pipeline.last_idle_publish = now
+            if pipeline.last_result is None:
+                # Normal state of every object that is not the loaded one.
+                title = "No object detected"
+                subtitle = (
+                    f"no '{pipeline.object_name}' result yet — is the detection "
+                    "node running this object?"
+                )
+            else:
+                title = "No object detected"
+                subtitle = (
+                    f"{pipeline.object_name}: last result "
+                    f"{now - pipeline.last_result:.1f}s ago"
+                )
+            self._publish_compressed(
+                pipeline, self._idle_frame(image, title, subtitle), header
+            )
+
+    @staticmethod
+    def _idle_frame(image, title, subtitle):
+        """Dimmed raw frame + banner — the reason the detector is silent is
+        usually visible in the picture, so never a blank canvas."""
+        vis = (image.astype(np.float32) * 0.45).astype(np.uint8)
+        height, width = vis.shape[:2]
+        (tw, th), _ = cv2.getTextSize(title, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+        origin = ((width - tw) // 2, (height + th) // 2)
+        cv2.putText(vis, title, origin, cv2.FONT_HERSHEY_SIMPLEX, 0.9, _COLOR_IDLE, 2)
+        (sw, _), _ = cv2.getTextSize(subtitle, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+        cv2.putText(
+            vis,
+            subtitle,
+            ((width - sw) // 2, origin[1] + 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.4,
+            _COLOR_TEXT,
+            1,
+        )
+        return vis
+
+    @staticmethod
+    def _publish_compressed(pipeline, image, header):
         out = CompressedImage()
-        out.header = msg.header
+        out.header = header
         out.format = "jpeg"
-        ok, encoded = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 80])
         if not ok:
             return
         out.data = encoded.tobytes()

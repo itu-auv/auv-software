@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_srvs
   tf
+  vision_msgs
 )
 
 catkin_package(
@@ -22,6 +23,7 @@ catkin_package(
     sensor_msgs
     std_srvs
     tf
+    vision_msgs
 )
 
 include_directories(
@@ -38,7 +40,7 @@ catkin_install_python(
     scripts/principal_point_overlay_node.py
     scripts/sim_bbox_node.py
     scripts/sim_tracker_node.py
-    scripts/sim_keypoint_node.py
+    scripts/sim_vitpose_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_sim_bridge_node.py
     scripts/depth_anything_zmq_client.py

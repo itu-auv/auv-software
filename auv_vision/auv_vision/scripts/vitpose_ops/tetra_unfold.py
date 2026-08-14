@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
-"""tetra_unfold op — which letter is on which coloured face, filtered over time.
+"""tetra_unfold op — which letter is on which coloured face, filtered.
 
-Consumes FrameData (3 letter keypoints + red/green/blue face masks) and
-maintains a Bayesian filter over the 6 possible letter->colour permutations
-(algorithm and rationale: utils/vitpose_utils.py SECTION 3). Two outputs:
+Algorithm and rationale: utils/vitpose_utils.py SECTION 3. Outputs:
 
-  tetra/letter_colors          std_msgs/String, latched — the mission payload,
-                               e.g. "A:red B:blue C:green p=0.97 state=LOCKED"
-  tetra_unfold_image/compressed  the unfolded tetrahedron (a "triforce": three
-                               coloured corner triangles around the white base)
-                               with the current best-guess letters drawn on it.
-                               Rendered ONLY while someone is subscribed.
+  tetra/letter_colors            String, latched — the mission payload,
+                                 "A:red B:blue C:green p=0.97 state=LOCKED"
+  tetra_unfold_image/compressed  the unfolded net, rendered only while
+                                 someone is subscribed
 
-Deliberately no draw() hook: the main vitpose debug overlay stays pure model
-output (keypoints + masks), and the unfolding lives on its own topic.
-
-Chirality (which way the colours run around the solid) is a config constant,
-not something this op estimates — the object is seen before the competition.
-It only decides which corner of the drawn net each colour occupies.
+Deliberately no draw() hook: the main debug overlay stays pure model output.
+Chirality is a config constant that only lays out the drawn net.
 """
 
 import cv2
@@ -35,6 +27,10 @@ from utils.vitpose_utils import (
     letter_face_membership,
     render_tetra_net,
 )
+
+# Ids 0..2 are the letters; the vertex keypoints (3+) belong to a future
+# pose op, so everything here slices to the first _NUM_LETTERS.
+_NUM_LETTERS = 3
 
 _FILTER_KEYS = (
     "tau",
@@ -128,12 +124,12 @@ class TetraUnfoldOp:
             )
             return
 
-        # FrameData carries parallel id/pixel/score arrays; rebuild dense
-        # per-letter arrays (ids 0=A, 1=B, 2=C), missing letters scored 0.
-        pixels = np.zeros((3, 2), dtype=np.float64)
-        scores = np.zeros(3, dtype=np.float64)
+        # Rebuild dense per-letter arrays; missing letters scored 0, vertex
+        # ids dropped.
+        pixels = np.zeros((_NUM_LETTERS, 2), dtype=np.float64)
+        scores = np.zeros(_NUM_LETTERS, dtype=np.float64)
         for kp_id, pixel, score in zip(frame.ids, frame.pixels, frame.scores):
-            if 0 <= kp_id < 3:
+            if 0 <= kp_id < _NUM_LETTERS:
                 pixels[kp_id] = pixel
                 scores[kp_id] = score
 
@@ -148,7 +144,7 @@ class TetraUnfoldOp:
         self.filter.update(membership, weights, now)
         estimate = self.filter.result(now)
 
-        letter_names = frame.keypoint_names or ["A", "B", "C"]
+        letter_names = (frame.keypoint_names or ["A", "B", "C"])[:_NUM_LETTERS]
         mask_classes = frame.mask_classes or ["red", "green", "blue"]
         text = format_association(estimate, letter_names, mask_classes)
         if self._last_text != text or (
@@ -160,7 +156,6 @@ class TetraUnfoldOp:
             self._last_publish = now
         rospy.logdebug_throttle(2.0, f"tetra_unfold: {text} sources={sources}")
 
-        # The unfolded net — only rendered while someone is watching.
         if self.image_pub.get_num_connections() == 0:
             return
         net = render_tetra_net(

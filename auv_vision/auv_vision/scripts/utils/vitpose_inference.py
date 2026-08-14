@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
-"""Self-contained ViTPose joint (pose + segmentation) inference runtime.
+"""Self-contained ViTPose inference runtimes: joint (pose + seg) and objectness.
 
-Loads valve-vision "joint" checkpoints (see auv_vision/VITPOSE_PLAN.md and
-gate_tetra_overview.md): a ViT trunk with a pose head (K keypoint heatmaps)
-and an optional mask head (C segmentation logit planes), one forward pass.
-Everything — keypoint count, mask class count, ViT size, input resolution,
-mask threshold — is auto-configured from the checkpoint payload and can be
-overridden via constructor arguments (fed from the object YAML's `model:`
-section).
+Two models, one ViT trunk, one file (house rule; apart from vitpose_utils.py
+only because it imports torch). Faithful ports of the valve-vision reference
+— parity against it is the acceptance test. Full contract (preprocess,
+decode, thresholds): gate_tetra_overview.md.
+
+    model = load_vitpose("gate_joint.pth", device="cuda")
+    kps, scores, mask_probs = model.predict(img_rgb, bbox_xywh)
+    # kps (K, 2) source px; scores (K, 1); mask_probs (C, H_src, W_src) | None
+
+    detector = load_objectness("tetra_objectness.pth")
+    bbox_xywh, score = detector.predict(img_rgb)   # bbox None = no detection
+
+Auto-configured from the checkpoint payload (K, C, ViT size, input size,
+mask_threshold). Input resolution is the checkpoint's own — the pos-embed is
+trained at that size; a different resolution means training a model at it.
+Everything is RGB. Decode default use_udp=False is contractual: the heads are
+MSRA-encoded and UDP decode measured ~3x worse (7.38 vs 2.38 px).
 
 Dependencies: torch, numpy, cv2 — nothing else.
-
-Usage:
-    from utils.vitpose_inference import load_vitpose
-    model = load_vitpose("path/to/gate_joint.pth", device="cuda")
-    kps, scores, mask_probs = model.predict(img_rgb, bbox_xywh)
-    # kps:        (K, 2) source-image pixel coords
-    # scores:     (K, 1) heatmap peak values
-    # mask_probs: (C, H_src, W_src) float32 probabilities in [0, 1], or None
-
-Decode contract (gate_tetra_overview.md §1.2): the checkpoints are trained
-with MSRA heatmap encoding — decode with use_udp=False. UDP decoding against
-these heads was measured ~3x worse (7.38 vs 2.38 px). Both conventions are
-implemented and selectable; the default matches the training encoding.
 """
 
 import collections.abc
@@ -41,7 +38,12 @@ MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 # embed_dim -> ViT topology (mirrors valve-vision core/model_factory.py).
+# ViT-S uses num_heads=12 (a 32-wide head), NOT DeiT's more common 6: the
+# published easy_ViTPose weights were trained that way, and 6 partitions qkv
+# differently for identical tensor shapes — it loads without error and quietly
+# destroys the pretrained attention.
 _ARCHITECTURES = {
+    384: dict(depth=12, num_heads=12, drop_path_rate=0.1),  # ViT-S
     768: dict(depth=12, num_heads=12, drop_path_rate=0.3),  # ViT-B
     1024: dict(depth=24, num_heads=16, drop_path_rate=0.5),  # ViT-L
     1280: dict(depth=32, num_heads=16, drop_path_rate=0.55),  # ViT-H
@@ -529,14 +531,8 @@ def post_dark_udp(coords, batch_heatmaps, kernel=3):
 
 
 def transform_preds(coords, center, scale, output_size, use_udp=False):
-    """Map heatmap coords back to source-image pixels.
-
-    use_udp selects the rescale convention: /(size-1) for UDP, /size for the
-    classic (MSRA) convention. This single line is the 3x accuracy difference
-    documented in gate_tetra_overview.md §1.2 — the checkpoints are
-    MSRA-encoded, so use_udp must stay False unless a future model is
-    explicitly trained UDP-style.
-    """
+    """Heatmap coords -> source pixels. use_udp picks /(size-1) vs /size —
+    this single line is the 3x accuracy difference (module docstring)."""
     if use_udp:
         scale_x = scale[0] / (output_size[0] - 1.0)
         scale_y = scale[1] / (output_size[1] - 1.0)
@@ -613,25 +609,15 @@ def _flip_index(flip_pairs, num_kps):
 class VitposeModel:
     """Torch backend. Load once, call predict() per crop.
 
-    Args:
-        ckpt: path to a slim/full joint checkpoint (.pth).
-        device: "cuda" | "cpu".
-        input_size: (H, W) override; None = checkpoint's img_size.
-        decode: dict overriding DEFAULT_DECODE keys (use_udp, post_process,
-            kernel).
-        flip_tta: horizontal-flip test-time augmentation (averages heatmaps
-            and mask logits). Requires flip_pairs (may be [] for a fully
-            symmetric layout); never enable for objects whose appearance is
-            chiral (e.g. tetra letters).
-        flip_pairs: keypoint channel swap pairs under horizontal flip.
-        mask_threshold: override; None = checkpoint's train_config value.
+    Args: ckpt, device, decode (DEFAULT_DECODE overrides), flip_tta
+    (horizontal-flip TTA — never for chiral objects like tetra), flip_pairs,
+    mask_threshold (None = checkpoint's value).
     """
 
     def __init__(
         self,
         ckpt,
         device="cuda",
-        input_size=None,
         decode=None,
         flip_tta=False,
         flip_pairs=None,
@@ -646,9 +632,7 @@ class VitposeModel:
                 )
         state = payload["model"]
         self.active_heads = tuple(payload["active_heads"])
-        self.img_h, self.img_w = (
-            tuple(input_size) if input_size else tuple(payload["img_size"])
-        )
+        self.img_h, self.img_w = tuple(payload["img_size"])
         train_config = payload.get("train_config", {})
         self.mask_threshold = float(
             mask_threshold
@@ -719,17 +703,8 @@ class VitposeModel:
 
     @torch.no_grad()
     def predict(self, img_rgb, bbox_xywh):
-        """Run one crop; everything returned in source-image coordinates.
-
-        Args:
-            img_rgb: HxWx3 uint8 RGB image (RGB, not BGR — §1 contract).
-            bbox_xywh: (x, y, w, h) box in source pixels.
-
-        Returns:
-            kps:        (K, 2) float32 pixel coords
-            scores:     (K, 1) float32 heatmap peak values
-            mask_probs: (C, H_src, W_src) float32 in [0, 1], or None
-        """
+        """One RGB crop -> (kps (K, 2), scores (K, 1), mask_probs
+        (C, H_src, W_src) | None), everything in source-image coordinates."""
         center, scale = box2cs(bbox_xywh, self.img_w, self.img_h)
         transform = get_affine_transform(
             center, scale, PIXEL_STD, 0, (self.img_w, self.img_h)
@@ -758,9 +733,8 @@ class VitposeModel:
 
         mask_probs = None
         if mask_logits is not None:
-            # §1.3 contract: upsample probabilities to crop size, inverse-warp
-            # the CONTINUOUS maps to source resolution; threshold at source
-            # (the caller's job — binarizing in crop space aliases).
+            # Warp the CONTINUOUS probabilities to source resolution;
+            # thresholding first aliases (§1.3 contract).
             probs_crop = (
                 F.interpolate(
                     torch.sigmoid(mask_logits),
@@ -818,3 +792,184 @@ def load_vitpose(ckpt, **kwargs):
     if str(ckpt).endswith(".engine"):
         return VitposeTRT(ckpt, **kwargs)
     return VitposeModel(ckpt, **kwargs)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Objectness: full-frame box detector (gate_tetra_overview.md §4)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Same trunk (ViT-S), no deconvolutions: a 3x3 + 1x1 head on the native
+# stride-16 grid, one logit per patch = "how much of this patch is object".
+
+OBJECTNESS_STRIDE = 16
+SOURCE_ASPECT = 4.0 / 3.0
+
+
+class ObjectnessNet(nn.Module):
+    """ViT trunk + stride-16 coverage head (attribute names match the ckpt)."""
+
+    def __init__(self, backbone_cfg, hidden=256):
+        super().__init__()
+        self.backbone = ViT(**backbone_cfg)
+        channels = backbone_cfg["embed_dim"]
+        # Index 3 is an Identity standing in for the training-time Dropout2d,
+        # so the classifier stays at head.4 and the state dict loads as saved.
+        self.head = nn.Sequential(
+            nn.Conv2d(channels, hidden, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(hidden),
+            nn.ReLU(inplace=True),
+            nn.Identity(),
+            nn.Conv2d(hidden, 1, kernel_size=1),
+        )
+
+    def forward(self, x):
+        """(B, 3, H, W) -> (B, 1, H/16, W/16) logits."""
+        return self.head(self.backbone(x))
+
+
+def letterless_crop(image):
+    """Centre-crop to the training renders' 4:3; returns (crop, (ox, oy)).
+
+    Squashing would change the object's aspect and letterboxing adds a border
+    training never shows (measurements: gate_tetra_overview.md §4.2). A 4:3
+    input passes through untouched.
+    """
+    h, w = image.shape[:2]
+    if w / float(h) > SOURCE_ASPECT:
+        cw, ch = int(round(h * SOURCE_ASPECT)), h
+    else:
+        cw, ch = w, int(round(w / SOURCE_ASPECT))
+    ox, oy = (w - cw) // 2, (h - ch) // 2
+    return image[oy : oy + ch, ox : ox + cw], (float(ox), float(oy))
+
+
+def decode_box(prob, threshold=0.5, stride=OBJECTNESS_STRIDE, measure_threshold=None):
+    """Largest above-threshold blob of a coverage map -> (bbox_xywh, score).
+
+    Upsample to input resolution BEFORE thresholding — that recovers sub-cell
+    precision from coverage-fraction training. `measure_threshold` cuts the
+    box EXTENT tighter than detection (real-footage ramps are wider than
+    sim's; measurements: gate_tetra_overview.md §4.3); if nothing survives
+    it, the detection-cut box stands. Coordinates in model-input pixels.
+    """
+    grid_h, grid_w = prob.shape
+    full = cv2.resize(
+        prob, (grid_w * stride, grid_h * stride), interpolation=cv2.INTER_LINEAR
+    )
+    mask = (full >= threshold).astype(np.uint8)
+    if not mask.any():
+        return None, float(prob.max())
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    best = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    score = float(full[labels == best].max())
+    if measure_threshold is not None:
+        inner = (labels == best) & (full >= measure_threshold)
+        if inner.any():
+            ys, xs = np.nonzero(inner)
+            return [
+                float(xs.min()),
+                float(ys.min()),
+                float(xs.max() - xs.min() + 1),
+                float(ys.max() - ys.min() + 1),
+            ], score
+    x, y, w, h = (
+        stats[best, cv2.CC_STAT_LEFT],
+        stats[best, cv2.CC_STAT_TOP],
+        stats[best, cv2.CC_STAT_WIDTH],
+        stats[best, cv2.CC_STAT_HEIGHT],
+    )
+    return [float(x), float(y), float(w), float(h)], score
+
+
+class ObjectnessDetector:
+    """Torch backend for the objectness checkpoint. Load once, predict per
+    frame. Args: ckpt, device, threshold (detect), measure_threshold (extent
+    only; None disables the split — see decode_box)."""
+
+    def __init__(
+        self,
+        ckpt,
+        device="cuda",
+        threshold=0.5,
+        measure_threshold=0.7,
+    ):
+        payload = torch.load(ckpt, map_location="cpu", weights_only=False)
+        for key in ("model", "img_size"):
+            if key not in payload:
+                raise KeyError(
+                    f"{ckpt} has no '{key}' — not a valve-vision objectness "
+                    "checkpoint"
+                )
+        state = payload["model"]
+        self.img_h, self.img_w = tuple(payload["img_size"])
+        self.stride = int(payload.get("stride", OBJECTNESS_STRIDE))
+        self.threshold = float(threshold)
+        self.measure_threshold = (
+            None if measure_threshold is None else float(measure_threshold)
+        )
+
+        embed_dim = int(state["backbone.patch_embed.proj.bias"].shape[0])
+        if embed_dim not in _ARCHITECTURES:
+            raise ValueError(f"unknown ViT embed_dim {embed_dim}")
+        backbone_cfg = dict(
+            _ARCHITECTURES[embed_dim],
+            img_size=(self.img_h, self.img_w),
+            patch_size=PATCH_SIZE,
+            embed_dim=embed_dim,
+            ratio=1,
+            mlp_ratio=4,
+            qkv_bias=True,
+        )
+        hidden = int(state["head.0.weight"].shape[0])
+        self.device = torch.device(
+            device if (device == "cpu" or torch.cuda.is_available()) else "cpu"
+        )
+        self.model = ObjectnessNet(backbone_cfg, hidden=hidden)
+        self.model.load_state_dict(state)
+        self.model.to(self.device).eval()
+        print(
+            f"ObjectnessDetector loaded: {ckpt} (ViT dim {embed_dim}, "
+            f"input {self.img_h}x{self.img_w}, stride {self.stride}, "
+            f"detect {self.threshold} / measure {self.measure_threshold}, "
+            f"{self.device})"
+        )
+
+    @torch.no_grad()
+    def predict(self, img_rgb, return_prob=False):
+        """Full RGB frame -> (bbox_xywh, score) in source pixels, bbox None
+        if nothing fired; (bbox, score, prob) when return_prob."""
+        crop, (ox, oy) = letterless_crop(img_rgb)
+        ch, cw = crop.shape[:2]
+        resized = cv2.resize(
+            crop, (self.img_w, self.img_h), interpolation=cv2.INTER_AREA
+        )
+        normalized = (resized.astype(np.float32) / 255.0 - MEAN) / STD
+        tensor = torch.from_numpy(
+            np.ascontiguousarray(normalized.transpose(2, 0, 1)[None])
+        ).to(self.device)
+        prob = torch.sigmoid(self.model(tensor).float()).cpu().numpy()[0, 0]
+        box, score = decode_box(
+            prob,
+            self.threshold,
+            stride=self.stride,
+            measure_threshold=self.measure_threshold,
+        )
+        if box is not None:
+            sx, sy = cw / float(self.img_w), ch / float(self.img_h)
+            box = [
+                box[0] * sx + ox,
+                box[1] * sy + oy,
+                box[2] * sx,
+                box[3] * sy,
+            ]
+        return (box, score, prob) if return_prob else (box, score)
+
+
+def load_objectness(ckpt, **kwargs):
+    """Loader mirroring load_vitpose (no TRT backend exported yet)."""
+    if str(ckpt).endswith(".engine"):
+        raise NotImplementedError(
+            "objectness TensorRT engine export does not exist yet — "
+            "use the .pth checkpoint"
+        )
+    return ObjectnessDetector(ckpt, **kwargs)

@@ -1,19 +1,13 @@
-# ViTPose object config: TEKNOFEST gate (9 keypoints + aperture mask).
-# Three sections, one per pipeline stage — schema: auv_vision/VITPOSE_PLAN.md §6.
-# Model contract (geometry, ids, decode): gate_tetra_overview.md §2.
+# TEKNOFEST gate (9 keypoints + aperture mask). Geometry, ids, decode:
+# gate_tetra_overview.md §2.
 
 object: gate
 
 model: # consumed by vitpose_inference (via the detection node)
   checkpoint: gate_joint.pth # resolved against auv_detection/models/
   device: cuda
-  input_size: null # [H, W]; null = from checkpoint (256, 192)
-  # MSRA-encoded heads: use_udp must stay false (UDP decode measured ~3x
-  # worse). Both knobs exist for future checkpoints trained differently.
-  decode: {use_udp: false, post_process: unbiased, kernel: 11}
-  # Trained with flip augmentation; TTA off by default (reference parity —
-  # enable only after measuring a benefit).
-  flip_tta: false
+  decode: {use_udp: false, post_process: unbiased, kernel: 11} # contractual
+  flip_tta: false # off for reference parity; enable only after measuring
   flip_pairs: [[0, 1], [2, 3], [5, 7]]
   keypoint_names: [FrameTL, FrameTR, FrameBR, FrameBL, MidTop, MidRight, MidBottom, MidLeft, PingerTop]
   mask_classes: [gate] # the aperture membrane, not the frame silhouette
@@ -22,26 +16,48 @@ model: # consumed by vitpose_inference (via the detection node)
 detection: # consumed by vitpose_detection_node
   image_topic: /taluy/cameras/cam_front/image_raw
   result_topic: /vitpose_result_front
-  # full_frame = "assume the target is already framed". Future objectness:
-  # {type: topic, topic: /vitpose_bbox_front, class_id: 0, max_age: 0.5}
-  bbox_provider: {type: full_frame}
+  bbox_provider:
+    type: model
+    checkpoint: gate_objectness.pth
+    device: cuda
+    threshold: 0.5 # detect
+    # NOT tetra's 0.7: for gate an inflated box is nearly free (1.25x pad,
+    # tracker takes over) while a tight one clips the pinger pole (kp 8).
+    # Revisit with real gate footage.
+    measure_threshold: null
+    search_rate: 5.0 # Hz cap on detector retries while the object is absent
+    # Topic names the OBJECT: Detection2DArray has no object field.
+    publish_topic: /vitpose_bbox_gate_front
+    tracker:
+      seed_period: 2.0 # s; the detector re-runs at least this often
+      # Gate's mask is the aperture, not the silhouette — the 9 keypoints
+      # are (CropTracker, vitpose_utils SECTION 4).
+      propagate_from: keypoints
+      propagate_min_score: 0.2
+      min_keypoints: 4
+      margin: 0.10 # keypoints already span the object
+      border_slack_px: 4.0
+      max_area_ratio: 2.5
+      min_confidence: 0.2
+      # Judge health on the corners; the post midpoints (5, 7) slide by design.
+      confidence_ids: [0, 1, 2, 3]
 
 process: # consumed by vitpose_process_node
   camera:
     frame: taluy/base_link/front_camera_optical_link
     calibration_ns: cameras/cam_front # CameraCalibrationFetcher namespace
+  # result_topic / image_topic repeat the detection: values — each section is
+  # read by a different node. Keep them in sync.
   result_topic: /vitpose_result_front
   image_topic: /taluy/cameras/cam_front/image_raw # debug overlay only
   skeleton: [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0], [4, 8]]
   viz_conf_threshold: 0.5
   operations:
-    # Fused 6-DOF pose: keypoint PnP + dense aperture-mask edge refinement
-    # (VITPOSE_PLAN.md §5; verified offline on gate_joint_1000 val — see
-    # utils/pnp_utils.py docstring). Geometry: gate_tetra_overview.md §2,
-    # object frame Z-up, +Y = plane normal, all points in the y=0 plane.
+    # Fused 6-DOF pose (vitpose_utils SECTION 2). Object frame Z-up,
+    # +Y = plane normal, all points in the y=0 plane.
     - type: gate_pose
       params:
-        # Keypoint model points, index = keypoint id 0..8.
+        # Index = keypoint id 0..8.
         model_points:
           - [-0.53, 0.0, 1.49] # 0 FrameTL
           - [0.53, 0.0, 1.49] # 1 FrameTR
@@ -59,8 +75,7 @@ process: # consumed by vitpose_process_node
           - [0.5, 0.0, 1.46]
           - [-0.5, 0.0, 1.46]
         plane_normal: [0.0, 1.0, 0.0]
-        # Post midpoints slide along their post (the documented error tail);
-        # they contribute only perpendicular-to-post residuals.
+        # Post midpoints slide along their post; perpendicular residuals only.
         slide_segments:
           5: [[0.53, 0.0, 0.3], [0.53, 0.0, 1.2]]
           7: [[-0.53, 0.0, 0.3], [-0.53, 0.0, 1.2]]
@@ -70,10 +85,9 @@ process: # consumed by vitpose_process_node
         min_mask_iou: 0.4 # projected-aperture consistency; empty mask abstains
         prior_timeout: 5.0 # s; last accepted pose serves as init/flip prior
         prior_distance: 3.0 # m; canonical face-on prior before first accept
-        # refine: {} # FusedPlanarPoseEstimator overrides
-        # (utils/vitpose_utils.py FUSED_POSE_DEFAULTS)
+        # refine: {} # FUSED_POSE_DEFAULTS overrides
         outputs:
-          # NOTE: name collision with the YOLO gate pipeline is intentional
-          # only if one of the two runs at a time; rename here otherwise.
-          - {child_frame: gate_link, offset_xyz: [0.0, 0.0, 0.0]}
-          - {child_frame: gate_entrance_link, offset_xyz: [0.0, 0.0, 0.76]}
+          # One frame at the aperture centre — what SMACH aligns to and swims
+          # through. Collides with the YOLO gate frame on purpose (one
+          # pipeline at a time); rename here to run both.
+          - {child_frame: gate_link, offset_xyz: [0.0, 0.0, 0.76]}

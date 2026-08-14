@@ -1,0 +1,89 @@
+# Ground-truth geometry for sim_vitpose_node — ONLY what ground truth needs
+# (Gazebo model, object-frame keypoints, mask polygons); everything
+# interface-shaped comes from config/vitpose/<object>.yaml so sim and real
+# cannot drift. Points are in the Gazebo MODEL frame, which the SDFs promise
+# equals the valve-vision object frame (meshes converted from the training
+# assets).
+#
+# Mask winding is contractual: right-hand-rule normal points OUT of the
+# solid; `cull_backface` tests it against the view ray, and a `face:`-bound
+# keypoint drops to confidence 0 with its face (the averted-letter case).
+
+cameras:
+  # Same optical frames as sim_bbox_objects.yaml. Image topics come from the
+  # vitpose config; camera_info must be its sibling.
+  front:
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+  bottom:
+    camera_info_topic: "/{ns}/cameras/cam_bottom/camera_info"
+    optical_frame: "{ns}/base_link/bottom_camera_optical_link"
+
+objects:
+  # ── GATE ─────────────────────────────────────────────────────────────────
+  # Keypoint index = keypoint id (matched against gate.yaml at load).
+  gate:
+    camera: front
+    # The world's <include><name>, NOT the SDF model name.
+    gazebo_model: teknofest_pinger_gate
+    keypoints:
+      - [-0.53, 0.0, 1.49] # 0 FrameTL
+      - [0.53, 0.0, 1.49] # 1 FrameTR
+      - [0.53, 0.0, 0.03] # 2 FrameBR
+      - [-0.53, 0.0, 0.03] # 3 FrameBL
+      - [0.00, 0.0, 1.49] # 4 MidTop
+      - [0.53, 0.0, 0.76] # 5 MidRight
+      - [0.00, 0.0, 0.03] # 6 MidBottom
+      - [-0.53, 0.0, 0.76] # 7 MidLeft
+      - [0.00, 0.0, 1.59] # 8 PingerTop
+    masks:
+      # The aperture membrane, visible from both sides — no culling.
+      gate:
+        polygon:
+          - [-0.5, 0.0, 0.06]
+          - [0.5, 0.0, 0.06]
+          - [0.5, 0.0, 1.46]
+          - [-0.5, 0.0, 1.46]
+        cull_backface: false
+
+  # ── TETRA (bottom camera, pose) ──────────────────────────────────────────
+  # Canonical asset, no chirality swap baked: vertices V0 (0, 0.34641, 0),
+  # V1 (-0.3, -0.173205, 0), V2 (0.3, -0.173205, 0), Apex (0, 0, 0.489898);
+  # red = V0 V1 Apex, green = V1 V2 Apex, blue = V0 V2 Apex. Letters are
+  # centred on their face (converter default A=red, B=blue, C=green — one of
+  # the six permutations; tetra_unfold must still read it off the image).
+  tetra:
+    camera: bottom
+    gazebo_model: teknofest_tetra
+    keypoints:
+      # 0-2: letter glyph centres = face centroids; `face:` binds visibility
+      # to that mask's back-face test.
+      - {position: [-0.1, 0.057735, 0.163299], face: red} # 0 A
+      - {position: [0.1, 0.057735, 0.163299], face: blue} # 1 B
+      - {position: [0.0, -0.11547, 0.163299], face: green} # 2 C
+      # 3-6: vertices (with this asset VertexRG=V1, VertexGB=V2, VertexBR=V0).
+      - [0.0, 0.0, 0.489898] # 3 Apex
+      - [-0.3, -0.173205, 0.0] # 4 VertexRG
+      - [0.3, -0.173205, 0.0] # 5 VertexGB
+      - [0.0, 0.34641, 0.0] # 6 VertexBR
+    masks:
+      red:
+        polygon: [[0.0, 0.34641, 0.0], [-0.3, -0.173205, 0.0], [0.0, 0.0, 0.489898]]
+        cull_backface: true
+      green:
+        polygon: [[-0.3, -0.173205, 0.0], [0.3, -0.173205, 0.0], [0.0, 0.0, 0.489898]]
+        cull_backface: true
+      blue:
+        polygon: [[0.0, 0.34641, 0.0], [0.0, 0.0, 0.489898], [0.3, -0.173205, 0.0]]
+        cull_backface: true
+
+  # ── TETRA (front camera, detect-only scan) ───────────────────────────────
+  # Only output is the Detection2DArray box: AABB of the projected vertices.
+  tetra_front:
+    camera: front
+    gazebo_model: teknofest_tetra
+    bbox_points:
+      - [0.0, 0.34641, 0.0] # V0
+      - [-0.3, -0.173205, 0.0] # V1
+      - [0.3, -0.173205, 0.0] # V2
+      - [0.0, 0.0, 0.489898] # Apex
