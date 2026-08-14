@@ -8,6 +8,7 @@ catkin_package()
 include_directories()
 
 install(DIRECTORY
+  models
   worlds
   config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}

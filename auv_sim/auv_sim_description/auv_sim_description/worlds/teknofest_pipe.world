@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <world name="teknofest_pipe">
+    <physics name="default_physics" default="true" type="ode">
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>500</real_time_update_rate>
+    </physics>
+
+    <scene>
+      <ambient>0.025 0.08 0.11 1</ambient>
+      <background>0.015 0.05 0.08 1</background>
+      <shadows>false</shadows>
+      <fog>
+        <type>linear</type>
+        <color>0.03 0.15 0.20 1</color>
+        <start>8</start>
+        <end>35</end>
+      </fog>
+    </scene>
+
+    <light type="directional" name="surface_light">
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.22 0.42 0.50 1</diffuse>
+      <specular>0.02 0.02 0.02 1</specular>
+      <direction>0.15 -0.20 -1</direction>
+      <cast_shadows>false</cast_shadows>
+    </light>
+
+    <light type="directional" name="seafloor_fill_light">
+      <pose>-20 -20 -2 0 0 0</pose>
+      <diffuse>0.06 0.13 0.16 1</diffuse>
+      <specular>0 0 0 1</specular>
+      <direction>0.2 0.2 -1</direction>
+      <cast_shadows>false</cast_shadows>
+    </light>
+
+    <include>
+      <uri>model://ned_frame</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <model name="teknofest_seafloor">
+      <static>true</static>
+      <pose>0 0 -10.1 0 0 0</pose>
+      <link name="seafloor">
+        <visual name="sand_visual">
+          <geometry><box><size>40 40 0.2</size></box></geometry>
+          <material>
+            <ambient>0.24 0.17 0.09 1</ambient>
+            <diffuse>0.38 0.27 0.14 1</diffuse>
+            <specular>0 0 0 1</specular>
+          </material>
+        </visual>
+        <collision name="sand_collision">
+          <geometry><box><size>40 40 0.2</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_00</name><pose>-7.50  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_01</name><pose>-6.60  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_02</name><pose>-5.70  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_03</name><pose>-4.80  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_04</name><pose>-3.90  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_05</name><pose>-3.45  0.00 -10.0 0 0 0.000000</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_06</name><pose>-3.00  0.45 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_07</name><pose>-3.00  1.35 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_08</name><pose>-3.00  2.25 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_09</name><pose>-3.00  2.55 -10.0 0 0 1.570796</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_10</name><pose>-2.55  3.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_11</name><pose>-1.65  3.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_12</name><pose>-0.75  3.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_13</name><pose>-0.45  3.00 -10.0 0 0 0.000000</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_14</name><pose> 0.00  2.55 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_15</name><pose> 0.00  1.65 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_16</name><pose> 0.00  0.75 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_17</name><pose> 0.00 -0.15 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_18</name><pose> 0.00 -0.55 -10.0 0 0 1.570796</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_19</name><pose> 0.45 -1.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_20</name><pose> 1.35 -1.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_21</name><pose> 2.25 -1.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_22</name><pose> 3.05 -1.00 -10.0 0 0 0.000000</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_23</name><pose> 3.50 -0.55 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_24</name><pose> 3.50  0.35 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_25</name><pose> 3.50  1.25 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_26</name><pose> 3.50  1.55 -10.0 0 0 1.570796</pose></include>
+
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_27</name><pose> 3.95  2.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_28</name><pose> 4.85  2.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_29</name><pose> 5.75  2.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_30</name><pose> 6.65  2.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_31</name><pose> 7.50  2.00 -10.0 0 0 0.000000</pose></include>
+
+    <plugin name="underwater_current_plugin" filename="libuuv_underwater_current_ros_plugin.so">
+      <namespace>hydrodynamics</namespace>
+      <constant_current>
+        <topic>current_velocity</topic>
+        <velocity><mean>0</mean><min>0</min><max>0.001</max><mu>0</mu><noiseAmp>0</noiseAmp></velocity>
+        <horizontal_angle><mean>0</mean><min>-3.14159</min><max>3.14159</max><mu>0</mu><noiseAmp>0</noiseAmp></horizontal_angle>
+        <vertical_angle><mean>0</mean><min>-3.14159</min><max>3.14159</max><mu>0</mu><noiseAmp>0</noiseAmp></vertical_angle>
+      </constant_current>
+    </plugin>
+    <plugin name="sc_interface" filename="libuuv_sc_ros_interface_plugin.so" />
+
+    <gui fullscreen="0">
+      <camera name="user_camera">
+        <pose>-12 -15 2 0 0.50 0.85</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+  </world>
+</sdf>
