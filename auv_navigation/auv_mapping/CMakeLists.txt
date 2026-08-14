@@ -90,6 +90,7 @@ catkin_install_python(PROGRAMS
   scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
+  scripts/pinger_teknofest_trajectory_publisher.py
   scripts/waypoint_gui.py
   scripts/waypoint_publisher.py
   scripts/premap_publisher.py

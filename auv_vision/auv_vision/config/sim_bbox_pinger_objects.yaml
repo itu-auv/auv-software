@@ -1,0 +1,16 @@
+# Ground-truth projection configuration for the Teknofest pinger world.
+cameras:
+  pinger:
+    image_topic: "/{ns}/cameras/cam_front/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    result_topic: "/yolo_result_pinger"
+    image_out_topic: "/yolo_image_pinger"
+
+objects:
+  # Project the complete Gazebo visual mesh, rather than a hand-tuned box.
+  - class_id: 0
+    name: teknofest_pinger
+    cameras: [pinger]
+    gazebo_model: teknofest_pinger_gate
+    mesh: models/teknofest_pinger/meshes/teknofest_pinger.dae
