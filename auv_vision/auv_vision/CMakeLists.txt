@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_srvs
   tf
+  ultralytics_ros
   vision_msgs
 )
 
@@ -23,6 +24,7 @@ catkin_package(
     sensor_msgs
     std_srvs
     tf
+    ultralytics_ros
     vision_msgs
 )
 
@@ -33,6 +35,7 @@ include_directories(
 catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
+    scripts/detection2d_to_yolo_result_bridge.py
     scripts/yolo_result_bridge.py
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py

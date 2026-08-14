@@ -31,6 +31,14 @@
   <arg name="camera" default="" />
 
   <group ns="$(arg namespace)">
+    <!-- Feed the existing pinger camera handler from the ViTPose gate bbox.
+         YoloResult is only a thin wrapper around Detection2DArray. -->
+    <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
+          name="vitpose_pinger_bbox_bridge" output="screen">
+      <param name="input_topic" value="/vitpose_bbox_gate_front" />
+      <param name="output_topic" value="/yolo_result_pinger_vitpose" />
+    </node>
+
     <!-- Producer, GPU: image -> objectness bbox -> joint ViT -> VitposeResult. -->
     <node unless="$(arg sim)"
           pkg="auv_vision" type="vitpose_detection_node.py"
