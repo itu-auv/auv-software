@@ -111,6 +111,22 @@ def validate_detect_only(object_name: str, provider_cfg: dict) -> None:
         )
 
 
+def runtime_detect_rate(detection_cfg: dict):
+    """Frame-rate cap for a pose config running in mode 'detect': with no
+    joint model there is no tracker to amortize the objectness pass, so every
+    processed frame costs a full detector run (~27 ms). `detection.detect_rate`
+    wins; default is the provider's `search_rate` (5 Hz). Non-model providers
+    are cheap — `detection.rate` stands. Shared real + sim so the sim twin
+    heartbeats at the rate the real node would."""
+    provider = detection_cfg.get("bbox_provider") or {}
+    if provider.get("type", "full_frame") != "model":
+        return detection_cfg.get("rate")
+    rate = detection_cfg.get("detect_rate")
+    if rate is None:
+        rate = provider.get("search_rate", 5.0)
+    return rate
+
+
 class RateGate:
     """`detection.rate` (Hz): due(now_sec) is True at most once per period;
     falsy rate = no gating. Shared by the real node and the sim twin."""

@@ -26,8 +26,11 @@ lives with the code (section banners in `utils/vitpose_utils.py`).
 - No objectness fallback: a frame with no detection publishes no result
   (full-frame joint inference on real footage is measurably useless).
 - Poses go through the object map TF server, never raw TF broadcasts.
-  Calibration via `CameraCalibrationFetcher`. Enable = SetBool + Bool status
-  (tracker-node pattern). Debug topics subscriber-gated.
+  Calibration via `CameraCalibrationFetcher`. Node state = one mode
+  (`off`/`detect`/`pose`, `~set_mode` SetString; `~enable` = fullest/off
+  alias) with loaded ≡ enabled: leaving a mode frees its models from the
+  GPU (torch's CUDA context, ~225 MiB, stays until process exit). Status
+  latched: `~enabled` Bool + `~mode` String. Debug topics subscriber-gated.
 
 ## Components
 
@@ -69,6 +72,7 @@ to 08-14.
 | gate objectness | `~/yildiz_smoke` | fires 100/100 on gate val at median score 1.000; the old tetra placeholder fired 20/100 — false boxes, worse than silence |
 | detect-only + lazy load | `~/yildiz_smoke` | 0.94 Hz at rate 1.0, enable 1.15 s (920→1339 MiB), heartbeat present, all guardrails reject with reasons, failure path leaves the node up |
 | shell refactor smoke | live, 2026-08-14 | 9.3 Hz results, live gate→tetra swap, strict sim swap, warm-up heartbeats at the rate cap, re-enable 863 ms |
+| mode interface | `~/yildiz_smoke/mode_smoke.py`, live 2026-08-15 | full off/detect/pose matrix green, real + sim; transitions ~1.3 s; VRAM 38 cold → 457 detect → 877 pose → 513 detect → 225 off (CUDA-context floor); detect-only clamp + pose refusal verified |
 | timing (4060 Ti, 640×480) | — | objectness 27.1 ms (**82% of GPU**), joint 6.7 ms → 29.6 Hz; 1080p source balloons mask decode 0.8→13.3 ms; Orin estimate ~7 Hz per-frame / ~30 Hz seeded |
 
 Open caveats:
