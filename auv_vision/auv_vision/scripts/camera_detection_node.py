@@ -3,12 +3,12 @@
 import os
 import sys
 import importlib
+import math
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
-from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import tf2_ros
@@ -152,8 +152,10 @@ class CameraDetectionNode:
                     "Skipping this camera — other cameras will still work."
                 )
 
-        # Odometry subscriber
-        rospy.Subscriber("odometry", Odometry, self._odometry_callback)
+        # Float32 has no Header, so preserve receipt time with every DVL sample.
+        rospy.Subscriber(
+            "sensors/dvl/altitude", Float32, self._altitude_callback, queue_size=1
+        )
 
         # Services
         rospy.Service(
@@ -181,6 +183,12 @@ class CameraDetectionNode:
                 "enable_pinger_camera_detections",
                 SetBool,
                 self._handle_enable_pinger_camera,
+            )
+        if "pinger" in self.handlers and "tetra_front" in self.handlers:
+            rospy.Service(
+                "set_pinger_camera_focus",
+                SetDetectionFocus,
+                self._handle_set_pinger_camera_focus,
             )
         rospy.Service(
             "set_bottom_camera_focus",
@@ -246,13 +254,12 @@ class CameraDetectionNode:
 
         self.handlers[cam_key].handle(msg)
 
-    def _odometry_callback(self, msg: Odometry):
-        depth = -msg.pose.pose.position.z
-        self.shared_state["altitude"] = self.shared_state["pool_depth"] - depth
-        rospy.loginfo_once(
-            f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
-            f"(pool_depth={self.shared_state['pool_depth']})"
-        )
+    def _altitude_callback(self, msg):
+        altitude = float(msg.data)
+        if not math.isfinite(altitude) or altitude < 0.0:
+            rospy.logwarn_throttle(5.0, "Ignoring invalid DVL altitude: %s", msg.data)
+            return
+        self.shared_state["altitude"] = altitude
 
     def _set_tracker_enabled(self, cam_key, enabled, warn=True):
         if cam_key not in self.tracker_enable_proxies:
@@ -323,6 +330,23 @@ class CameraDetectionNode:
 
     def _handle_enable_pinger_camera(self, req):
         return self._handle_enable_camera("pinger", req.data)
+
+    def _handle_set_pinger_camera_focus(self, req):
+        mode = req.focus_object.strip()
+        if mode not in ("pinger", "tetra", "none"):
+            return SetDetectionFocusResponse(
+                success=False,
+                message="Pinger camera focus must be 'pinger', 'tetra', or 'none'",
+            )
+
+        pinger_enabled = mode == "pinger"
+        tetra_enabled = mode == "tetra"
+        pinger_response = self._handle_enable_camera("pinger", pinger_enabled)
+        tetra_response = self._handle_enable_camera("tetra_front", tetra_enabled)
+        success = pinger_response.success and tetra_response.success
+        message = f"Pinger camera focus set to: {mode}"
+        rospy.loginfo(message)
+        return SetDetectionFocusResponse(success=success, message=message)
 
     def _handle_enable_segment_camera(self, req):
         return self._handle_enable_camera("bottom_seg", req.data)

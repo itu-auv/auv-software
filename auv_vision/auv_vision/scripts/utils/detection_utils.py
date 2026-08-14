@@ -4,7 +4,6 @@ import math
 import yaml
 import rospy
 from geometry_msgs.msg import (
-    PointStamped,
     PoseStamped,
     TransformStamped,
     Vector3,
@@ -12,7 +11,7 @@ from geometry_msgs.msg import (
 )
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
-import tf2_geometry_msgs
+import tf2_geometry_msgs  # Registers PoseStamped conversions with tf2_ros.
 
 
 class CameraCalibration:

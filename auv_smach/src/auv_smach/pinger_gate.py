@@ -1,16 +1,35 @@
+import threading
+
 import rospy
 import smach
 import smach_ros
-from std_srvs.srv import SetBool, SetBoolRequest
+from auv_msgs.srv import (
+    SetDetectionFocus,
+    SetDetectionFocusRequest,
+    SetString,
+    SetStringRequest,
+)
+from std_msgs.msg import String
+from std_srvs.srv import Empty, EmptyRequest, SetBool, SetBoolRequest
 
 from auv_smach.common import (
     AlignFrame,
+    CheckForTransformState,
     DynamicPathState,
+    DynamicPathWithTransformCheck,
     SearchForPropState,
     SetDetectionState,
 )
 from auv_smach.initialize import DelayState
 from auv_smach.tf_utils import get_base_link
+
+
+def require_success(_userdata, response):
+    if response.success:
+        rospy.loginfo("Pinger-gate service succeeded: %s", response.message)
+        return "succeeded"
+    rospy.logerr("Service rejected pinger-gate transition: %s", response.message)
+    return "aborted"
 
 
 class PingerTrajectoryPublisherState(smach_ros.ServiceState):
@@ -30,7 +49,89 @@ class VitposeDetectionState(smach_ros.ServiceState):
             "vitpose_detection_node/enable",
             SetBool,
             request=SetBoolRequest(data=enable),
+            response_cb=require_success,
         )
+
+
+class VitposeConfigState(smach_ros.ServiceState):
+    def __init__(self, object_name: str):
+        super().__init__(
+            "vitpose_detection_node/set_config",
+            SetString,
+            request=SetStringRequest(data=object_name),
+            response_cb=require_success,
+        )
+
+
+class VitposeScanState(smach_ros.ServiceState):
+    def __init__(self, enable: bool):
+        super().__init__(
+            "vitpose_scan_node/enable",
+            SetBool,
+            request=SetBoolRequest(data=enable),
+            response_cb=require_success,
+        )
+
+
+class SetPingerCameraFocusState(smach_ros.ServiceState):
+    def __init__(self, focus: str):
+        super().__init__(
+            "set_pinger_camera_focus",
+            SetDetectionFocus,
+            request=SetDetectionFocusRequest(focus_object=focus),
+            response_cb=require_success,
+        )
+
+
+class ResetTetraUnfoldState(smach_ros.ServiceState):
+    def __init__(self):
+        super().__init__(
+            "tetra_unfold/reset",
+            Empty,
+            request=EmptyRequest(),
+        )
+
+
+class WaitForTetraUnfoldState(smach.State):
+    """Wait for a fresh, locked unfold result and print the mission payload."""
+
+    def __init__(self, topic="tetra/letter_colors", timeout=30.0):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        self.timeout = float(timeout)
+        self.condition = threading.Condition()
+        self.sequence = 0
+        self.latest = None
+        self.subscriber = rospy.Subscriber(topic, String, self._callback, queue_size=1)
+
+    def _callback(self, message):
+        with self.condition:
+            self.sequence += 1
+            self.latest = message.data
+            self.condition.notify_all()
+
+    def execute(self, _userdata):
+        with self.condition:
+            seen_sequence = self.sequence
+        deadline = rospy.Time.now() + rospy.Duration(self.timeout)
+
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            with self.condition:
+                if self.sequence <= seen_sequence:
+                    self.condition.wait(timeout=0.1)
+                    continue
+                seen_sequence = self.sequence
+                result = self.latest
+
+            rospy.loginfo("[TetraUnfold] %s", result)
+            if result and "state=LOCKED" in result:
+                return "succeeded"
+
+        rospy.logwarn("Timed out waiting for a fresh LOCKED tetra unfold result")
+        return "aborted"
 
 
 class PingerGateTaskState(smach.State):
@@ -42,12 +143,20 @@ class PingerGateTaskState(smach.State):
         close_approach_frame: str = "pinger_close_approach",
         gate_closer_frame: str = "gate_closer",
         gate_farther_frame: str = "gate_farther",
+        tetra_forward_search: bool = False,
+        tetra_front_frame: str = "front_tetra",
+        tetra_bottom_frame: str = "tetra_bottom_link",
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
         self.base_link = get_base_link()
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
+        )
+        tetra_search_start = (
+            "ENABLE_TETRA_FRONT_SCAN"
+            if tetra_forward_search
+            else "PATH_GATE_FARTHER_UNTIL_BOTTOM_TETRA"
         )
 
         with self.state_machine:
@@ -149,31 +258,128 @@ class PingerGateTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "FEVZI",
+                    "succeeded": "SET_VITPOSE_CONFIG_TETRA",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FEVZI",
+                "SET_VITPOSE_CONFIG_TETRA",
+                VitposeConfigState(object_name="tetra"),
+                transitions={
+                    "succeeded": "ENABLE_TETRA_BOTTOM_PIPELINE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_TETRA_BOTTOM_PIPELINE",
+                VitposeDetectionState(enable=True),
+                transitions={
+                    "succeeded": tetra_search_start,
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PATH_GATE_FARTHER_UNTIL_BOTTOM_TETRA",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame=gate_farther_frame,
+                    transform_source_frame="odom",
+                    transform_target_frame=tetra_bottom_frame,
+                    max_linear_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_TETRA_BOTTOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_TETRA_FRONT_SCAN",
+                VitposeScanState(enable=True),
+                transitions={
+                    "succeeded": "FOCUS_PINGER_CAMERA_ON_TETRA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FOCUS_PINGER_CAMERA_ON_TETRA",
+                SetPingerCameraFocusState(focus="tetra"),
+                transitions={
+                    "succeeded": "WAIT_FOR_FRONT_TETRA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_FRONT_TETRA",
                 DelayState(delay_time=2.0),
                 transitions={
-                    "succeeded": "ALIGN_TO_GATE_FARTHER",
+                    "succeeded": "WAIT_FOR_FRONT_TETRA_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_GATE_FARTHER",
+                "WAIT_FOR_FRONT_TETRA_FRAME",
+                CheckForTransformState(
+                    source_frame="odom",
+                    target_frame=tetra_front_frame,
+                    timeout=15.0,
+                ),
+                transitions={
+                    "succeeded": "PATH_FRONT_TETRA_UNTIL_BOTTOM_TETRA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PATH_FRONT_TETRA_UNTIL_BOTTOM_TETRA",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame=tetra_front_frame,
+                    transform_source_frame="odom",
+                    transform_target_frame=tetra_bottom_frame,
+                    max_linear_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_TETRA_BOTTOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TETRA_BOTTOM",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame=gate_farther_frame,
+                    target_frame=tetra_bottom_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=3.0,
-                    timeout=10.0,
+                    timeout=30.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.15,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "RESET_TETRA_UNFOLD",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_TETRA_UNFOLD",
+                ResetTetraUnfoldState(),
+                transitions={
+                    "succeeded": "WAIT_AND_PRINT_TETRA_UNFOLD",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_AND_PRINT_TETRA_UNFOLD",
+                WaitForTetraUnfoldState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

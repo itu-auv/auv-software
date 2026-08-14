@@ -37,6 +37,7 @@
       <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
       <remap from="enable_pinger_camera_detections" to="vision/enable_pinger_camera_detections"/>
+      <remap from="set_pinger_camera_focus" to="vision/set_pinger_camera_focus"/>
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
       <remap from="enable_all_camera_detections" to="vision/enable_all_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>

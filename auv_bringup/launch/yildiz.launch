@@ -38,6 +38,16 @@
       <param name="input_topic" value="/vitpose_bbox_gate_front" />
       <param name="output_topic" value="/yolo_result_pinger_vitpose" />
     </node>
+    <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
+          name="vitpose_tetra_front_bbox_bridge" output="screen">
+      <param name="input_topic" value="/vitpose_bbox_tetra_front" />
+      <param name="output_topic" value="/yolo_result_tetra_front_vitpose" />
+    </node>
+    <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
+          name="vitpose_tetra_bottom_bbox_bridge" output="screen">
+      <param name="input_topic" value="/vitpose_bbox_tetra_bottom" />
+      <param name="output_topic" value="/yolo_result_tetra_bottom_vitpose" />
+    </node>
 
     <!-- Producer, GPU: image -> objectness bbox -> joint ViT -> VitposeResult. -->
     <node unless="$(arg sim)"

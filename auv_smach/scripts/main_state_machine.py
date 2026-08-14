@@ -73,6 +73,9 @@ class MainStateMachineNode:
         self.slalom_direction = "left"
         self.octagon_start_from_table = False
         self.octagon_remaining_targets_max_attempts = 2
+        self.tetra_forward_search = bool(
+            rospy.get_param("~tetra_forward_search", False)
+        )
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -427,7 +430,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_TEKNOFEST_PINGER_GATE": (
                 PingerGateTaskState,
-                {},
+                {"tetra_forward_search": self.tetra_forward_search},
             ),
             "NAVIGATE_TO_GPS_TARGET": (
                 NavigateToGpsTargetState,

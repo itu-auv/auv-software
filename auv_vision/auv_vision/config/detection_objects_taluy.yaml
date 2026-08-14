@@ -26,6 +26,26 @@ cameras:
     image_height: 480
     id_tf_map:
       0: pinger_bbox
+  tetra_front:
+    ns: "taluy/cameras/cam_front"
+    frame: "taluy/base_link/front_camera_optical_link_stabilized"
+    yolo_topic: "/yolo_result_tetra_front_vitpose"
+    handler: "pinger_camera_handler"
+    default_enabled: false
+    image_width: 640
+    image_height: 480
+    id_tf_map:
+      0: front_tetra
+  tetra_bottom:
+    ns: "taluy/cameras/cam_bottom"
+    frame: "taluy/base_link/bottom_camera_optical_link"
+    yolo_topic: "/yolo_result_tetra_bottom_vitpose"
+    handler: "tetra_bottom_camera_handler"
+    default_enabled: true
+    image_width: 1920
+    image_height: 1080
+    id_tf_map:
+      0: tetra_bottom_link
   bottom:
     ns: "taluy/cameras/cam_bottom"
     frame: "taluy/base_link/bottom_camera_optical_link"
