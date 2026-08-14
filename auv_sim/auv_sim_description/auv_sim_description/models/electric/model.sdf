@@ -9,12 +9,11 @@
   <link name="electric_link">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <pose>0 0 0.0118 0 0 0</pose>
-        <mass>0.5</mass>
+        <mass>0.01</mass>
         <inertia>
-          <ixx>0.05</ixx>
-          <iyy>0.05</iyy>
-          <izz>0.05</izz>
+          <ixx>0.01</ixx>
+          <iyy>0.01</iyy>
+          <izz>0.01</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
@@ -23,14 +22,14 @@
 
       <velocity_decay>
         <linear>0.05</linear>
-        <angular>0.8</angular>
+        <angular>0.05</angular>
       </velocity_decay>
   <collision name="electric_col">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0.014 0 0 0</pose>
         <geometry>
-          <mesh>
-            <uri>model://electric/meshes/electric.dae</uri>
-          </mesh>
+          <box>
+            <size>0.0875 0.0875 0.032</size>
+          </box>
         </geometry>
         <surface>
           <contact>
@@ -43,8 +42,8 @@
           </contact>
           <friction>
             <ode>
-              <mu>50.0</mu>
-              <mu2>50.0</mu2>
+              <mu>900.0</mu>
+              <mu2>900.0</mu2>
               <slip1>0.0</slip1>
               <slip2>0.0</slip2>
             </ode>
@@ -54,16 +53,16 @@
           </bounce>
         </surface>
         <laser_retro>0.0</laser_retro>
-        <max_contacts>200</max_contacts>
+        <max_contacts>5</max_contacts>
       </collision>
 
       <!-- Primary visual (untextured DAE mesh) -->
   <visual name="electric_vis_base">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0.014 0 0 0</pose>
         <geometry>
-          <mesh>
-            <uri>model://electric/meshes/electric.dae</uri>
-          </mesh>
+          <box>
+            <size>0.0875 0.0875 0.032</size>
+          </box>
         </geometry>
       </visual>
 

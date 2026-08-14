@@ -7,7 +7,14 @@
     <arg name="debug" default="false" />
     <arg name="namespace" default="taluy" />
     <arg name="use_gui" default="true" />
-    <arg name="world_name" value="$(find auv_sim_description)/worlds/semi_final_pool.world" />
+    <arg name="objects" default="" />
+    <arg name="lane" default="a" />
+    <arg name="world_source" value="$(find auv_sim_description)/worlds/semi_final_pool.world" />
+    <arg name="world_name" value="/tmp/auv_semi_final_pool_$(arg lane).world" />
+
+    <!-- roslaunch evaluates command params synchronously, before gzserver starts. -->
+    <param name="/auv_sim/rendered_semi_final_pool_world"
+           command="$(find auv_sim_bringup)/scripts/render_semi_final_pool_world.py --source $(arg world_source) --output $(arg world_name) --lane $(arg lane)" />
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(arg world_name)" />
@@ -17,4 +24,5 @@
         <arg name="debug" value="$(arg debug)" />
         <arg name="verbose" value="true" />
     </include>
+
 </launch>

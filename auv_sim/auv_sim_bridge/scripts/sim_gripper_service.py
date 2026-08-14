@@ -361,20 +361,16 @@ class GripperService:
         )
 
     def handle_set_angle(self, msg):
-        if msg.data == 1930:
+        if msg.data > 1300:
             rospy.loginfo(
-                "[gripper_service] Received angle 1930 (open state), opening gripper"
+                f"[gripper_service] Received angle {msg.data} (open state), opening gripper"
             )
             self.handle_open(None)
-        elif msg.data == 600:
+        else:
             rospy.loginfo(
-                "[gripper_service] Received angle 600 (close state), closing gripper"
+                f"[gripper_service] Received angle {msg.data} (close state), closing gripper"
             )
             self.handle_close(None)
-        else:
-            rospy.logwarn(
-                f"[gripper_service] Received unmapped angle {msg.data}, ignoring"
-            )
 
     def run(self):
         rospy.spin()

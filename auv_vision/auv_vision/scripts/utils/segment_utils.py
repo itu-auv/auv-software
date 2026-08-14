@@ -8,6 +8,36 @@ import rospy
 from sensor_msgs.msg import CompressedImage
 
 
+SEGMENT_DEBUG_COLORS = {
+    "bandaid_link": (128, 0, 0),
+    "electric_link": (180, 105, 255),
+    "nutbolt_link": (200, 200, 200),
+    "pill_link": (0, 165, 255),
+    "basket_redcross_segment_link": (0, 0, 255),
+    "octagon_table_segment_link": (255, 200, 80),
+    "basket_warning_segment_link": (0, 255, 255),
+}
+
+SEGMENT_DEBUG_PALETTE = (
+    (0, 128, 255),
+    (255, 0, 255),
+    (0, 255, 255),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 128, 0),
+    (255, 255, 0),
+    (128, 0, 255),
+)
+
+
+def get_segment_debug_color(prop_name: str):
+    if prop_name in SEGMENT_DEBUG_COLORS:
+        return SEGMENT_DEBUG_COLORS[prop_name]
+
+    stable_index = sum((i + 1) * ord(ch) for i, ch in enumerate(prop_name))
+    return SEGMENT_DEBUG_PALETTE[stable_index % len(SEGMENT_DEBUG_PALETTE)]
+
+
 def _invalid_result(debug_image=None):
     return {
         "valid": False,
@@ -17,6 +47,7 @@ def _invalid_result(debug_image=None):
         "radius_px": None,
         "diameter_px": None,
         "debug_image": debug_image,
+        "debug_mask": None,
     }
 
 
@@ -38,10 +69,8 @@ def _largest_contour(mask: np.ndarray):
 
 def _base_debug_canvas(mask: np.ndarray, color=(255, 255, 0)):
     binary = (mask > 127).astype(np.uint8) * 255
-    vis = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
-    overlay = np.zeros_like(vis)
-    overlay[binary > 0] = color
-    vis = cv2.addWeighted(vis, 0.6, overlay, 0.4, 0.0)
+    vis = np.zeros((*binary.shape[:2], 3), dtype=np.uint8)
+    vis[binary > 0] = color
     h, w = binary.shape[:2]
     cv2.arrowedLine(
         vis, (w // 2, h // 2), (w * 3 // 4, h // 2), (255, 0, 0), 2, tipLength=0.3
@@ -91,9 +120,14 @@ def _cv2_to_compressed_msg(image: np.ndarray, header, fmt: str = "jpeg"):
     return msg
 
 
-def findposes_rect(mask: np.ndarray, last_yaw: float = None, debug: bool = False):
+def findposes_rect(
+    mask: np.ndarray,
+    last_yaw: float = None,
+    debug: bool = False,
+    debug_color=(255, 255, 0),
+):
     binary, contour = _largest_contour(mask)
-    debug_image = _base_debug_canvas(binary) if debug else None
+    debug_image = _base_debug_canvas(binary, color=debug_color) if debug else None
     if contour is None or len(contour) < 4:
         return _invalid_result(debug_image=debug_image)
 
@@ -137,26 +171,32 @@ def findposes_rect(mask: np.ndarray, last_yaw: float = None, debug: bool = False
         "radius_px": None,
         "diameter_px": None,
         "debug_image": debug_image,
+        "debug_mask": binary if debug else None,
     }
 
     if debug:
         vis = debug_image
-        cv2.drawContours(vis, [box.astype(np.int32)], 0, (0, 255, 0), 2)
+        cv2.drawContours(vis, [box.astype(np.int32)], 0, debug_color, 2)
         cv2.line(
             vis,
             tuple(edge_start.astype(np.int32)),
             tuple(edge_end.astype(np.int32)),
-            (0, 0, 255),
+            (255, 255, 255),
             2,
         )
-        cv2.circle(vis, (int(round(cx)), int(round(cy))), 4, (255, 255, 255), -1)
+        cv2.circle(vis, (int(round(cx)), int(round(cy))), 4, debug_color, -1)
 
     return result
 
 
-def findposes_circle(mask: np.ndarray, last_yaw: float = None, debug: bool = False):
+def findposes_circle(
+    mask: np.ndarray,
+    last_yaw: float = None,
+    debug: bool = False,
+    debug_color=(0, 255, 255),
+):
     binary, contour = _largest_contour(mask)
-    debug_image = _base_debug_canvas(binary, color=(0, 255, 255)) if debug else None
+    debug_image = _base_debug_canvas(binary, color=debug_color) if debug else None
     if contour is None or len(contour) < 5:
         return _invalid_result(debug_image=debug_image)
 
@@ -173,13 +213,14 @@ def findposes_circle(mask: np.ndarray, last_yaw: float = None, debug: bool = Fal
         "radius_px": float(radius_px),
         "diameter_px": diameter_px,
         "debug_image": debug_image,
+        "debug_mask": binary if debug else None,
     }
 
     if debug:
         vis = debug_image
         center = (int(round(cx)), int(round(cy)))
-        cv2.circle(vis, center, int(round(radius_px)), (0, 255, 0), 2)
-        cv2.circle(vis, center, 4, (255, 255, 255), -1)
+        cv2.circle(vis, center, int(round(radius_px)), debug_color, 2)
+        cv2.circle(vis, center, 4, debug_color, -1)
 
     return result
 
@@ -200,6 +241,7 @@ def publish_debug_image(
         return
 
     vis = debug_image.copy()
+    debug_color = get_segment_debug_color(prop_name)
 
     center = geometry.get("center")
     if center is not None:
@@ -207,7 +249,7 @@ def publish_debug_image(
             vis,
             (int(round(center[0])), int(round(center[1]))),
             6,
-            (0, 0, 255),
+            debug_color,
             -1,
         )
 
@@ -216,7 +258,7 @@ def publish_debug_image(
             vis,
             (int(round(bbox_center.x)), int(round(bbox_center.y))),
             5,
-            (255, 0, 255),
+            debug_color,
             -1,
         )
         cv2.putText(
@@ -225,7 +267,7 @@ def publish_debug_image(
             (8, max(70, vis.shape[0] - 14)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
-            (255, 0, 255),
+            debug_color,
             1,
             cv2.LINE_AA,
         )
@@ -236,7 +278,7 @@ def publish_debug_image(
         (8, max(24, vis.shape[0] - 36)),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
-        (255, 255, 255),
+        debug_color,
         2,
         cv2.LINE_AA,
     )
@@ -249,7 +291,7 @@ def publish_debug_image(
             (8, 22 + i * 22),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
-            (0, 255, 255) if i == 0 else (0, 255, 0),
+            debug_color,
             2,
             cv2.LINE_AA,
         )
@@ -282,12 +324,15 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
         debug_image = geometry.get("debug_image")
         if debug_image is None:
             continue
+        debug_mask = geometry.get("debug_mask")
         valid_items.append(
             (
                 item.get("prop_name", "unknown"),
                 geometry,
                 item.get("bbox_center"),
                 debug_image,
+                item.get("debug_color"),
+                debug_mask,
             )
         )
 
@@ -295,22 +340,24 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
         return
 
     vis = np.zeros_like(valid_items[0][3])
-    for _, _, _, debug_image in valid_items:
+    layer_items = sorted(
+        valid_items,
+        key=lambda item: cv2.countNonZero(item[5]) if item[5] is not None else 0,
+        reverse=True,
+    )
+    for prop_name, _, _, debug_image, debug_color, debug_mask in layer_items:
         if debug_image.shape != vis.shape:
             continue
-        vis = np.maximum(vis, debug_image)
+        color = debug_color or get_segment_debug_color(prop_name)
+        if debug_mask is None:
+            vis = np.maximum(vis, debug_image)
+        else:
+            vis[debug_mask > 0] = color
 
-    colors = [
-        (0, 255, 255),
-        (255, 128, 0),
-        (0, 255, 0),
-        (255, 0, 255),
-        (0, 128, 255),
-        (255, 255, 255),
-    ]
-
-    for idx, (prop_name, geometry, bbox_center, _) in enumerate(valid_items):
-        color = colors[idx % len(colors)]
+    for idx, (prop_name, geometry, bbox_center, _, debug_color, _) in enumerate(
+        valid_items
+    ):
+        color = debug_color or get_segment_debug_color(prop_name)
 
         center = geometry.get("center")
         if center is not None:
@@ -346,14 +393,13 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
         metrics = _geometry_metric_lines(geometry)
         for line_idx, line in enumerate(metrics[:2]):
             metric_y = min(label_y + 16 + line_idx * 16, vis.shape[0] - 8)
-            metric_color = (0, 255, 255) if line_idx == 0 else (0, 255, 0)
             cv2.putText(
                 vis,
                 line,
                 (18, metric_y),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.45,
-                metric_color,
+                color,
                 1,
                 cv2.LINE_AA,
             )

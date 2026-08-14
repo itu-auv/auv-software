@@ -23,7 +23,7 @@ class OctagonTransformServiceNode:
 
         self.odom_frame = "odom"
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
-        self.octagon_frame = "octagon_link"
+        self.octagon_frame = "octagon_link_kde"
         self.middle_basket_frame = rospy.get_param(
             "~middle_basket_frame", "middle_basket"
         )

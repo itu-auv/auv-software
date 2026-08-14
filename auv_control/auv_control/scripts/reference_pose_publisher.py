@@ -40,8 +40,25 @@ from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
 
 
+RIGHT_ANGLE_YAW_OFFSETS = (0.0, np.pi / 2.0, np.pi, 3.0 * np.pi / 2.0)
+
+
 def normalize_angle(angle: float) -> float:
     return np.arctan2(np.sin(angle), np.cos(angle))
+
+
+def closest_right_angle_yaw(source_yaw: float, reference_yaw: float) -> float:
+    return min(
+        (normalize_angle(source_yaw + offset) for offset in RIGHT_ANGLE_YAW_OFFSETS),
+        key=lambda yaw: abs(shortest_angular_distance(yaw, reference_yaw)),
+    )
+
+
+def closest_half_turn_yaw(source_yaw: float, reference_yaw: float) -> float:
+    return min(
+        (normalize_angle(source_yaw + offset) for offset in (0.0, np.pi)),
+        key=lambda yaw: abs(shortest_angular_distance(yaw, reference_yaw)),
+    )
 
 
 class ReferencePosePublisherNode:
@@ -120,7 +137,9 @@ class ReferencePosePublisherNode:
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
         self.max_xy_offset = rospy.get_param("~max_xy_offset", 1.0)
-        self.max_z_offset = rospy.get_param("~max_z_offset", 0.1)
+        self.max_z_offset = rospy.get_param("~max_z_offset", 0.2)
+        self.max_z = rospy.get_param("~max_z", 0.0)
+        self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
 
         self.max_z = rospy.get_param("~max_z", 0.0)
@@ -334,17 +353,53 @@ class ReferencePosePublisherNode:
                                 t_base.transform.rotation.w,
                             ]
                         )
-                        flipped = normalize_angle(self.target_heading + np.pi)
-                        dist_normal = abs(
-                            shortest_angular_distance(
-                                self.target_heading, base_yaw_in_target
-                            )
+                        self.target_heading = closest_right_angle_yaw(
+                            self.target_heading, base_yaw_in_target
                         )
-                        dist_flipped = abs(
-                            shortest_angular_distance(flipped, base_yaw_in_target)
+
+                    desired_base_in_target = quaternion_from_euler(
+                        self.target_roll, self.target_pitch, self.target_heading
+                    )
+                    desired_source_in_target = quaternion_multiply(
+                        desired_base_in_target,
+                        quaternion_inverse(base_in_source_quaternion),
+                    )
+                    rotation_matrix = quaternion_matrix(desired_source_in_target)[
+                        :3, :3
+                    ]
+                    offset_in_target = rotation_matrix.dot(
+                        [
+                            t.transform.translation.x,
+                            t.transform.translation.y,
+                            t.transform.translation.z,
+                        ]
+                    )
+                    self.target_x, self.target_y = offset_in_target[:2]
+                elif req.closest_yaw_180:
+                    base_in_source_quaternion = [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                    t_base = self.tf_lookup(
+                        req.target_frame,
+                        self.base_frame,
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                    if t_base is not None:
+                        _, _, base_yaw_in_target = euler_from_quaternion(
+                            [
+                                t_base.transform.rotation.x,
+                                t_base.transform.rotation.y,
+                                t_base.transform.rotation.z,
+                                t_base.transform.rotation.w,
+                            ]
                         )
-                        if dist_flipped < dist_normal:
-                            self.target_heading = flipped
+                        self.target_heading = closest_half_turn_yaw(
+                            self.target_heading, base_yaw_in_target
+                        )
 
                     desired_base_in_target = quaternion_from_euler(
                         self.target_roll, self.target_pitch, self.target_heading
