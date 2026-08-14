@@ -15,6 +15,7 @@ from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
+from auv_smach.pipe_follower import PipeTaskState
 from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
@@ -145,6 +146,11 @@ class MainStateMachineNode:
         self.octagon_depth = -0.6
 
         self.pipeline_depth = -0.75
+
+        # Pipe follower parameters
+        self.pipe_map_depth = -2.0
+        self.pipe_target_frame = "pipe_carrot"
+        self.pipe_method = rospy.get_param("~pipe_method", "new")
 
         # GPS parameters
         self.gps_depth = -1.0
@@ -457,6 +463,14 @@ class MainStateMachineNode:
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
+            ),
+            "FOLLOW_PIPE": (
+                PipeTaskState,
+                {
+                    "pipe_map_depth": self.pipe_map_depth,
+                    "pipe_target_frame": self.pipe_target_frame,
+                    "pipe_method": self.pipe_method,
+                },
             ),
         }
 

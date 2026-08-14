@@ -13,6 +13,10 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_srvs
   tf
+  dynamic_reconfigure
+)
+generate_dynamic_reconfigure_options(
+  cfg/PipeFollowerLegacy.cfg
 )
 
 catkin_package(
@@ -22,6 +26,7 @@ catkin_package(
     sensor_msgs
     std_srvs
     tf
+    dynamic_reconfigure
 )
 
 include_directories(
@@ -32,9 +37,8 @@ catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
-    scripts/yolo_to_mask_node.py
-    scripts/opencv_pipe_detector.py
-    scripts/pipe_follower.py
+    scripts/yolo_seg_to_mask.py
+    scripts/pipe_follower_legacy.py
     scripts/principal_point_overlay_node.py
     scripts/sim_bbox_node.py
     scripts/sim_tracker_node.py
