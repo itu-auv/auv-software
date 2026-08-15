@@ -1,0 +1,11 @@
+<launch>
+  <!-- Starts the DINO tracker + reference vector generator nodes, which run in
+       a Python 3.10 conda env (ROS itself stays on the system Python 3.8). -->
+
+  <arg name="model_path" default="$(find auv_vision)/../auv_detection/models/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"/>
+
+  <param name="dino_tracker_node/model_path" value="$(arg model_path)"/>
+  <param name="reference_vector_generator_node/model_path" value="$(arg model_path)"/>
+
+  <node pkg="auv_vision" type="start_dino_nodes.sh" name="dino_launcher" output="screen"/>
+</launch>
