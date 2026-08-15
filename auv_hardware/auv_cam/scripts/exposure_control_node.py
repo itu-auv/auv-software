@@ -322,19 +322,26 @@ class ExposureControlNode:
 
     # --- controllers ---
 
+    def _gain_step_for(self, err):
+        # scale with error so big errors unwind gain about as fast as the
+        # exposure servo moves, small ones stay gentle near the deadband
+        return self.gain_step * int(np.clip(abs(err) / self.deadband, 1, 4))
+
     def step_percentile(self, pct):
         err = self.target - pct
         if abs(err) <= self.deadband:
             return
-        if err < 0 and self.exposure <= self.exp_min:
-            # too bright at floor exposure: shed gain
-            if self.use_gain and self.gain > self.gain_min:
-                self._write_gain(self.gain - self.gain_step)
+        if err < 0 and self.use_gain and self.gain > self.gain_min:
+            # too bright: gain is a last resort in both directions — shed it
+            # to the floor before trading away exposure (best SNR at rest)
+            self._write_gain(self.gain - self._gain_step_for(err))
             return
+        if err < 0 and self.exposure <= self.exp_min:
+            return  # true hardware floor: gain 0, exposure at min
         if err > 0 and self.exposure >= self.exp_max:
             # too dark at ceiling exposure: add gain
             if self.use_gain and self.gain < self.gain_max:
-                self._write_gain(self.gain + self.gain_step)
+                self._write_gain(self.gain + self._gain_step_for(err))
             return
         factor = 1.0 + self.kp * err / 255.0
         new_e = self.exposure * factor
