@@ -17,18 +17,22 @@
   <arg name="namespace" default="taluy" />
   <!-- Object the pose node loads: a name under auv_vision/config/vitpose/
        or an absolute YAML path. -->
-  <arg name="object" default="gate" />
+  <arg name="object" default="tetra" />
   <!-- Loading is lazy; `enabled` decides when checkpoints hit the GPU. A
        failed load logs and leaves the node up but disabled. -->
   <arg name="enabled" default="true" />
-  <arg name="scan" default="true" />
+  <arg name="scan" default="false" />
   <arg name="scan_enabled" default="false" />
   <arg name="sim" default="false" />
   <!-- Bench-test override: run the pose pipeline on another camera, e.g.
        camera:=front retargets image/calibration/frame to cam_front by the
        standard layout (any cam_<name> camera works). Empty = per-config
        cameras. Real nodes only — ignored under sim:=true. -->
-  <arg name="camera" default="" />
+  <arg name="camera" default="front" />
+  <!-- RoI-metered exposure (auv_cam/exposure_control_node): V4L2 exposure
+       servoed on the objectness box instead of the whole frame, so a glary
+       tetra/gate is exposed for, not blown out. Real cameras only. -->
+  <arg name="exposure" default="true" />
 
   <group ns="$(arg namespace)">
     <!-- Producer, GPU: image -> objectness bbox -> joint ViT -> VitposeResult. -->
@@ -63,6 +67,19 @@
       <param name="enabled" value="$(arg scan_enabled)" />
       <param name="namespace" value="$(arg namespace)" />
     </node>
+
+    <!-- TEST-BRANCH LAYOUT (exposure-tetra-test): tetra pose pipeline
+         retargeted to the FRONT camera (bench-testable with the AUV on a
+         table), scan node off, one exposure node on cam_front following the
+         tetra box. The bbox topic keeps its object name (camera override
+         leaves topics alone), hence "_bottom" on the front camera. No box =
+         the constant centre RoI. -->
+    <group if="$(eval arg('exposure') and not arg('sim'))">
+      <node ns="cameras/cam_front" pkg="auv_cam" type="exposure_control_node.py"
+            name="exposure_control" output="screen">
+        <rosparam param="detections_topics">[/vitpose_bbox_tetra_bottom]</rosparam>
+      </node>
+    </group>
 
     <!-- Consumer, CPU: ops (gate_pose, tetra_unfold) + debug overlays.
          Poses go through the object map TF server. -->
