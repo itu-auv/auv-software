@@ -7,73 +7,110 @@ from std_msgs.msg import UInt16MultiArray
 
 class MiniRovDrive:
     def __init__(self):
-        rospy.init_node("minirov_drive", anonymous=True)
+        rospy.init_node("minirov_drive")
 
-        self.max_pwm = rospy.get_param("~max_pwm", 1800)
         self.min_pwm = rospy.get_param("~min_pwm", 1200)
-        self.default_pwm = rospy.get_param("~default_pwm", 1500)
-        self.publish_topic = rospy.get_param("~publish_topic", "/minirov/drive_pulse")
+        self.neutral_pwm = rospy.get_param("~neutral_pwm", 1500)
+        self.max_pwm = rospy.get_param("~max_pwm", 1800)
+        self.publish_rate = rospy.get_param("~publish_rate", 20.0)
+        self.ramp_step = rospy.get_param("~ramp_step", 15)
+        self.publish_topic = rospy.get_param("~publish_topic")
+        self.motor_count = rospy.get_param("~motor_count", 4)
+        self.controls = rospy.get_param("~controls")
 
-        self.motors = rospy.get_param("~motors")
-        self.toggle_states = {}
-        self.last_pressed = {}
-        for motor in self.motors:
-            self.toggle_states[motor["id"]] = False
+        neutral = [self.neutral_pwm] * self.motor_count
+        self.current_pwm = list(neutral)
+        self.target_pwm = list(neutral)
+        self.ramping = [False] * self.motor_count
+        self.trigger_ready = {
+            name: False for name, config in self.controls.items() if "trigger" in config
+        }
 
-        self.pub = rospy.Publisher(self.publish_topic, UInt16MultiArray, queue_size=10)
-        self.sub = rospy.Subscriber("joy", Joy, self.joy_callback, queue_size=1)
-        rospy.loginfo(f"MiniRovDrive started, publishing to {self.publish_topic}")
+        self.publisher = rospy.Publisher(
+            self.publish_topic, UInt16MultiArray, queue_size=10
+        )
+        rospy.Subscriber("joy", Joy, self.joy_callback, queue_size=1)
+        rospy.Timer(rospy.Duration(1.0 / self.publish_rate), self.publish)
 
-    def get_axis_value(self, axis_spec, joy_data):
-        if isinstance(axis_spec, list):
-            return sum(joy_data.axes[i] for i in axis_spec)
-        return joy_data.axes[axis_spec]
+        rospy.loginfo(
+            f"MiniRovDrive publishing {self.publish_topic} at "
+            f"{self.publish_rate:g} Hz"
+        )
 
-    def compute_pwm(self, motor, value):
-        if motor["type"] == "x":
-            ratio = max(-1.0, min(1.0, value))
-            return int(
-                round(self.default_pwm + (self.max_pwm - self.default_pwm) * ratio)
-            )
-        if motor["type"] == "z":
-            ratio = max(-1.0, min(1.0, value))
-            if self.toggle_states.get(motor["id"]):
-                low = self.min_pwm
+    @staticmethod
+    def move_towards(current, target, step):
+        if current < target:
+            return min(current + step, target)
+        return max(current - step, target)
+
+    def publish(self, _event):
+        for motor in range(self.motor_count):
+            if self.ramping[motor]:
+                self.current_pwm[motor] = self.move_towards(
+                    self.current_pwm[motor], self.target_pwm[motor], self.ramp_step
+                )
+                if self.current_pwm[motor] == self.target_pwm[motor]:
+                    self.ramping[motor] = False
             else:
-                low = self.max_pwm
-            return int(
-                round(self.default_pwm + (self.default_pwm - low) * (ratio - 1) / 2.0)
-            )
-        return self.default_pwm
+                self.current_pwm[motor] = self.target_pwm[motor]
 
-    def joy_callback(self, msg):
-        pwm_values = {}
+        self.publisher.publish(UInt16MultiArray(data=self.current_pwm))
 
-        for motor in self.motors:
-            mid = motor["id"]
-            if "toggle_button" in motor:
-                pressed = msg.buttons[motor["toggle_button"]] == 1
-                prev = self.last_pressed.get(mid, False)
-                if pressed and not prev:
-                    self.toggle_states[mid] = not self.toggle_states[mid]
-                    direction = "FORWARD" if not self.toggle_states[mid] else "REVERSE"
-                    rospy.loginfo(f"[{motor['name']}] direction toggled -> {direction}")
-                self.last_pressed[mid] = pressed
-            pwm_values[mid] = self.compute_pwm(
-                motor, self.get_axis_value(motor["axis"], msg)
-            )
+    @staticmethod
+    def axis_value(indices, joy):
+        if isinstance(indices, list):
+            return sum(joy.axes[index] for index in indices)
+        return joy.axes[indices]
 
-        ordered = [pwm_values[mid] for mid in sorted(pwm_values)]
-        self.pub.publish(UInt16MultiArray(data=ordered))
+    def trigger_value(self, name, index, joy):
+        raw = max(-1.0, min(1.0, joy.axes[index]))
+        if not self.trigger_ready[name]:
+            if abs(raw) < 0.5:
+                return 0.0
+            self.trigger_ready[name] = True
+        return (1.0 - raw) / 2.0
 
-        if getattr(self, "last_pwm", None) != ordered:
-            self.last_pwm = ordered
-            rospy.loginfo(f"drive_pulse: {ordered}")
+    def control_value(self, name, config, joy):
+        if "axis" in config:
+            value = self.axis_value(config["axis"], joy)
+        elif "trigger" in config:
+            value = self.trigger_value(name, config["trigger"], joy)
+        else:
+            value = float(joy.buttons[config["button"]])
+
+        value = max(-1.0, min(1.0, value))
+        return -value if config.get("inverse", False) else value
+
+    def value_to_pwm(self, value):
+        if value >= 0:
+            return round(self.neutral_pwm + (self.max_pwm - self.neutral_pwm) * value)
+        return round(self.neutral_pwm + (self.neutral_pwm - self.min_pwm) * value)
+
+    def joy_callback(self, joy):
+        targets = [self.neutral_pwm] * self.motor_count
+        active_controls = [None] * self.motor_count
+
+        for name, config in self.controls.items():
+            value = self.control_value(name, config, joy)
+            if value == 0:
+                continue
+
+            motor = config["motor"]
+            targets[motor] = self.value_to_pwm(value)
+            active_controls[motor] = config
+
+        for motor, config in enumerate(active_controls):
+            self.target_pwm[motor] = targets[motor]
+
+            if config is not None:
+                self.ramping[motor] = config.get("ramp", False)
+            elif self.current_pwm[motor] < self.neutral_pwm:
+                self.ramping[motor] = True
 
 
 if __name__ == "__main__":
     try:
-        node = MiniRovDrive()
+        MiniRovDrive()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

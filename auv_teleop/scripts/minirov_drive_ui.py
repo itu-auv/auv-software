@@ -204,7 +204,7 @@ if __name__ == "__main__":
     import sys
 
     app = QApplication(sys.argv)
-    rospy.init_node("minirov_drive_ui", anonymous=True)
+    rospy.init_node("minirov_drive_ui")
     window = MiniRovDriveUI()
     window.show()
     app.exec_()
