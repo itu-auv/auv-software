@@ -115,6 +115,7 @@ class DrawMaskNode:
         drawing = False
         mouse_x, mouse_y = None, None
         legend_height = 40
+        window_was_visible = False
 
         def draw_mask_cb(event, x, y, flags, param):
             nonlocal drawing, mask, brush_size, mouse_x, mouse_y
@@ -216,7 +217,10 @@ class DrawMaskNode:
 
             # Fallback check if the user clicks window 'X' button
             try:
-                if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
+                prop = cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE)
+                if prop == 1:
+                    window_was_visible = True
+                elif window_was_visible and prop < 1:
                     rospy.loginfo("[DrawMaskNode] Window closed. Drawing cancelled.")
                     self.gui_status = "cancelled"
                     break
