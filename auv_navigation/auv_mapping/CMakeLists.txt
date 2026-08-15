@@ -55,6 +55,7 @@ generate_dynamic_reconfigure_options(
   cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
   cfg/PingerTeknofestTrajectory.cfg
+  cfg/TetraTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
 )
@@ -92,6 +93,7 @@ catkin_install_python(PROGRAMS
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
   scripts/pinger_teknofest_trajectory_publisher.py
+  scripts/tetra_trajectory_publisher.py
   scripts/waypoint_gui.py
   scripts/waypoint_publisher.py
   scripts/premap_publisher.py

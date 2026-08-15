@@ -3,12 +3,7 @@ import threading
 import rospy
 import smach
 import smach_ros
-from auv_msgs.srv import (
-    SetDetectionFocus,
-    SetDetectionFocusRequest,
-    SetString,
-    SetStringRequest,
-)
+from auv_msgs.srv import SetString, SetStringRequest
 from std_msgs.msg import String
 from std_srvs.srv import Empty, EmptyRequest, SetBool, SetBoolRequest
 
@@ -73,12 +68,12 @@ class VitposeScanState(smach_ros.ServiceState):
         )
 
 
-class SetPingerCameraFocusState(smach_ros.ServiceState):
-    def __init__(self, focus: str):
+class TetraFrontCameraState(smach_ros.ServiceState):
+    def __init__(self, enable: bool):
         super().__init__(
-            "set_pinger_camera_focus",
-            SetDetectionFocus,
-            request=SetDetectionFocusRequest(focus_object=focus),
+            "enable_tetra_front_camera_detections",
+            SetBool,
+            request=SetBoolRequest(data=enable),
             response_cb=require_success,
         )
 
@@ -144,7 +139,7 @@ class PingerGateTaskState(smach.State):
         gate_closer_frame: str = "gate_closer",
         gate_farther_frame: str = "gate_farther",
         tetra_forward_search: bool = False,
-        tetra_front_frame: str = "front_tetra",
+        tetra_front_frame: str = "tetra_front_link",
         tetra_bottom_frame: str = "tetra_bottom_link",
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
@@ -295,18 +290,20 @@ class PingerGateTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+            ##---------------------------------------Front Scan Smach
+
             smach.StateMachine.add(
                 "ENABLE_TETRA_FRONT_SCAN",
                 VitposeScanState(enable=True),
                 transitions={
-                    "succeeded": "FOCUS_PINGER_CAMERA_ON_TETRA",
+                    "succeeded": "ENABLE_TETRA_FRONT_CAMERA",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FOCUS_PINGER_CAMERA_ON_TETRA",
-                SetPingerCameraFocusState(focus="tetra"),
+                "ENABLE_TETRA_FRONT_CAMERA",
+                TetraFrontCameraState(enable=True),
                 transitions={
                     "succeeded": "WAIT_FOR_FRONT_TETRA",
                     "preempted": "preempted",

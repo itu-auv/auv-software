@@ -184,11 +184,11 @@ class CameraDetectionNode:
                 SetBool,
                 self._handle_enable_pinger_camera,
             )
-        if "pinger" in self.handlers and "tetra_front" in self.handlers:
+        if "tetra_front" in self.handlers:
             rospy.Service(
-                "set_pinger_camera_focus",
-                SetDetectionFocus,
-                self._handle_set_pinger_camera_focus,
+                "enable_tetra_front_camera_detections",
+                SetBool,
+                self._handle_enable_tetra_front_camera,
             )
         rospy.Service(
             "set_bottom_camera_focus",
@@ -331,22 +331,8 @@ class CameraDetectionNode:
     def _handle_enable_pinger_camera(self, req):
         return self._handle_enable_camera("pinger", req.data)
 
-    def _handle_set_pinger_camera_focus(self, req):
-        mode = req.focus_object.strip()
-        if mode not in ("pinger", "tetra", "none"):
-            return SetDetectionFocusResponse(
-                success=False,
-                message="Pinger camera focus must be 'pinger', 'tetra', or 'none'",
-            )
-
-        pinger_enabled = mode == "pinger"
-        tetra_enabled = mode == "tetra"
-        pinger_response = self._handle_enable_camera("pinger", pinger_enabled)
-        tetra_response = self._handle_enable_camera("tetra_front", tetra_enabled)
-        success = pinger_response.success and tetra_response.success
-        message = f"Pinger camera focus set to: {mode}"
-        rospy.loginfo(message)
-        return SetDetectionFocusResponse(success=success, message=message)
+    def _handle_enable_tetra_front_camera(self, req):
+        return self._handle_enable_camera("tetra_front", req.data)
 
     def _handle_enable_segment_camera(self, req):
         return self._handle_enable_camera("bottom_seg", req.data)

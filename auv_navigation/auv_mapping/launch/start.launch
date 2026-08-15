@@ -37,7 +37,7 @@
       <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
       <remap from="enable_pinger_camera_detections" to="vision/enable_pinger_camera_detections"/>
-      <remap from="set_pinger_camera_focus" to="vision/set_pinger_camera_focus"/>
+      <remap from="enable_tetra_front_camera_detections" to="vision/enable_tetra_front_camera_detections"/>
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
       <remap from="enable_all_camera_detections" to="vision/enable_all_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
@@ -157,6 +157,16 @@
       <param name="output_frame" value="pinger_close_approach" />
       <param name="approach_distance" value="2.0" />
       <remap from="toggle_pinger_teknofest_trajectory" to="toggle_pinger_teknofest_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <node pkg="auv_mapping" type="tetra_trajectory_publisher.py" name="tetra_trajectory_publisher" output="screen">
+      <param name="robot_frame" value="$(arg namespace)/base_link" />
+      <param name="tetra_front_frame" value="tetra_front_link" />
+      <param name="tetra_further_frame" value="tetra_further_link" />
+      <param name="tetra_further_distance" value="4.0" />
+      <param name="enabled" value="true" />
+      <remap from="toggle_tetra_trajectory" to="toggle_tetra_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
