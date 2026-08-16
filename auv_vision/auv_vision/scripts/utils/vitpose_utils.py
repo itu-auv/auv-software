@@ -64,18 +64,19 @@ def resolve_checkpoint_path(checkpoint: str) -> str:
     return os.path.join(_rospack.get_path("auv_detection"), "models", checkpoint)
 
 
-def load_object_config(name_or_path: str) -> dict:
+def load_object_config(name_or_path: str, ns: str = "taluy") -> dict:
     """Load one object config. all_object_configs() loads every YAML in the
     dir, so raising here takes down the whole process node — keep the
-    required set minimal (`object`, `detection`)."""
+    required set minimal (`object`, `detection`, `camera`). The `camera`
+    token is expanded into every camera-derived key (apply_camera)."""
     path = resolve_config_path(name_or_path)
     with open(path, "r") as handle:
         config = yaml.safe_load(handle)
-    for section in ("object", "detection"):
+    for section in ("object", "detection", "camera"):
         if section not in config:
-            raise ValueError(f"{path}: missing required section '{section}'")
+            raise ValueError(f"{path}: missing required key '{section}'")
     config["_path"] = path
-    return config
+    return apply_camera(config, config["camera"], ns)
 
 
 def is_detect_only(config: dict) -> bool:
@@ -127,21 +128,25 @@ class RateGate:
         return False
 
 
-def apply_camera_override(config: dict, camera: str, ns: str) -> dict:
-    """Point a loaded config at another camera (bench-test knob, `~camera`).
-
-    One token derives everything by the repo's standard camera layout:
-    image `/{ns}/cameras/cam_<camera>/image_raw`, calibration
-    `cameras/cam_<camera>`, frame `{ns}/base_link/<camera>_camera_optical_link`
-    — so `front`/`bottom` work, and so does any camera published in that
-    layout (e.g. a webcam masquerading as cam_webcam). Mutates and returns
-    `config`. Result/bbox topics are left alone.
+def apply_camera(config: dict, camera: str, ns: str) -> dict:
+    """Point a config at a camera by the repo's standard camera layout: image
+    `/{ns}/cameras/cam_<camera>/image_raw`, calibration `cameras/cam_<camera>`,
+    frame `{ns}/base_link/<camera>_camera_optical_link`, VitposeResult on
+    `/vitpose_result_<camera>` — so `front`/`bottom`/`torpedo` work, and so
+    does any camera published in that layout (e.g. a webcam masquerading as
+    cam_webcam). Called by the loader for the YAML's own `camera:` and again
+    for the `~camera` bench-test override. Mutates and returns `config`; the
+    bbox publish_topic is left alone (it names the object).
     """
     image_topic = f"/{ns}/cameras/cam_{camera}/image_raw"
+    result_topic = f"/vitpose_result_{camera}"
+    config["camera"] = camera
     config["detection"]["image_topic"] = image_topic
+    config["detection"]["result_topic"] = result_topic
     process = config.get("process")
     if process:
         process["image_topic"] = image_topic
+        process["result_topic"] = result_topic
         process["camera"] = {
             "frame": f"{ns}/base_link/{camera}_camera_optical_link",
             "calibration_ns": f"cameras/cam_{camera}",
@@ -149,11 +154,11 @@ def apply_camera_override(config: dict, camera: str, ns: str) -> dict:
     return config
 
 
-def all_object_configs() -> dict:
+def all_object_configs(ns: str = "taluy") -> dict:
     """{object name: config} for every YAML in the config dir."""
     configs = {}
     for path in sorted(glob.glob(os.path.join(config_dir(), "*.yaml"))):
-        config = load_object_config(path)
+        config = load_object_config(path, ns)
         name = config["object"]
         if name in configs:
             raise ValueError(

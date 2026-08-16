@@ -56,7 +56,7 @@ if _scripts_dir not in sys.path:
 from utils.vitpose_utils import (  # noqa: E402
     CropTracker,
     RateGate,
-    apply_camera_override,
+    apply_camera,
     is_detect_only,
     load_object_config,
     model_kwargs,
@@ -480,11 +480,11 @@ class VitposeDetectionNode(VitposeNodeBase):
     # ------------------------------------------------------------- pipeline
 
     def _build_pipeline(self, name_or_path):
-        config = load_object_config(name_or_path)
+        ns = rospy.get_namespace().strip("/") or "taluy"
+        config = load_object_config(name_or_path, ns)
         camera = rospy.get_param("~camera", "")
         if camera:
-            ns = rospy.get_namespace().strip("/") or "taluy"
-            apply_camera_override(config, camera, ns)
+            apply_camera(config, camera, ns)
             rospy.logwarn(
                 f"~camera override: '{config['object']}' running on cam_{camera}"
             )

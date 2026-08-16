@@ -1,8 +1,9 @@
 # TEKNOFEST "yıldızlar" tetra (60 cm tetrahedron, 3 letter + 4 vertex
-# keypoints, red/green/blue face masks, bottom camera). Geometry, chirality,
+# keypoints, red/green/blue face masks, front camera). Geometry, chirality,
 # decals: gate_tetra_overview.md §3.
 
 object: tetra
+camera: front # image/result topics, calibration, frame all derive from this
 
 model:
   checkpoint: tetra_joint.pth # tetra/004: trained WITH random chirality
@@ -22,8 +23,6 @@ model:
   mask_threshold: null
 
 detection:
-  image_topic: /taluy/cameras/cam_bottom/image_raw
-  result_topic: /vitpose_result_bottom
   bbox_provider:
     type: model
     checkpoint: tetra_objectness.pth
@@ -32,7 +31,7 @@ detection:
     measure_threshold: 0.7 # box EXTENT only — real ramp is wider than sim
     search_rate: 5.0 # Hz cap on detector retries while the object is absent
     # Topic names the OBJECT: Detection2DArray has no object field.
-    publish_topic: /vitpose_bbox_tetra_bottom
+    publish_topic: /vitpose_bbox_tetra_front
     # Objectness only seeds; the crop is carried by the model's own mask
     # silhouette (CropTracker, vitpose_utils SECTION 4). Remove the block to
     # detect every frame.
@@ -49,13 +48,6 @@ detection:
       confidence_ids: [3, 4, 5, 6]
 
 process:
-  camera:
-    frame: taluy/base_link/bottom_camera_optical_link
-    calibration_ns: cameras/cam_bottom
-  # result_topic / image_topic repeat the detection: values — each section is
-  # read by a different node. Keep them in sync.
-  result_topic: /vitpose_result_bottom
-  image_topic: /taluy/cameras/cam_bottom/image_raw
   skeleton: [] # letters have no skeleton
   viz_conf_threshold: 0.5
   operations:
@@ -65,7 +57,7 @@ process:
       params:
         # PLACEHOLDER — set from the real object before the competition:
         # cyclic order of (red, green, blue) going CLOCKWISE in the
-        # bottom-camera image. Only lays out the drawn net.
+        # camera image. Only lays out the drawn net.
         chirality: cw
         min_score: 0.35 # averted-face letters are garbage; the only defence
         inside_min: 0.25 # mask prob at the kp that counts as "in this face"

@@ -40,8 +40,10 @@ lives with the code (section banners in `utils/vitpose_utils.py`).
   from `config/sim_vitpose_objects.yaml`, no checkpoints touched.
 - `scripts/vitpose_process_node.py` + `scripts/vitpose_ops/` — consumer; ops
   `gate_pose` and `tetra_unfold`; debug + idle overlay.
-- `config/vitpose/<object>.yaml` — schema: `object` + `detection` required,
-  `model` + `process` optional; no `model:` section = detect-only.
+- `config/vitpose/<object>.yaml` — schema: `object` + `camera` + `detection`
+  required, `model` + `process` optional; no `model:` section = detect-only.
+  `camera: front|bottom|torpedo` expands at load into image/result topics,
+  calibration ns and optical frame (`apply_camera`, standard cam layout).
 - `auv_bringup/launch/yildiz.launch` — pose node + detect-only front scan
   node + process node; `sim:=true` swaps node type, never names.
 - `utils/slim_checkpoint.py` — strips a joint training checkpoint to its

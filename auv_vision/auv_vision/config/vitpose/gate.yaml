@@ -2,6 +2,7 @@
 # gate_tetra_overview.md §2.
 
 object: gate
+camera: front # image/result topics, calibration, frame all derive from this
 
 model: # consumed by vitpose_inference (via the detection node)
   checkpoint: gate_joint.pth # resolved against auv_detection/models/
@@ -14,8 +15,6 @@ model: # consumed by vitpose_inference (via the detection node)
   mask_threshold: null # null = from checkpoint (0.5)
 
 detection: # consumed by vitpose_detection_node
-  image_topic: /taluy/cameras/cam_front/image_raw
-  result_topic: /vitpose_result_front
   bbox_provider:
     type: model
     checkpoint: gate_objectness.pth
@@ -43,18 +42,13 @@ detection: # consumed by vitpose_detection_node
       confidence_ids: [0, 1, 2, 3]
 
 process: # consumed by vitpose_process_node
-  camera:
-    frame: taluy/base_link/front_camera_optical_link
-    calibration_ns: cameras/cam_front # CameraCalibrationFetcher namespace
-  # result_topic / image_topic repeat the detection: values — each section is
-  # read by a different node. Keep them in sync.
-  result_topic: /vitpose_result_front
-  image_topic: /taluy/cameras/cam_front/image_raw # debug overlay only
   skeleton: [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0], [4, 8]]
   viz_conf_threshold: 0.5
+  viz_masks: false # overlay: keypoints only, no aperture tint
   operations:
-    # Fused 6-DOF pose (vitpose_utils SECTION 2). Object frame Z-up,
-    # +Y = plane normal, all points in the y=0 plane.
+    # Keypoint-only 6-DOF pose (vitpose_utils SECTION 2, kp path; the mask
+    # is not consumed). Object frame Z-up, +Y = plane normal, all points in
+    # the y=0 plane.
     - type: gate_pose
       params:
         # Index = keypoint id 0..8.
@@ -68,7 +62,7 @@ process: # consumed by vitpose_process_node
           - [0.00, 0.0, 0.03] # 6 MidBottom
           - [-0.53, 0.0, 0.76] # 7 MidLeft
           - [0.00, 0.0, 1.59] # 8 PingerTop
-        # The aperture opening (= what the mask segments), corner loop.
+        # The aperture opening, corner loop — overlay + range-gate centroid.
         aperture_polygon:
           - [-0.5, 0.0, 0.06]
           - [0.5, 0.0, 0.06]
@@ -79,10 +73,8 @@ process: # consumed by vitpose_process_node
         slide_segments:
           5: [[0.53, 0.0, 0.3], [0.53, 0.0, 1.2]]
           7: [[-0.53, 0.0, 0.3], [-0.53, 0.0, 1.2]]
-        mask_class: gate
         min_keypoints: 4
         max_distance: 30.0 # house-wide range gate
-        min_mask_iou: 0.4 # projected-aperture consistency; empty mask abstains
         prior_timeout: 5.0 # s; last accepted pose serves as init/flip prior
         prior_distance: 3.0 # m; canonical face-on prior before first accept
         # refine: {} # FUSED_POSE_DEFAULTS overrides

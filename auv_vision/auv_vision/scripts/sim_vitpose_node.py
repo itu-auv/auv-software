@@ -338,6 +338,7 @@ class SimVitposeNode(VitposeNodeBase):
         rospy.init_node("vitpose_detection_node")
 
         ns = rospy.get_param("~namespace", rospy.get_namespace().strip("/") or "taluy")
+        self._ns = ns
         self._sim_cameras, self._sim_objects = load_sim_config(
             rospy.get_param("~sim_config", sim_config_path()), ns
         )
@@ -352,7 +353,7 @@ class SimVitposeNode(VitposeNodeBase):
     # ------------------------------------------------------------- pipeline
 
     def _build_pipeline(self, name_or_path) -> _SimPipeline:
-        config = load_object_config(name_or_path)
+        config = load_object_config(name_or_path, self._ns)
         return _SimPipeline(
             config,
             self._sim_cameras,

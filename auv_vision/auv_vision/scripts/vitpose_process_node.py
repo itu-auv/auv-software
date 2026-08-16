@@ -52,7 +52,7 @@ if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
 from utils.detection_utils import transform_to_odom_and_publish  # noqa: E402
-from utils.vitpose_utils import all_object_configs, apply_camera_override  # noqa: E402
+from utils.vitpose_utils import all_object_configs, apply_camera  # noqa: E402
 
 # Debug palette (BGR); first three deliberately match tetra's (red, green,
 # blue) channel order.
@@ -167,6 +167,7 @@ class ObjectPipeline:
     image_topic: str
     skeleton: List[List[int]] = field(default_factory=list)
     viz_conf_threshold: float = 0.5
+    viz_masks: bool = True
     last_result: Optional[float] = None  # None = nothing ever arrived
     last_idle_publish: float = 0.0
 
@@ -192,10 +193,10 @@ class VitposeProcessNode:
         # Bench-test knob: retargets EVERY object at the named camera (must
         # match the detection node's ~camera; one object runs at a time).
         camera_override = rospy.get_param("~camera", "")
-        for name, config in all_object_configs().items():
+        ns = rospy.get_namespace().strip("/") or "taluy"
+        for name, config in all_object_configs(ns).items():
             if camera_override:
-                ns = rospy.get_namespace().strip("/") or "taluy"
-                apply_camera_override(config, camera_override, ns)
+                apply_camera(config, camera_override, ns)
             if not config.get("process"):
                 rospy.loginfo(
                     f"vitpose object '{name}': no `process:` section "
@@ -268,6 +269,7 @@ class VitposeProcessNode:
             image_topic=process_cfg["image_topic"],
             skeleton=[list(pair) for pair in (process_cfg.get("skeleton") or [])],
             viz_conf_threshold=float(process_cfg.get("viz_conf_threshold", 0.5)),
+            viz_masks=bool(process_cfg.get("viz_masks", True)),
         )
 
     # ------------------------------------------------------------- callbacks
@@ -368,7 +370,7 @@ class VitposeProcessNode:
 
         # Mask tints (translucent, one colour per class).
         binary = frame.binary_masks()
-        if binary is not None:
+        if binary is not None and pipeline.viz_masks:
             for index, mask in enumerate(binary):
                 if not mask.any():
                     continue

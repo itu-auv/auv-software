@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""gate_pose op — 6-DOF gate pose from keypoints + aperture mask, fused.
+"""gate_pose op — 6-DOF gate pose from the keypoints alone.
 
-Runs FusedPlanarPoseEstimator (vitpose_utils SECTION 2 — design, occlusion
-rationale, verified numbers), validates with the projected-aperture IoU, and
-publishes the configured frames through the object map TF server. The prior
-(last accepted pose, else a canonical face-on guess) serves the IPPE flip
-guard and the degenerate-init fallback. Rejected or absent solves publish
+Runs FusedPlanarPoseEstimator (vitpose_utils SECTION 2) on its keypoint-only
+path — the aperture mask is deliberately NOT consumed (no dense refinement,
+no mask-IoU validation); `aperture_polygon` only serves the overlay and the
+range gate. Publishes the configured frames through the object map TF
+server. The prior (last accepted pose, else a canonical face-on guess)
+serves the IPPE flip guard and the degenerate-init fallback. Rejected or absent solves publish
 nothing: the object map server Kalman-filters, so dropped frames are cheap
 and wrong frames are not.
 """
@@ -35,10 +36,8 @@ class GatePoseOp:
             if key not in params:
                 raise ValueError(f"gate_pose: missing required param '{key}'")
 
-        self.mask_class = str(params.get("mask_class", "gate"))
         self.min_keypoints = int(params.get("min_keypoints", 4))
         self.max_distance = float(params.get("max_distance", 30.0))
-        self.min_mask_iou = float(params.get("min_mask_iou", 0.4))
         self.prior_timeout = float(params.get("prior_timeout", 5.0))
         self.prior_distance = float(params.get("prior_distance", 3.0))
         self.outputs = [
@@ -129,12 +128,8 @@ class GatePoseOp:
         if n_confident < self.min_keypoints:
             return self._abstain(f"{n_confident} confident kps < {self.min_keypoints}")
 
-        mask_prob = None
-        if frame.mask_probs is not None and self.mask_class in frame.mask_classes:
-            mask_prob = frame.mask_probs[frame.mask_classes.index(self.mask_class)]
-
         result = self.estimator.estimate(
-            kps, scores, mask_prob, K, D, prior=self._prior(frame.stamp)
+            kps, scores, None, K, D, prior=self._prior(frame.stamp)
         )
         if result is None:
             return self._abstain("no PnP solution")
@@ -146,30 +141,13 @@ class GatePoseOp:
         distance = float(np.linalg.norm(centroid_cam))
         polygon = project_points(self.estimator.boundary_polygon, rvec, tvec, K, D)
         axes = project_points(self._axes_obj, rvec, tvec, K, D)
-        status = (
-            f"kp={n_confident} out={result.get('n_outliers', 0)} "
-            f"cross={result['n_crossings']}"
-            f"/{result['n_samples']} d={distance:.1f}m"
-        )
+        status = f"kp={n_confident} out={result.get('n_outliers', 0)} d={distance:.1f}m"
 
         if centroid_cam[2] <= 0:
             return self._abstain(f"behind camera ({status})")
         if distance > self.max_distance:
             self._set_viz(polygon, False, f"gate_pose: too far ({status})", axes)
             return
-
-        mask_iou = None
-        if mask_prob is not None:
-            binary = mask_prob >= frame.mask_threshold
-            if binary.any():
-                mask_iou = self.estimator.boundary_iou(rvec, tvec, binary, K, D)
-                status += f" iou={mask_iou:.2f}"
-                if mask_iou < self.min_mask_iou:
-                    self._set_viz(
-                        polygon, False, f"gate_pose: REJECT low iou ({status})", axes
-                    )
-                    return
-            # empty mask -> the IoU check abstains, the solve stands
 
         # --- accept: publish outputs ------------------------------------
         self._last_accepted = (rvec, tvec, frame.stamp)
