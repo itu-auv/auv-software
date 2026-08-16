@@ -7,6 +7,15 @@ publish_rate: 20.0
 motor_count: 4
 ramp_step: 15
 
+lumen_topic: /minirov/lumen_brightness
+lumen_on_button: 3
+lumen_off_button: 0
+
+rtsp_url: rtsp://192.168.1.33:554/
+width: 640
+height: 480
+fps: 30
+
 controls:
   left_x:
     motor: 0

@@ -3,7 +3,7 @@
 import rospy
 import threading
 import time
-from std_msgs.msg import UInt16MultiArray
+from std_msgs.msg import Bool, UInt16MultiArray
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -104,9 +104,13 @@ class MiniRovDriveUI(QMainWindow):
         self.resize(640, 420)
 
         self.topic = rospy.get_param("~pulse_topic", "/minirov/drive_pulse")
+        self.lumen_topic = rospy.get_param(
+            "~lumen_topic", "/minirov/lumen_brightness"
+        )
 
         self.lock = threading.Lock()
         self.pwm_data = None
+        self.lumen_enabled = None
         self.last_msg_time = 0.0
         self.msg_count = 0
         self.msg_rate = 0.0
@@ -115,6 +119,9 @@ class MiniRovDriveUI(QMainWindow):
 
         rospy.Subscriber(
             self.topic, UInt16MultiArray, self.pulse_callback, queue_size=1
+        )
+        rospy.Subscriber(
+            self.lumen_topic, Bool, self.lumen_callback, queue_size=1
         )
 
         self.timer = QTimer()
@@ -161,6 +168,10 @@ class MiniRovDriveUI(QMainWindow):
         self.raw_label.setAlignment(Qt.AlignCenter)
         hull_layout.addWidget(self.raw_label)
 
+        self.lumen_label = QLabel("Lumen: waiting")
+        self.lumen_label.setAlignment(Qt.AlignCenter)
+        hull_layout.addWidget(self.lumen_label)
+
         hull_layout.addStretch()
         grid.addWidget(hull, 0, 1, 2, 1)
 
@@ -175,6 +186,10 @@ class MiniRovDriveUI(QMainWindow):
             self.pwm_data = list(msg.data)
             self.last_msg_time = time.time()
             self.msg_count += 1
+
+    def lumen_callback(self, msg):
+        with self.lock:
+            self.lumen_enabled = msg.data
 
     def update_ui(self):
         with self.lock:
@@ -198,13 +213,29 @@ class MiniRovDriveUI(QMainWindow):
                     card.update_pwm(None)
 
             self.raw_label.setText("raw: " + str(values))
+            if self.lumen_enabled is not None:
+                value = "TRUE" if self.lumen_enabled else "FALSE"
+                color = "#4caf50" if self.lumen_enabled else "#ef5350"
+                self.lumen_label.setText(f"Lumen: {value}")
+                self.lumen_label.setStyleSheet(
+                    f"font-weight: bold; color: {color};"
+                )
 
 
 if __name__ == "__main__":
+    import signal
     import sys
 
     app = QApplication(sys.argv)
     rospy.init_node("minirov_drive_ui")
+
+    def shutdown_ui(_signal=None, _frame=None):
+        rospy.signal_shutdown("UI closed")
+        app.quit()
+
+    signal.signal(signal.SIGINT, shutdown_ui)
+    rospy.on_shutdown(app.quit)
+
     window = MiniRovDriveUI()
     window.show()
     app.exec_()
