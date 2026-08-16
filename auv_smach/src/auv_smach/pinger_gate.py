@@ -314,6 +314,15 @@ class PingerGateTaskState(smach.State):
                 "WAIT_FOR_FRONT_TETRA",
                 DelayState(delay_time=2.0),
                 transitions={
+                    "succeeded": "alling_to_exit",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "alling_to_exit",
+                DynamicPathState(plan_target_frame=gate_farther_frame),
+                transitions={
                     "succeeded": "WAIT_FOR_FRONT_TETRA_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
