@@ -25,6 +25,9 @@ detection: # consumed by vitpose_detection_node
     # Revisit with real gate footage.
     measure_threshold: null
     search_rate: 5.0 # Hz cap on detector retries while the object is absent
+    # The torpedo housing shows dark side arcs (800x448 rect image); the
+    # detector locks onto them when no gate is in view. Detector-only crop.
+    detect_columns: {torpedo: [140, 690]}
     # Topic names the OBJECT: Detection2DArray has no object field.
     publish_topic: /vitpose_bbox_gate_front
     tracker:

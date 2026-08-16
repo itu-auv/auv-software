@@ -118,7 +118,10 @@ class ModelProvider:
     params: checkpoint, device, threshold (detect, 0.5), measure_threshold
     (box EXTENT only, 0.7; see decode_box), search_rate (Hz cap on retries
     while the object is absent, 5.0; null/0 = every frame), publish_topic,
-    class_id, tracker (CropTracker kwargs).
+    class_id, tracker (CropTracker kwargs), detect_columns ([x0, x1] source
+    px, or {camera: [x0, x1]}: the DETECTOR only sees these columns — hides
+    a fisheye housing's side arcs it otherwise locks onto; boxes come back
+    in full-frame px, the pose model and tracker still see the whole frame).
     """
 
     def __init__(self, params):
@@ -146,10 +149,22 @@ class ModelProvider:
         search_rate = params.get("search_rate", 5.0)
         self._search_period = 1.0 / float(search_rate) if search_rate else 0.0
         self._next_search = 0.0  # earliest detector attempt while absent
+        cols = params.get("detect_columns")
+        if isinstance(cols, dict):
+            cols = cols.get(params.get("_camera"))
+        self._detect_columns = (int(cols[0]), int(cols[1])) if cols else None
 
     def _detect(self, img_rgb, now):
         """Run the detector; a miss holds off retries for one search period."""
-        bbox, self._score = self._detector.predict(img_rgb)
+        if self._detect_columns is None:
+            bbox, self._score = self._detector.predict(img_rgb)
+        else:
+            x0, x1 = self._detect_columns
+            bbox, self._score = self._detector.predict(
+                np.ascontiguousarray(img_rgb[:, x0:x1])
+            )
+            if bbox is not None:
+                bbox = (bbox[0] + x0, bbox[1], bbox[2], bbox[3])
         self._next_search = now + self._search_period if bbox is None else 0.0
         return bbox
 
@@ -264,6 +279,7 @@ class _Pipeline:
         provider_cfg = dict(
             detection_cfg.get("bbox_provider") or {"type": "full_frame"}
         )
+        provider_cfg["_camera"] = config.get("camera")  # per-camera knobs
 
         if self.detect_only:
             self.model = None
