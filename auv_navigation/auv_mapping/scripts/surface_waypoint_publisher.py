@@ -57,7 +57,8 @@ def geodetic_delta_to_odom(
 
 class SurfaceWaypointPublisher:
     def __init__(self):
-        self.parent_frame = "odom"
+        self.odom_frame = "odom"
+        self.north_frame = "north"
         self.start_frame = "surface_mission_start"
         self.frame_prefix = "surface_waypoint_"
         self.target_z_m = 0.0
@@ -78,9 +79,10 @@ class SurfaceWaypointPublisher:
         self._timer = rospy.Timer(rospy.Duration(0.1), self._publish_transforms)
 
         rospy.loginfo(
-            "[SurfaceWaypointPublisher] Ready: parent=%s, set_service=%s, "
+            "[SurfaceWaypointPublisher] Ready: odom=%s, north=%s, set_service=%s, "
             "config_param=%s",
-            self.parent_frame,
+            self.odom_frame,
+            self.north_frame,
             rospy.resolve_name("set_surface_mission"),
             rospy.resolve_name(self.config_rosparam),
         )
@@ -107,12 +109,17 @@ class SurfaceWaypointPublisher:
         waypoint_longitudes_deg,
         camera_enabled,
         visit_nearest_first,
+        odom_heading_from_north_deg,
     ):
         start_latitude_deg, start_longitude_deg = self._validate_coordinate(
             start_latitude_deg,
             start_longitude_deg,
             "Start",
         )
+        odom_heading_from_north_deg = float(odom_heading_from_north_deg)
+        if not math.isfinite(odom_heading_from_north_deg):
+            raise ValueError("Odom heading must be finite")
+        north_yaw_rad = math.radians(odom_heading_from_north_deg)
 
         waypoint_latitudes_deg = list(waypoint_latitudes_deg)
         waypoint_longitudes_deg = list(waypoint_longitudes_deg)
@@ -203,6 +210,8 @@ class SurfaceWaypointPublisher:
             },
             "waypoints": ordered_waypoints,
             "visit_nearest_first": bool(visit_nearest_first),
+            "odom_heading_from_north_deg": odom_heading_from_north_deg,
+            "north_yaw_rad": north_yaw_rad,
         }
 
     @staticmethod
@@ -241,6 +250,7 @@ class SurfaceWaypointPublisher:
                     request.waypoint_longitudes_deg,
                     request.camera_enabled,
                     request.visit_nearest_first,
+                    request.odom_heading_from_north_deg,
                 )
                 self._commit_config(config)
             self._log_config(config)
@@ -267,9 +277,10 @@ class SurfaceWaypointPublisher:
         start = config["start"]
         rospy.loginfo(
             "[SurfaceWaypointPublisher] Loaded: start=(%.8f N, %.8f E), "
-            "odom convention=(+x north, +y west)",
+            "odom heading from north=%.1f deg, north convention=(+x north, +y west)",
             start["latitude_deg"],
             start["longitude_deg"],
+            config["odom_heading_from_north_deg"],
         )
         for visit_number, waypoint in enumerate(config["waypoints"], start=1):
             rospy.loginfo(
@@ -294,18 +305,27 @@ class SurfaceWaypointPublisher:
         stamp = rospy.Time.now()
         transforms = [
             self._make_transform(
-                self.parent_frame,
+                self.odom_frame,
+                self.north_frame,
+                0.0,
+                0.0,
+                0.0,
+                config["north_yaw_rad"],
+                stamp,
+            ),
+            self._make_transform(
+                self.north_frame,
                 self.start_frame,
                 0.0,
                 0.0,
                 self.target_z_m,
                 0.0,
                 stamp,
-            )
+            ),
         ]
         transforms.extend(
             self._make_transform(
-                self.parent_frame,
+                self.north_frame,
                 waypoint["frame_id"],
                 waypoint["x_m"],
                 waypoint["y_m"],

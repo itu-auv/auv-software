@@ -12,8 +12,8 @@ class SurfaceWaypointGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Yüzey Waypoint Görevi")
-        self.root.geometry("1040x670")
-        self.root.minsize(920, 620)
+        self.root.geometry("1040x735")
+        self.root.minsize(920, 680)
 
         self.set_service_name = "map/set_surface_mission"
         self.service_connected = False
@@ -21,6 +21,7 @@ class SurfaceWaypointGUI:
 
         self.start_longitude_var = tk.StringVar(value="29,25646091")
         self.start_latitude_var = tk.StringVar(value="40,86129602")
+        self.odom_heading_from_north_var = tk.StringVar(value="0")
         self.visit_nearest_var = tk.BooleanVar(value=False)
         self.waypoint_vars = [
             {
@@ -121,6 +122,7 @@ class SurfaceWaypointGUI:
                 variables["camera"],
             )
 
+        self._build_north_frame_selector(container)
         self._build_visit_order_selector(container)
 
         info_text = (
@@ -128,11 +130,11 @@ class SurfaceWaypointGUI:
             "Frame yönleri seçilen rota yönüne göre ayarlanır."
         )
         ttk.Label(container, text=info_text, wraplength=980).grid(
-            row=3, column=0, sticky="w", pady=(10, 8)
+            row=4, column=0, sticky="w", pady=(10, 8)
         )
 
         button_frame = ttk.Frame(container)
-        button_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        button_frame.grid(row=5, column=0, sticky="ew", pady=(0, 10))
         button_frame.columnconfigure(1, weight=1)
         ttk.Button(
             button_frame,
@@ -150,12 +152,12 @@ class SurfaceWaypointGUI:
 
         result_frame = ttk.LabelFrame(
             container,
-            text="Başlangıca Göre Odom Sonuçları",
+            text="Başlangıca Göre North Frame Sonuçları",
             style="Section.TLabelframe",
             padding=8,
         )
-        result_frame.grid(row=5, column=0, sticky="nsew")
-        container.rowconfigure(5, weight=1)
+        result_frame.grid(row=6, column=0, sticky="nsew")
+        container.rowconfigure(6, weight=1)
         result_frame.rowconfigure(0, weight=1)
         result_frame.columnconfigure(0, weight=1)
 
@@ -167,8 +169,8 @@ class SurfaceWaypointGUI:
             height=4,
         )
         self.result_tree.heading("frame", text="TF Frame")
-        self.result_tree.heading("x", text="x / Kuzey (m)")
-        self.result_tree.heading("y", text="y / Batı (m)")
+        self.result_tree.heading("x", text="north x / Kuzey (m)")
+        self.result_tree.heading("y", text="north y / Batı (m)")
         self.result_tree.heading("distance", text="Başlangıca Uzaklık (m)")
         self.result_tree.heading("camera", text="Fotoğraf")
         self.result_tree.column("frame", width=210, anchor="center")
@@ -244,6 +246,28 @@ class SurfaceWaypointGUI:
 
         update_selection()
 
+    def _build_north_frame_selector(self, parent):
+        selector = ttk.LabelFrame(
+            parent,
+            text="Kuzey Referansı",
+            style="Section.TLabelframe",
+            padding=8,
+        )
+        selector.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        ttk.Label(
+            selector,
+            text="Odom +x'in gerçek kuzeye göre saat yönü açısı (°):",
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Entry(
+            selector,
+            textvariable=self.odom_heading_from_north_var,
+            width=12,
+        ).grid(row=0, column=1, padx=(8, 12))
+        ttk.Label(
+            selector,
+            text="0 = odom +x gerçek kuzey. Örn. 10 = odom +x, kuzeyin 10° doğusunda.",
+        ).grid(row=0, column=2, sticky="w")
+
     def _build_visit_order_selector(self, parent):
         selector = ttk.LabelFrame(
             parent,
@@ -251,7 +275,7 @@ class SurfaceWaypointGUI:
             style="Section.TLabelframe",
             padding=8,
         )
-        selector.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        selector.grid(row=3, column=0, sticky="ew", pady=(10, 0))
 
         sequential_button = tk.Button(selector, text="1 → 2 → 3", width=18)
         nearest_button = tk.Button(selector, text="En yakın sonraki", width=18)
@@ -327,6 +351,12 @@ class SurfaceWaypointGUI:
             "Başlangıç enlemi",
             -90.0,
             90.0,
+        )
+        request.odom_heading_from_north_deg = self._parse_coordinate(
+            self.odom_heading_from_north_var.get(),
+            "Odom kuzey açısı",
+            -360.0,
+            360.0,
         )
 
         request.waypoint_longitudes_deg = []

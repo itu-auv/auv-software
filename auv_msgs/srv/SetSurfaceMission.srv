@@ -4,6 +4,7 @@ float64[] waypoint_latitudes_deg
 float64[] waypoint_longitudes_deg
 bool[] camera_enabled
 bool visit_nearest_first
+float64 odom_heading_from_north_deg
 ---
 bool success
 string message
