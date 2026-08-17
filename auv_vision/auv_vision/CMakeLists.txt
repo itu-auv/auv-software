@@ -10,10 +10,13 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   image_transport
   cv_bridge
+  geometry_msgs
   sensor_msgs
   std_srvs
   tf
   dynamic_reconfigure
+  ultralytics_ros
+  vision_msgs
 )
 generate_dynamic_reconfigure_options(
   cfg/PipeFollowerLegacy.cfg
@@ -22,11 +25,14 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
+    geometry_msgs
     rospy
     sensor_msgs
     std_srvs
     tf
     dynamic_reconfigure
+    ultralytics_ros
+    vision_msgs
 )
 
 include_directories(
