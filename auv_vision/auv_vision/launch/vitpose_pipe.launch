@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<!--
+  Pipe segmentation with the ViTPose seg-only model (config/vitpose/pipe.yaml)
+  on the bottom camera, publishing the binary mask on /seg_mask for
+  pipe_frame_publisher (auv_mapping). Included from auv_vision start.launch
+  (vitpose_pipe:=true); standalone:
+
+    roslaunch auv_vision vitpose_pipe.launch
+
+  enabled:=false leaves the node up but cold (no GPU) until
+    rosservice call /taluy/vitpose_pipe_node/enable "data: true"
+-->
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="sim" default="false" />
+  <arg name="enabled" default="true" />
+  <arg name="mask_topic" default="/seg_mask" />
+  <!-- Same source as the YOLO segment tracker used. -->
+  <arg name="image_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color" unless="$(arg sim)" />
+  <arg name="image_topic" default="/$(arg namespace)/cameras/cam_bottom/image_underwater" if="$(arg sim)" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_vision" type="vitpose_detection_node.py"
+          name="vitpose_pipe_node" output="screen">
+      <param name="config" value="pipe" />
+      <param name="enabled" value="$(arg enabled)" />
+      <!-- pipe.yaml (camera: bottom) subscribes the standard image_raw. -->
+      <remap from="/$(arg namespace)/cameras/cam_bottom/image_raw" to="$(arg image_topic)" />
+    </node>
+    <node pkg="auv_vision" type="vitpose_seg_mask_node.py"
+          name="vitpose_pipe_mask" output="screen">
+      <param name="input_topic" value="/vitpose_result_bottom" />
+      <param name="output_topic" value="$(arg mask_topic)" />
+      <param name="mask_class" value="pipe" />
+    </node>
+  </group>
+</launch>

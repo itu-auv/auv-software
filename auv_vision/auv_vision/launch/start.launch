@@ -8,6 +8,19 @@
   <arg name="pipe_legacy_close_kernel_size" default="25" />
   <arg name="pipe_legacy_open_kernel_size" default="5" />
   <arg name="pipe_legacy_min_contour_area" default="250" />
+  <!-- ViTPose seg-only pipe model on the bottom camera -> /seg_mask
+       (config/vitpose/pipe.yaml). The YOLO path (yolo_seg_to_mask_node
+       below) stays passive unless the segment tracker runs. -->
+  <arg name="vitpose_pipe" default="true" />
+  <arg name="vitpose_pipe_enabled" default="true" />
+  <arg name="sim" default="false" />
+
+  <include if="$(arg vitpose_pipe)" file="$(find auv_vision)/launch/vitpose_pipe.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="sim" value="$(arg sim)" />
+    <arg name="enabled" value="$(arg vitpose_pipe_enabled)" />
+    <arg name="mask_topic" value="$(arg pipe_legacy_mask_topic)" />
+  </include>
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->

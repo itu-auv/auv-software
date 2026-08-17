@@ -37,5 +37,6 @@
 
   <include file="$(find auv_vision)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
+    <arg name="sim" value="$(arg sim)" />
   </include>
 </launch>

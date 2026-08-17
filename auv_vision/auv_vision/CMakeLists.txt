@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   geometry_msgs
   sensor_msgs
+  std_msgs
   std_srvs
   tf
   dynamic_reconfigure
@@ -28,6 +29,7 @@ catkin_package(
     geometry_msgs
     rospy
     sensor_msgs
+    std_msgs
     std_srvs
     tf
     dynamic_reconfigure
@@ -55,6 +57,8 @@ catkin_install_python(
     scripts/draw_mask_node.py
     scripts/reference_vector_generator_node.py
     scripts/dino_tracker_node.py
+    scripts/vitpose_detection_node.py
+    scripts/vitpose_seg_mask_node.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

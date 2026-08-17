@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   nav_msgs
+  sensor_msgs
   std_msgs
 )
 
@@ -26,6 +27,7 @@ add_message_files(
   PropsYaw.msg
   SegmentMeasurement.msg
   TDOA.msg
+  VitposeResult.msg
   WaypointPath.msg
 )
 
@@ -41,6 +43,7 @@ add_service_files(
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv
+  SetString.srv
   SetWaypoint.srv
 )
 
@@ -50,6 +53,7 @@ generate_messages(
   actionlib_msgs
   geometry_msgs
   nav_msgs
+  sensor_msgs
   std_msgs
 )
 
@@ -62,6 +66,7 @@ catkin_package(
   message_generation
   message_runtime
   nav_msgs
+  sensor_msgs
   std_msgs
 )
 
