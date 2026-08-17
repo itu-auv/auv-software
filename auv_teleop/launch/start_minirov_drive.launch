@@ -7,6 +7,12 @@
 
   <node pkg="joy" type="joy_node" name="minirov_joy" output="screen">
     <param name="dev" value="$(arg dev)" />
+</node>
+
+
+  <node pkg="rosserial_python" type="serial_node.py" name="rosserial_tcp"
+        args="tcp" output="screen" respawn="true">
+    <param name="tcp_port" value="11411" />
   </node>
 
   <node pkg="auv_teleop" type="minirov_drive.py" name="minirov_drive" output="screen">
