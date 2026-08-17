@@ -22,9 +22,9 @@ stamp.
 
 Debug overlay per object on vitpose_process_image_<object>/compressed,
 subscriber-gated. When no result arrives for _IDLE_TIMEOUT the raw frame
-goes out dimmed with a banner instead — an objectness producer publishes
-nothing when it does not fire, and a frozen image would be indistinguishable
-from a hung node.
+goes out with a top-left status line instead (undimmed) — an objectness
+producer publishes nothing when it does not fire, and a frozen image would be
+indistinguishable from a hung node.
 """
 
 import importlib
@@ -491,22 +491,16 @@ class VitposeProcessNode:
 
     @staticmethod
     def _idle_frame(image, title, subtitle):
-        """Dimmed raw frame + banner — the reason the detector is silent is
-        usually visible in the picture, so never a blank canvas."""
-        vis = (image.astype(np.float32) * 0.45).astype(np.uint8)
-        height, width = vis.shape[:2]
-        (tw, th), _ = cv2.getTextSize(title, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-        origin = ((width - tw) // 2, (height + th) // 2)
-        cv2.putText(vis, title, origin, cv2.FONT_HERSHEY_SIMPLEX, 0.9, _COLOR_IDLE, 2)
-        (sw, _), _ = cv2.getTextSize(subtitle, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+        """Raw frame + top-left status text (no dimming: the picture is the
+        evidence of why the detector is silent, keep it readable)."""
+        vis = image.copy()
+        cv2.putText(vis, title, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)
+        cv2.putText(vis, title, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, _COLOR_IDLE, 2)
         cv2.putText(
-            vis,
-            subtitle,
-            ((width - sw) // 2, origin[1] + 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.4,
-            _COLOR_TEXT,
-            1,
+            vis, subtitle, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3
+        )
+        cv2.putText(
+            vis, subtitle, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45, _COLOR_TEXT, 1
         )
         return vis
 
