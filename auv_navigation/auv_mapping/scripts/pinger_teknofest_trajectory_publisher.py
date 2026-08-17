@@ -40,7 +40,7 @@ class RelativeApproachFramePublisher:
             rospy.get_param("~gate_closer_distance", 1.0)
         )
         self.gate_farther_distance = float(
-            rospy.get_param("~gate_farther_distance", 1.0)
+            rospy.get_param("~gate_farther_distance", 2.5)
         )
         self.z_offset = float(rospy.get_param("~z_offset", 0.0))
         self.lookup_timeout = float(rospy.get_param("~lookup_timeout", 0.5))
