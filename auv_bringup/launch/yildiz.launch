@@ -42,7 +42,8 @@
     <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
           name="vitpose_pinger_bbox_bridge" output="screen">
       <param name="input_topic" value="/vitpose_bbox_gate_front" />
-      <param name="output_topic" value="/yolo_result_pinger_vitpose" />
+      <param name="output_topic"
+             value="$(eval '/yolo_result_pinger_vitpose_torpedo' if arg('camera') == 'torpedo' else '/yolo_result_pinger_vitpose')" />
     </node>
     <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
           name="vitpose_tetra_front_bbox_bridge" output="screen">

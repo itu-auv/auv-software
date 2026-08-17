@@ -329,7 +329,16 @@ class CameraDetectionNode:
         return self._handle_enable_camera("torpedo", req.data)
 
     def _handle_enable_pinger_camera(self, req):
-        return self._handle_enable_camera("pinger", req.data)
+        camera_keys = [
+            key for key in ("pinger", "pinger_torpedo") if key in self.handlers
+        ]
+        responses = [
+            self._handle_enable_camera(key, req.data) for key in camera_keys
+        ]
+        return SetBoolResponse(
+            success=all(response.success for response in responses),
+            message="; ".join(response.message for response in responses),
+        )
 
     def _handle_enable_tetra_front_camera(self, req):
         return self._handle_enable_camera("tetra_front", req.data)
