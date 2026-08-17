@@ -29,6 +29,12 @@
        standard layout (any cam_<name> camera works). Empty = per-config
        cameras. Real nodes only — ignored under sim:=true. -->
   <arg name="camera" default="" />
+  <!-- RoI-metered exposure on the front camera (auv_cam/exposure_control_node):
+       V4L2 exposure servoed on the ViTPose objectness box instead of the whole
+       frame, so a glary gate/tetra is exposed for, not blown out. Follows the
+       gate box while the pose node runs gate, the tetra box after the switch
+       (both live on cam_front, never at once). Real cameras only. -->
+  <arg name="exposure" default="false" />
 
   <group ns="$(arg namespace)">
     <!-- Feed the existing pinger camera handler from the ViTPose gate bbox.
@@ -80,6 +86,15 @@
       <param name="config" value="tetra_front" />
       <param name="enabled" value="$(arg scan_enabled)" />
       <param name="namespace" value="$(arg namespace)" />
+    </node>
+
+    <!-- Front-camera exposure control. No fresh box = constant centre RoI. -->
+    <node if="$(eval arg('exposure') and not arg('sim'))"
+          ns="cameras/cam_front" pkg="auv_cam" type="exposure_control_node.py"
+          name="exposure_control" output="screen">
+      <rosparam param="detections_topics">
+        [/vitpose_bbox_gate_front, /vitpose_bbox_tetra_front]
+      </rosparam>
     </node>
 
     <!-- Consumer, CPU: ops (gate_pose, tetra_unfold) + debug overlays.
