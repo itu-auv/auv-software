@@ -18,7 +18,11 @@ lives with the code (section banners in `utils/vitpose_utils.py`).
 - Checkpoints: gate/010, tetra/004. 004's val numbers trail 003's slightly
   because 004 trained WITH random chirality — 003 would fail on
   mirror-arranged tetras.
-- TensorRT is a stub until an engine is actually exported.
+- TensorRT: `.engine` files load via `VitposeTRT`/`ObjectnessTRT` (torch-owned
+  CUDA buffers, no pycuda). Chain: `utils/vitpose_export.py` (pth → onnx +
+  sidecar json, onnxruntime parity ≤1e-5 on all four models, 08-17) →
+  `utils/vitpose_build_engine.py` on the target GPU → `utils/vitpose_trt_check.py`
+  parity + timing. Engine runtime path unverified on hardware until the Orin.
 - No objectness fallback: a frame with no detection publishes no result
   (full-frame joint inference on real footage is measurably useless).
 - Poses go through the object map TF server, never raw TF broadcasts.
@@ -74,8 +78,8 @@ Open caveats:
   to measure against.
 - Tracker lag numbers come from a 2.8 Hz clip (worst case); re-validate on
   high-rate footage.
-- Jetson/Orin timing untested; TRT still a stub — first thing to check if it
-  must run onboard.
+- Jetson/Orin timing untested; TRT engines not yet built/verified on the Orin
+  — first thing to check if it must run onboard.
 
 ## Landmines (paid for once)
 
@@ -90,7 +94,6 @@ Open caveats:
 
 ## Out of scope
 
-- TRT export/backend (both models).
 - A tetra pose op from the 4 vertex keypoints (predicted, unconsumed).
 - A 16:9 objectness model (today the 4:3 centre crop blinds 25% of
   cam_bottom's horizontal FOV).

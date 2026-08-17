@@ -19,11 +19,14 @@ trained at that size; a different resolution means training a model at it.
 Everything is RGB. Decode default use_udp=False is contractual: the heads are
 MSRA-encoded and UDP decode measured ~3x worse (7.38 vs 2.38 px).
 
-Dependencies: torch, numpy, cv2 — nothing else.
+Dependencies: torch, numpy, cv2 — nothing else (tensorrt only for .engine
+files; see the TensorRT section + utils/vitpose_export.py).
 """
 
 import collections.abc
+import json
 import math
+import os
 from functools import partial
 from itertools import repeat
 
@@ -631,15 +634,17 @@ class VitposeModel:
                     "checkpoint (valve-era flat checkpoints are unsupported)"
                 )
         state = payload["model"]
-        self.active_heads = tuple(payload["active_heads"])
-        self.img_h, self.img_w = tuple(payload["img_size"])
         train_config = payload.get("train_config", {})
-        self.mask_threshold = float(
-            mask_threshold
-            if mask_threshold is not None
-            else train_config.get("mask_threshold", 0.5)
+        self._init_meta(
+            active_heads=payload["active_heads"],
+            img_size=payload["img_size"],
+            mask_threshold=(
+                mask_threshold
+                if mask_threshold is not None
+                else train_config.get("mask_threshold", 0.5)
+            ),
+            amp=train_config.get("amp", False),
         )
-        self.amp = bool(train_config.get("amp", False))
 
         embed_dim = int(state["backbone.patch_embed.proj.bias"].shape[0])
         if embed_dim not in _ARCHITECTURES:
@@ -659,15 +664,13 @@ class VitposeModel:
             if "seg" in self.active_heads
             else None
         )
-        self.num_kps = pose_cfg["out_channels"]
-        self.num_masks = mask_cfg["out_channels"] if mask_cfg else 0
-
-        self.decode = dict(DEFAULT_DECODE)
-        self.decode.update(decode or {})
-        self.flip_tta = bool(flip_tta)
-        self.flip_pairs = [list(p) for p in (flip_pairs or [])]
-        self._flip_index = _flip_index(self.flip_pairs, self.num_kps)
-
+        self._init_heads(
+            pose_cfg["out_channels"],
+            mask_cfg["out_channels"] if mask_cfg else 0,
+            decode,
+            flip_tta,
+            flip_pairs,
+        )
         self.device = torch.device(
             device if (device == "cpu" or torch.cuda.is_available()) else "cpu"
         )
@@ -680,6 +683,22 @@ class VitposeModel:
             f"input {self.img_h}x{self.img_w}, decode={self.decode}, "
             f"{self.device})"
         )
+
+    # Shared with VitposeTRT: everything except how a tensor becomes heatmaps.
+    def _init_meta(self, active_heads, img_size, mask_threshold, amp):
+        self.active_heads = tuple(active_heads)
+        self.img_h, self.img_w = (int(v) for v in img_size)
+        self.mask_threshold = float(mask_threshold)
+        self.amp = bool(amp)
+
+    def _init_heads(self, num_kps, num_masks, decode, flip_tta, flip_pairs):
+        self.num_kps = int(num_kps)
+        self.num_masks = int(num_masks)
+        self.decode = dict(DEFAULT_DECODE)
+        self.decode.update(decode or {})
+        self.flip_tta = bool(flip_tta)
+        self.flip_pairs = [list(p) for p in (flip_pairs or [])]
+        self._flip_index = _flip_index(self.flip_pairs, self.num_kps)
 
     # -------------------------------------------------------------- internals
 
@@ -762,29 +781,191 @@ class VitposeModel:
         return kps[0], scores[0], mask_probs
 
 
-class VitposeTRT:
-    """TensorRT backend — NOT IMPLEMENTED YET (no engine has been exported).
+# ══════════════════════════════════════════════════════════════════════════════
+# TensorRT backends (.engine + sidecar .json, Orin)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Export chain (utils/vitpose_export.py -> utils/vitpose_build_engine.py):
+#   ckpt.pth --> model.onnx + model.json (sidecar: kind, img_size, K, C,
+#   mask_threshold, io names) --> model.engine (built ON the target GPU;
+#   engines are device-specific). The sidecar is required: an engine carries
+#   shapes but not the checkpoint metadata predict() needs.
+#
+# Design: torch owns the CUDA memory (torch is on the Orin already, and its
+# primary context works from any rospy thread — the pycuda push/pop dance of
+# the valve-era ValvePoseTRT is gone). TRT only gets raw device pointers and
+# torch's current stream. Pre/post-processing is the torch classes' own code:
+# VitposeTRT/ObjectnessTRT subclass them and override only _forward.
+# TRT 8.x (Jetson JetPack 5) and 10.x (JetPack 6 / x86 pip) both supported.
 
-    When a joint engine exists, this becomes a drop-in for VitposeModel:
-    same constructor surface, same predict() signature. Implementation notes
-    (proven on the valve-era single-head TRT path, see git history of this
-    file on last_dance2):
+_TRT_LOGGER = None
 
-    - The engine has TWO output tensors (pose heatmaps (1,K,H/4,W/4) and mask
-      logits (1,C,H/4,W/4)); bind both by name via num_io_tensors /
-      get_tensor_mode, allocate pinned host + device buffers per output.
-    - pycuda's primary context must be created once per process and
-      push()/pop()'d around every CUDA call — rospy callbacks arrive on
-      arbitrary subscriber threads and CUDA ops fail with "invalid resource
-      handle" without it.
-    - Keep preprocessing/decode identical to VitposeModel (numpy path).
+
+def _sidecar_path(engine_path):
+    root, _ = os.path.splitext(str(engine_path))
+    return root + ".json"
+
+
+def load_sidecar(engine_path):
+    """Metadata written next to the ONNX/engine by vitpose_export.py."""
+    path = _sidecar_path(engine_path)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"{path} missing — every .engine needs the sidecar .json written "
+            "by utils/vitpose_export.py (copy it next to the engine)"
+        )
+    with open(path, "r") as handle:
+        return json.load(handle)
+
+
+class TrtEngine:
+    """Minimal TensorRT executor over torch CUDA buffers.
+
+    run(input_tensor) -> {output_name: torch tensor (fresh copy)}. Static
+    shapes, batch 1. Buffers are allocated once from the engine's IO shapes.
     """
 
-    def __init__(self, *args, **kwargs):
-        raise NotImplementedError(
-            "VitposeTRT: no joint TensorRT engine exported yet — "
-            "use the .pth checkpoint (torch backend)"
+    def __init__(self, engine_path):
+        import tensorrt as trt  # deferred: torch-only deployments never need it
+
+        global _TRT_LOGGER
+        if _TRT_LOGGER is None:
+            _TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
+        if not os.path.isfile(engine_path):
+            raise FileNotFoundError(f"TRT engine not found: {engine_path}")
+        if not torch.cuda.is_available():
+            raise RuntimeError("TensorRT backend needs a CUDA device")
+        self.trt = trt
+        self.path = str(engine_path)
+        with open(engine_path, "rb") as handle:
+            blob = handle.read()
+        runtime = trt.Runtime(_TRT_LOGGER)
+        self.engine = runtime.deserialize_cuda_engine(blob)
+        if self.engine is None:
+            raise RuntimeError(f"failed to deserialize engine: {engine_path}")
+        self.context = self.engine.create_execution_context()
+        self.device = torch.device("cuda")
+
+        self.inputs = {}  # name -> tensor
+        self.outputs = {}
+        self._named_api = hasattr(self.engine, "num_io_tensors")  # TRT >= 8.5
+        if self._named_api:
+            names = [
+                self.engine.get_tensor_name(i)
+                for i in range(self.engine.num_io_tensors)
+            ]
+            for name in names:
+                shape = tuple(self.engine.get_tensor_shape(name))
+                dtype = _torch_dtype(trt, self.engine.get_tensor_dtype(name))
+                buf = torch.empty(shape, dtype=dtype, device=self.device)
+                if self.engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT:
+                    self.inputs[name] = buf
+                else:
+                    self.outputs[name] = buf
+                self.context.set_tensor_address(name, int(buf.data_ptr()))
+        else:  # TRT 8.0-8.4 positional bindings
+            self._bindings = []
+            for i in range(self.engine.num_bindings):
+                name = self.engine.get_binding_name(i)
+                shape = tuple(self.engine.get_binding_shape(i))
+                dtype = _torch_dtype(trt, self.engine.get_binding_dtype(i))
+                buf = torch.empty(shape, dtype=dtype, device=self.device)
+                (self.inputs if self.engine.binding_is_input(i) else self.outputs)[
+                    name
+                ] = buf
+                self._bindings.append(int(buf.data_ptr()))
+        if len(self.inputs) != 1:
+            raise RuntimeError(
+                f"{engine_path}: expected exactly one input, got "
+                f"{sorted(self.inputs)}"
+            )
+        self.input_name = next(iter(self.inputs))
+        self.input_shape = tuple(self.inputs[self.input_name].shape)
+
+    def run(self, tensor):
+        buf = self.inputs[self.input_name]
+        if tuple(tensor.shape) != tuple(buf.shape):
+            raise ValueError(
+                f"{self.path}: input {tuple(tensor.shape)} != engine "
+                f"{tuple(buf.shape)}"
+            )
+        stream = torch.cuda.current_stream()
+        buf.copy_(tensor.to(self.device, dtype=buf.dtype, non_blocking=True))
+        if self._named_api:
+            ok = self.context.execute_async_v3(stream.cuda_stream)
+        else:
+            ok = self.context.execute_async_v2(self._bindings, stream.cuda_stream)
+        if not ok:
+            raise RuntimeError(f"{self.path}: TensorRT execution failed")
+        stream.synchronize()
+        return {name: out.clone() for name, out in self.outputs.items()}
+
+
+def _torch_dtype(trt, trt_dtype):
+    table = {
+        trt.DataType.FLOAT: torch.float32,
+        trt.DataType.HALF: torch.float16,
+        trt.DataType.INT32: torch.int32,
+        trt.DataType.INT8: torch.int8,
+    }
+    if hasattr(trt.DataType, "BOOL"):
+        table[trt.DataType.BOOL] = torch.bool
+    return table[trt_dtype]
+
+
+class VitposeTRT(VitposeModel):
+    """TensorRT joint model — drop-in for VitposeModel (same constructor
+    surface; `device` is ignored, TRT is CUDA). Reads <engine>.json for the
+    checkpoint metadata; heatmaps/mask_logits come back as torch tensors and
+    flow through VitposeModel.predict unchanged."""
+
+    def __init__(
+        self,
+        engine,
+        device="cuda",
+        decode=None,
+        flip_tta=False,
+        flip_pairs=None,
+        mask_threshold=None,
+    ):
+        meta = load_sidecar(engine)
+        if meta.get("kind") != "joint":
+            raise ValueError(f"{engine}: sidecar kind {meta.get('kind')!r} != 'joint'")
+        self._init_meta(
+            active_heads=meta["active_heads"],
+            img_size=meta["img_size"],
+            mask_threshold=(
+                mask_threshold
+                if mask_threshold is not None
+                else meta.get("mask_threshold", 0.5)
+            ),
+            amp=False,
         )
+        self._init_heads(
+            meta["num_kps"], meta.get("num_masks", 0), decode, flip_tta, flip_pairs
+        )
+        self.engine = TrtEngine(engine)
+        self.device = self.engine.device
+        self.model = None
+        expect = (1, 3, self.img_h, self.img_w)
+        if self.engine.input_shape != expect:
+            raise ValueError(
+                f"{engine}: input {self.engine.input_shape} != sidecar {expect}"
+            )
+        self._out_heatmaps = meta["outputs"]["heatmaps"]
+        self._out_masks = meta["outputs"].get("mask_logits")
+        if self._out_masks and self._out_masks not in self.engine.outputs:
+            raise ValueError(f"{engine}: output {self._out_masks!r} not in engine")
+        print(
+            f"VitposeTRT loaded: {engine} (K={self.num_kps}, C={self.num_masks}, "
+            f"input {self.img_h}x{self.img_w}, decode={self.decode})"
+        )
+
+    def _forward(self, tensor):
+        outs = self.engine.run(tensor)
+        heatmaps = outs[self._out_heatmaps].float()
+        mask_logits = outs[self._out_masks].float() if self._out_masks else None
+        return heatmaps, mask_logits
 
 
 def load_vitpose(ckpt, **kwargs):
@@ -934,6 +1115,9 @@ class ObjectnessDetector:
             f"{self.device})"
         )
 
+    def _forward(self, tensor):
+        return self.model(tensor)
+
     @torch.no_grad()
     def predict(self, img_rgb, return_prob=False):
         """Full RGB frame -> (bbox_xywh, score) in source pixels, bbox None
@@ -947,7 +1131,7 @@ class ObjectnessDetector:
         tensor = torch.from_numpy(
             np.ascontiguousarray(normalized.transpose(2, 0, 1)[None])
         ).to(self.device)
-        prob = torch.sigmoid(self.model(tensor).float()).cpu().numpy()[0, 0]
+        prob = torch.sigmoid(self._forward(tensor).float()).cpu().numpy()[0, 0]
         box, score = decode_box(
             prob,
             self.threshold,
@@ -965,11 +1149,42 @@ class ObjectnessDetector:
         return (box, score, prob) if return_prob else (box, score)
 
 
-def load_objectness(ckpt, **kwargs):
-    """Loader mirroring load_vitpose (no TRT backend exported yet)."""
-    if str(ckpt).endswith(".engine"):
-        raise NotImplementedError(
-            "objectness TensorRT engine export does not exist yet — "
-            "use the .pth checkpoint"
+class ObjectnessTRT(ObjectnessDetector):
+    """TensorRT objectness detector — drop-in for ObjectnessDetector."""
+
+    def __init__(self, engine, device="cuda", threshold=0.5, measure_threshold=0.7):
+        meta = load_sidecar(engine)
+        if meta.get("kind") != "objectness":
+            raise ValueError(
+                f"{engine}: sidecar kind {meta.get('kind')!r} != 'objectness'"
+            )
+        self.img_h, self.img_w = (int(v) for v in meta["img_size"])
+        self.stride = int(meta.get("stride", OBJECTNESS_STRIDE))
+        self.threshold = float(threshold)
+        self.measure_threshold = (
+            None if measure_threshold is None else float(measure_threshold)
         )
+        self.engine = TrtEngine(engine)
+        self.device = self.engine.device
+        self.model = None
+        expect = (1, 3, self.img_h, self.img_w)
+        if self.engine.input_shape != expect:
+            raise ValueError(
+                f"{engine}: input {self.engine.input_shape} != sidecar {expect}"
+            )
+        self._out_logits = meta["outputs"]["logits"]
+        print(
+            f"ObjectnessTRT loaded: {engine} (input {self.img_h}x{self.img_w}, "
+            f"stride {self.stride}, detect {self.threshold} / measure "
+            f"{self.measure_threshold})"
+        )
+
+    def _forward(self, tensor):
+        return self.engine.run(tensor)[self._out_logits]
+
+
+def load_objectness(ckpt, **kwargs):
+    """Backend-agnostic loader: .engine -> ObjectnessTRT, else ObjectnessDetector."""
+    if str(ckpt).endswith(".engine"):
+        return ObjectnessTRT(ckpt, **kwargs)
     return ObjectnessDetector(ckpt, **kwargs)
