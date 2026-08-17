@@ -1,9 +1,9 @@
 # TEKNOFEST "yıldızlar" tetra (60 cm tetrahedron, 3 letter + 4 vertex
-# keypoints, red/green/blue face masks, front camera). Geometry, chirality,
+# keypoints, red/green/blue face masks, bottom camera). Geometry, chirality,
 # decals: gate_tetra_overview.md §3.
 
 object: tetra
-camera: front # image/result topics, calibration, frame all derive from this
+camera: bottom # image/result topics, calibration, frame all derive from this
 
 model:
   checkpoint: tetra_joint.pth # tetra/004: trained WITH random chirality
@@ -31,7 +31,7 @@ detection:
     measure_threshold: 0.7 # box EXTENT only — real ramp is wider than sim
     search_rate: 5.0 # Hz cap on detector retries while the object is absent
     # Topic names the OBJECT: Detection2DArray has no object field.
-    publish_topic: /vitpose_bbox_tetra_front
+    publish_topic: /vitpose_bbox_tetra_bottom
     # Objectness only seeds; the crop is carried by the model's own mask
     # silhouette (CropTracker, vitpose_utils SECTION 4). Remove the block to
     # detect every frame.
