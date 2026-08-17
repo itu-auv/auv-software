@@ -59,6 +59,26 @@ class VitposeConfigState(smach_ros.ServiceState):
         )
 
 
+class VitposeModeState(smach_ros.ServiceState):
+    """Set the ViTPose detection node mode to off, detect, or pose."""
+
+    VALID_MODES = {"off", "detect", "pose"}
+
+    def __init__(self, mode: str):
+        if mode not in self.VALID_MODES:
+            raise ValueError(
+                f"Invalid ViTPose mode '{mode}'; expected one of "
+                f"{sorted(self.VALID_MODES)}"
+            )
+
+        super().__init__(
+            "vitpose_detection_node/set_mode",
+            SetString,
+            request=SetStringRequest(data=mode),
+            response_cb=require_success,
+        )
+
+
 class VitposeScanState(smach_ros.ServiceState):
     def __init__(self, enable: bool):
         super().__init__(
@@ -233,6 +253,7 @@ class PingerGateTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+            ##CLOSE APPROCH SEQUANCE'I BİTİYOR ÜSTÜNÜ SİLEBİLİRİZ EN KÖTÜ.
             smach.StateMachine.add(
                 "ENABLE_VITPOSE_DETECTION",
                 VitposeDetectionState(enable=True),
@@ -262,6 +283,15 @@ class PingerGateTaskState(smach.State):
                     timeout=10.0,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "DISABLE_PINGER_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_PINGER_TRAJECTORY",
+                PingerTrajectoryPublisherState(enable=False),
                 transitions={
                     "succeeded": "SET_VITPOSE_CONFIG_TETRA",
                     "preempted": "preempted",
@@ -323,6 +353,15 @@ class PingerGateTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_FRONT_TETRA",
                 DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "close_before_allinging_to_Exit",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "close_before_allinging_to_Exit",
+                PingerTrajectoryPublisherState(enable=False),
                 transitions={
                     "succeeded": "alling_to_exit",
                     "preempted": "preempted",
