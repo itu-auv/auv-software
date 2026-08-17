@@ -58,44 +58,15 @@
       </link>
     </model>
 
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_00</name><pose>-7.50  0.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_01</name><pose>-6.60  0.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_02</name><pose>-5.70  0.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_03</name><pose>-4.80  0.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_04</name><pose>-3.90  0.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_05</name><pose>-3.45  0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_00</name><pose>-7.00 0.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_01</name><pose>-6.00 0.00 -10.0 0 0 0.000000</pose></include>
 
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_06</name><pose>-3.00  0.45 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_07</name><pose>-3.00  1.35 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_08</name><pose>-3.00  2.25 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_09</name><pose>-3.00  2.55 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_02</name><pose>-5.50 0.50 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_03</name><pose>-5.50 1.50 -10.0 0 0 1.570796</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_04</name><pose>-5.50 1.80 -10.0 0 0 1.570796</pose></include>
 
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_10</name><pose>-2.55  3.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_11</name><pose>-1.65  3.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_12</name><pose>-0.75  3.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_13</name><pose>-0.45  3.00 -10.0 0 0 0.000000</pose></include>
-
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_14</name><pose> 0.00  2.55 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_15</name><pose> 0.00  1.65 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_16</name><pose> 0.00  0.75 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_17</name><pose> 0.00 -0.15 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_18</name><pose> 0.00 -0.55 -10.0 0 0 1.570796</pose></include>
-
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_19</name><pose> 0.45 -1.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_20</name><pose> 1.35 -1.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_21</name><pose> 2.25 -1.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_22</name><pose> 3.05 -1.00 -10.0 0 0 0.000000</pose></include>
-
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_23</name><pose> 3.50 -0.55 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_24</name><pose> 3.50  0.35 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_25</name><pose> 3.50  1.25 -10.0 0 0 1.570796</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_26</name><pose> 3.50  1.55 -10.0 0 0 1.570796</pose></include>
-
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_27</name><pose> 3.95  2.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_28</name><pose> 4.85  2.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_29</name><pose> 5.75  2.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_30</name><pose> 6.65  2.00 -10.0 0 0 0.000000</pose></include>
-    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_31</name><pose> 7.50  2.00 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_05</name><pose>-5.00 2.30 -10.0 0 0 0.000000</pose></include>
+    <include><uri>model://teknofest_pipe</uri><name>teknofest_pipe_06</name><pose>-4.00 2.30 -10.0 0 0 0.000000</pose></include>
 
     <plugin name="underwater_current_plugin" filename="libuuv_underwater_current_ros_plugin.so">
       <namespace>hydrodynamics</namespace>

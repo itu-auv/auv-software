@@ -57,7 +57,7 @@ objects:
     offset: [0.0, 0.0, 0.025]
     boundary:
       shape: box
-      args: [0.5, 0.18, 0.025]
+      args: [0.5, 0.075, 0.025]
     render_mask: true
 
   # Gate signs - 0.3048 m (1 ft) square, face in YZ plane

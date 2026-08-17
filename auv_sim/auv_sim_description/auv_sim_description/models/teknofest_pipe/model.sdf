@@ -4,9 +4,9 @@
     <static>true</static>
     <link name="line">
       <visual name="red_port_band">
-        <pose>0 -0.135 0.025 0 0 0</pose>
+        <pose>0 -0.045 0.025 0 0 0</pose>
         <geometry>
-          <box><size>1.0 0.09 0.05</size></box>
+          <box><size>1.0 0.06 0.05</size></box>
         </geometry>
         <material>
           <ambient>0.8 0.0 0.0 1</ambient>
@@ -18,7 +18,7 @@
       <visual name="black_center_band">
         <pose>0 0 0.025 0 0 0</pose>
         <geometry>
-          <box><size>1.0 0.18 0.05</size></box>
+          <box><size>1.0 0.03 0.05</size></box>
         </geometry>
         <material>
           <ambient>0.005 0.005 0.005 1</ambient>
@@ -28,9 +28,9 @@
       </visual>
 
       <visual name="red_starboard_band">
-        <pose>0 0.135 0.025 0 0 0</pose>
+        <pose>0 0.045 0.025 0 0 0</pose>
         <geometry>
-          <box><size>1.0 0.09 0.05</size></box>
+          <box><size>1.0 0.06 0.05</size></box>
         </geometry>
         <material>
           <ambient>0.8 0.0 0.0 1</ambient>
@@ -42,7 +42,7 @@
       <collision name="line_collision">
         <pose>0 0 0.025 0 0 0</pose>
         <geometry>
-          <box><size>1.0 0.36 0.05</size></box>
+          <box><size>1.0 0.15 0.05</size></box>
         </geometry>
       </collision>
     </link>

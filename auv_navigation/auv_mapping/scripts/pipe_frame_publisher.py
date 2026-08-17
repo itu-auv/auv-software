@@ -56,8 +56,8 @@ class PipeFramePublisher:
             "~ang_error_close_point_eps", 40
         )
         # radius*2
-        self.pipe_width = rospy.get_param("~pipe_width", 0.2)
-        self.follow_height = rospy.get_param("~follow_height", 1.50)
+        self.pipe_width = rospy.get_param("~pipe_width", 0.15)
+        self.follow_height = rospy.get_param("~follow_height", 1.5)
 
         self.is_enabled = False
 
@@ -204,7 +204,7 @@ class PipeFramePublisher:
         )
         opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, M)
 
-        skel = skeletonize(opening)
+        skel = skeletonize(opening > 0)
 
         dirty_segments = self._get_ordered_points_from_skel(skel)
 
