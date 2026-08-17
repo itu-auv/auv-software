@@ -13,6 +13,7 @@ from auv_smach.common import (
     DynamicPathState,
     DynamicPathWithTransformCheck,
     SearchForPropState,
+    SetAltitudeState,
     SetDetectionState,
 )
 from auv_smach.initialize import DelayState
@@ -155,6 +156,15 @@ class PingerGateTaskState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "SET_ALTITUDE",
+                SetAltitudeState(altitude=1.0),
+                transitions={
+                    "succeeded": "ENABLE_PINGER_CAMERA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "ENABLE_PINGER_CAMERA",
                 SetDetectionState(camera_name="pinger", enable=True),

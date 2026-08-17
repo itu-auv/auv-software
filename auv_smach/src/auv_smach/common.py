@@ -13,7 +13,7 @@ import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 from geometry_msgs.msg import TransformStamped, PoseStamped
 from auv_msgs.msg import FollowPathAction, FollowPathGoal
 
@@ -285,6 +285,162 @@ class SetDepthState(smach.State):
         self._stop_publishing.set()
         pub_thread.join()
         return "succeeded"
+
+
+class SetAltitudeState(smach.State):
+    """Set altitude above the bottom using averaged DVL and odometry samples.
+
+    Depth uses a negative-down convention, while altitude is a positive
+    distance above the bottom. The target passed to :class:`SetDepthState` is
+    calculated as::
+
+        target_depth = mean_depth - mean_altitude + desired_altitude
+
+    By default, ten fresh samples are collected from each topic every time the
+    state executes.
+    """
+
+    def __init__(
+        self,
+        altitude: float,
+        sample_count: int = 10,
+        sample_timeout: float = 10.0,
+        altitude_topic: str = "sensors/dvl/altitude",
+        odometry_topic: str = "odometry",
+        depth_threshold: float = 0.1,
+        confirm_duration: float = 1.0,
+        timeout: float = 20.0,
+        frame_id: str = "odom",
+        max_velocity: float = 0.0,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        if sample_count <= 0:
+            raise ValueError("sample_count must be greater than zero")
+
+        self.desired_altitude = altitude
+        self.sample_count = sample_count
+        self.sample_timeout = sample_timeout
+        self.altitude_topic = altitude_topic
+        self.odometry_topic = odometry_topic
+        self.depth_threshold = depth_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.frame_id = frame_id
+        self.max_velocity = max_velocity
+
+        self._sample_lock = threading.Lock()
+        self._altitude_samples = []
+        self._depth_samples = []
+        self._set_depth_state = None
+
+    def _altitude_cb(self, msg):
+        altitude = float(msg.data)
+        if not math.isfinite(altitude):
+            rospy.logwarn_throttle(
+                5.0, "[SetAltitudeState] Ignoring non-finite altitude sample"
+            )
+            return
+
+        with self._sample_lock:
+            if len(self._altitude_samples) < self.sample_count:
+                self._altitude_samples.append(altitude)
+
+    def _odometry_cb(self, msg):
+        depth = float(msg.pose.pose.position.z)
+        if not math.isfinite(depth):
+            rospy.logwarn_throttle(
+                5.0, "[SetAltitudeState] Ignoring non-finite depth sample"
+            )
+            return
+
+        with self._sample_lock:
+            if len(self._depth_samples) < self.sample_count:
+                self._depth_samples.append(depth)
+
+    def request_preempt(self):
+        smach.State.request_preempt(self)
+        if self._set_depth_state is not None:
+            self._set_depth_state.request_preempt()
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        with self._sample_lock:
+            self._altitude_samples = []
+            self._depth_samples = []
+
+        altitude_sub = rospy.Subscriber(
+            self.altitude_topic, Float32, self._altitude_cb, queue_size=self.sample_count
+        )
+        odometry_sub = rospy.Subscriber(
+            self.odometry_topic,
+            Odometry,
+            self._odometry_cb,
+            queue_size=self.sample_count,
+        )
+
+        start_time = rospy.Time.now()
+        rate = rospy.Rate(50)
+
+        try:
+            while not rospy.is_shutdown():
+                if self.preempt_requested():
+                    self.service_preempt()
+                    return "preempted"
+
+                with self._sample_lock:
+                    altitude_count = len(self._altitude_samples)
+                    depth_count = len(self._depth_samples)
+
+                if (
+                    altitude_count >= self.sample_count
+                    and depth_count >= self.sample_count
+                ):
+                    break
+
+                if (rospy.Time.now() - start_time).to_sec() > self.sample_timeout:
+                    rospy.logerr(
+                        "[SetAltitudeState] Timed out collecting samples "
+                        f"(altitude={altitude_count}/{self.sample_count}, "
+                        f"depth={depth_count}/{self.sample_count})"
+                    )
+                    return "aborted"
+
+                rate.sleep()
+        finally:
+            altitude_sub.unregister()
+            odometry_sub.unregister()
+
+        if rospy.is_shutdown():
+            return "aborted"
+
+        with self._sample_lock:
+            mean_altitude = float(np.mean(self._altitude_samples))
+            mean_depth = float(np.mean(self._depth_samples))
+
+        target_depth = mean_depth - mean_altitude + self.desired_altitude
+        rospy.loginfo(
+            f"[SetAltitudeState] mean_depth={mean_depth:.3f}m, "
+            f"mean_altitude={mean_altitude:.3f}m, "
+            f"desired_altitude={self.desired_altitude:.3f}m, "
+            f"target_depth={target_depth:.3f}m"
+        )
+
+        self._set_depth_state = SetDepthState(
+            depth=target_depth,
+            depth_threshold=self.depth_threshold,
+            confirm_duration=self.confirm_duration,
+            timeout=self.timeout,
+            frame_id=self.frame_id,
+            max_velocity=self.max_velocity,
+        )
+        try:
+            return self._set_depth_state.execute(userdata)
+        finally:
+            self._set_depth_state = None
 
 
 class DropBallState(smach_ros.ServiceState):
