@@ -33,17 +33,12 @@ class TetraBottomCameraHandler:
 
     def handle(self, detection_msg):
         stamp = detection_msg.header.stamp
-
+        #print("annemi çok seviyorum.")
         for detection in detection_msg.detections.detections:
             if not detection.results:
                 continue
             detection_id = detection.results[0].id
             if detection_id not in self.id_tf_map:
-                continue
-
-            if not check_inside_image_bottom_bin(
-                detection, self.image_width, self.image_height
-            ):
                 continue
 
             distance = self.shared_state.get("altitude")
