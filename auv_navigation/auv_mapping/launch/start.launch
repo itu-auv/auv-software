@@ -171,5 +171,16 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="pinger_frame_publisher.py" name="pinger_frame_publisher" output="screen">
+      <param name="pinger_frame" value="pinger_frame" />
+      <param name="close_frame" value="pinger_close_approach" />
+      <param name="close_distance" value="2.0" />
+      <param name="search_distance" value="2.0" />
+      <param name="outlier_threshold" value="0.26" />
+      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
+      <param name="topic_name" value="/$(arg namespace)/acoustic/hydrophone/base_angle" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
   </group>
 </launch>

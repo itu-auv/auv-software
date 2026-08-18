@@ -13,6 +13,8 @@ from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.pinger_gate import PingerGateTaskState
+from auv_smach.pinger import PingerTaskState
+from auv_smach.pinger_align import PingerAlignTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
@@ -76,6 +78,23 @@ class MainStateMachineNode:
         self.tetra_forward_search = bool(
             rospy.get_param("~tetra_forward_search", False)
         )
+        self.pinger_frame = rospy.get_param("~pinger_frame", "pinger_frame")
+        self.pinger_close_frame = rospy.get_param(
+            "~pinger_close_frame", "pinger_close_approach"
+        )
+        self.pinger_waypoint_frame = rospy.get_param(
+            "~pinger_waypoint_frame", "pinger_waypoint"
+        )
+        self.pinger_collection_altitude = rospy.get_param(
+            "~pinger_collection_altitude", 1.0
+        )
+        self.pinger_depth_abort_threshold = rospy.get_param(
+            "~pinger_depth_abort_threshold", -0.35
+        )
+        self.pinger_collection_duration = rospy.get_param(
+            "~pinger_collection_duration", 20.0
+        )
+        self.align_to_pinger = rospy.get_param("~align_to_pinger", True)
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -431,6 +450,26 @@ class MainStateMachineNode:
             "NAVIGATE_TO_TEKNOFEST_PINGER_GATE": (
                 PingerGateTaskState,
                 {"tetra_forward_search": self.tetra_forward_search},
+            ),
+            "PINGER_TASK": (
+                PingerTaskState,
+                {
+                    "pinger_frame": self.pinger_frame,
+                    "waypoint_frame": self.pinger_waypoint_frame,
+                    "close_frame": self.pinger_close_frame,
+                    "align_to_pinger": self.align_to_pinger,
+                    "collection_altitude": self.pinger_collection_altitude,
+                    "depth_abort_threshold": self.pinger_depth_abort_threshold,
+                    "collection_duration": self.pinger_collection_duration,
+                },
+            ),
+            "PINGER_ALIGN_TASK": (
+                PingerAlignTaskState,
+                {
+                    "pinger_frame": self.pinger_frame,
+                    "waypoint_frame": self.pinger_waypoint_frame,
+                    "close_frame": self.pinger_close_frame,
+                },
             ),
             "NAVIGATE_TO_GPS_TARGET": (
                 NavigateToGpsTargetState,

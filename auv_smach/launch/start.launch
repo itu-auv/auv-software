@@ -13,6 +13,8 @@
         gate:NAVIGATE_THROUGH_GATE,
         slalom:NAVIGATE_THROUGH_SLALOM,
         pinger:RANDOM_PINGER_TASK,
+        acous_pinger:PINGER_TASK,
+        acous_pinger_align:PINGER_ALIGN_TASK,
         tekno_gate:NAVIGATE_TO_TEKNOFEST_PINGER_GATE,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
@@ -35,6 +37,8 @@
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
     <arg name="ignore_kde" default="false" doc="Use raw search frames instead of KDE frames"/>
     <arg name="tetra_forward_search" default="false" doc="Find tetra with the front scan before handing off to the bottom camera"/>
+    <arg name="align_to_pinger" default="true" doc="After locating the pinger, move to its close frame, align and dive down"/>
+    <arg name="pinger_close_frame" default="pinger_close_approach" doc="Final pinger approach frame"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -66,6 +70,13 @@
             <param name="coin_flip" value="$(arg coin_flip)"/>
             <param name="ignore_kde" value="$(arg ignore_kde)"/>
             <param name="tetra_forward_search" value="$(arg tetra_forward_search)"/>
+            <param name="pinger_frame" value="pinger_frame"/>
+            <param name="pinger_waypoint_frame" value="pinger_waypoint"/>
+            <param name="pinger_close_frame" value="$(arg pinger_close_frame)"/>
+            <param name="pinger_collection_altitude" value="1.0"/>
+            <param name="pinger_depth_abort_threshold" value="-0.35"/>
+            <param name="pinger_collection_duration" value="20.0"/>
+            <param name="align_to_pinger" value="$(arg align_to_pinger)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
