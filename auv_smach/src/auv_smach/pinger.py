@@ -171,6 +171,15 @@ class PingerSearchState(smach.StateMachine):
 
         with self:
             smach.StateMachine.add(
+                "SET_COLLECTION_ALTITUDE",
+                SetAltitudeState(altitude=collection_altitude),
+                transitions={
+                    "succeeded": "PUBLISH_WAYPOINT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "PUBLISH_WAYPOINT",
                 PublishPingerWaypointState(direction=direction),
                 transitions={
@@ -242,19 +251,9 @@ class PingerSearchState(smach.StateMachine):
                     max_angular_velocity=0.05,
                 ),
                 transitions={
-                    "succeeded": "SET_COLLECTION_ALTITUDE",
-                    "preempted": "preempted",
-                    "aborted": "SET_COLLECTION_ALTITUDE",
-                },
-            )
-
-            smach.StateMachine.add(
-                "SET_COLLECTION_ALTITUDE",
-                SetAltitudeState(altitude=collection_altitude),
-                transitions={
                     "succeeded": "CANCEL_CONTROL",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_CONTROL",
                 },
             )
 
@@ -448,10 +447,7 @@ class PingerTaskState(smach.State):
 
                 smach.StateMachine.add(
                     "IN_ASSAGI",
-                    SetDepthState(
-                        depth=-5,
-                        confirm_duration=100,
-                    ),
+                    SetAltitudeState(altitude=collection_altitude),
                     transitions={
                         "succeeded": "succeeded",
                         "preempted": "preempted",

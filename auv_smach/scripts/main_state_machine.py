@@ -14,7 +14,6 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.pinger_gate import PingerGateTaskState
 from auv_smach.pinger import PingerTaskState
-from auv_smach.pinger_align import PingerAlignTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
@@ -461,14 +460,6 @@ class MainStateMachineNode:
                     "collection_altitude": self.pinger_collection_altitude,
                     "depth_abort_threshold": self.pinger_depth_abort_threshold,
                     "collection_duration": self.pinger_collection_duration,
-                },
-            ),
-            "PINGER_ALIGN_TASK": (
-                PingerAlignTaskState,
-                {
-                    "pinger_frame": self.pinger_frame,
-                    "waypoint_frame": self.pinger_waypoint_frame,
-                    "close_frame": self.pinger_close_frame,
                 },
             ),
             "NAVIGATE_TO_GPS_TARGET": (
