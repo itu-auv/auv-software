@@ -159,8 +159,9 @@ class PingerGateTaskState(smach.State):
         close_approach_frame: str = "pinger_close_approach",
         gate_closer_frame: str = "gate_closer",
         gate_farther_frame: str = "gate_farther",
+        gate_farthest_frame: str = "gate_farthest",
         tetra_forward_search: bool = False,
-        tetra_front_frame: str = "tetra_front_link",
+        tetra_front_frame: str = "tetra_further_link",
         tetra_bottom_frame: str = "tetra_bottom_link",
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
@@ -172,13 +173,13 @@ class PingerGateTaskState(smach.State):
         tetra_search_start = (
             "ENABLE_TETRA_FRONT_SCAN"
             if tetra_forward_search
-            else "PATH_GATE_FARTHER_UNTIL_BOTTOM_TETRA"
+            else "SET_VITPOSE_CONFIG_TETRA"
         )
 
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_ALTITUDE",
-                SetAltitudeState(altitude=1.0),
+                SetAltitudeState(altitude=1.3),
                 transitions={
                     "succeeded": "ENABLE_PINGER_CAMERA",
                     "preempted": "preempted",
@@ -267,6 +268,15 @@ class PingerGateTaskState(smach.State):
                 "WAIT_FOR_GATE_FRAME",
                 DelayState(delay_time=2.0),
                 transitions={
+                    "succeeded": "DISABLE_PINGER_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_PINGER_TRAJECTORY",
+                PingerTrajectoryPublisherState(enable=False),
+                transitions={
                     "succeeded": "ALIGN_TO_GATE_CLOSER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -284,16 +294,19 @@ class PingerGateTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_PINGER_TRAJECTORY",
+                    "succeeded": "PATH_THROUGH_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_PINGER_TRAJECTORY",
-                PingerTrajectoryPublisherState(enable=False),
+                "PATH_THROUGH_GATE",
+                DynamicPathState(
+                    plan_target_frame=gate_farther_frame,
+                    max_linear_velocity=0.2,
+                ),
                 transitions={
-                    "succeeded": "SET_VITPOSE_CONFIG_TETRA",
+                    "succeeded": tetra_search_start,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -311,15 +324,15 @@ class PingerGateTaskState(smach.State):
                 "ENABLE_TETRA_BOTTOM_PIPELINE",
                 VitposeDetectionState(enable=True),
                 transitions={
-                    "succeeded": tetra_search_start,
+                    "succeeded": "PATH_GATE_FARTHEST_UNTIL_BOTTOM_TETRA",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PATH_GATE_FARTHER_UNTIL_BOTTOM_TETRA",
+                "PATH_GATE_FARTHEST_UNTIL_BOTTOM_TETRA",
                 DynamicPathWithTransformCheck(
-                    plan_target_frame=gate_farther_frame,
+                    plan_target_frame=gate_farthest_frame,
                     transform_source_frame="odom",
                     transform_target_frame=tetra_bottom_frame,
                     max_linear_velocity=0.2,
