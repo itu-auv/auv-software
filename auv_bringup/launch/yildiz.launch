@@ -43,7 +43,9 @@
           name="vitpose_pinger_bbox_bridge" output="screen">
       <param name="input_topic" value="/vitpose_bbox_gate_front" />
       <param name="output_topic"
-             value="$(eval '/yolo_result_pinger_vitpose_torpedo' if arg('camera') == 'torpedo' else '/yolo_result_pinger_vitpose')" />
+             value="$(eval '/yolo_result_pinger_vitpose' if arg('camera') == 'front' else '/yolo_result_pinger_vitpose_torpedo')" />
+      <!-- gate.yaml runs on the torpedo cam by default (camera:=front is the
+           bench override), so the pinger handler defaults to the torpedo one. -->
     </node>
     <node pkg="auv_vision" type="detection2d_to_yolo_result_bridge.py"
           name="vitpose_tetra_front_bbox_bridge" output="screen">

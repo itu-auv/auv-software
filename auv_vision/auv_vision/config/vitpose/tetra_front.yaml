@@ -14,7 +14,7 @@ detection:
   rate: 1.0
   bbox_provider:
     type: model
-    checkpoint: tetra_objectness.pth
+    checkpoint: tetra_objectness.engine # TRT fp16 of tetra_objectness.pth
     device: cuda
     threshold: 0.5
     measure_threshold: 0.7

@@ -19,10 +19,12 @@ lives with the code (section banners in `utils/vitpose_utils.py`).
   because 004 trained WITH random chirality — 003 would fail on
   mirror-arranged tetras.
 - TensorRT: `.engine` files load via `VitposeTRT`/`ObjectnessTRT` (torch-owned
-  CUDA buffers, no pycuda). Chain: `utils/vitpose_export.py` (pth → onnx +
-  sidecar json, onnxruntime parity ≤1e-5 on all four models, 08-17) →
-  `utils/vitpose_build_engine.py` on the target GPU → `utils/vitpose_trt_check.py`
-  parity + timing. Engine runtime path unverified on hardware until the Orin.
+  CUDA buffers, no pycuda; K/C/input size read off the engine's IO tensors, no
+  sidecar). Tooling lives OUT of the repo on the Orin, `~/vitpose_trt/`:
+  `vitpose_export.py` (pth → onnx, opset 16 — TRT 8.5 has no LayerNorm op) →
+  `vitpose_build_engine.py` on the target GPU → `vitpose_trt_check.py` parity +
+  timing. 08-19 on the Orin: all four real-r1 engines fp16, kp ≤0.53 px, mask
+  IoU .998; objectness 26 ms, joint 10–14 ms; image→VitposeResult at camera rate.
 - No objectness fallback: a frame with no detection publishes no result
   (full-frame joint inference on real footage is measurably useless).
 - Poses go through the object map TF server, never raw TF broadcasts.

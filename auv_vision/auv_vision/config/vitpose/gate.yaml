@@ -2,47 +2,39 @@
 # gate_tetra_overview.md §2.
 
 object: gate
-camera: front # image/result topics, calibration, frame all derive from this
+camera: torpedo # image/result topics, calibration, frame all derive from this (torpedo cam = gate default since 08-16: front cam weak; yildiz.launch camera:= overrides)
 
 model: # consumed by vitpose_inference (via the detection node)
-  checkpoint: gate_joint.pth # resolved against auv_detection/models/
+  checkpoint: gate_joint.engine # resolved against auv_detection/models/; TRT fp16 (built on the Orin from gate_joint.pth, ~/vitpose_trt)
   device: cuda
   decode: {use_udp: false, post_process: unbiased, kernel: 11} # contractual
   flip_tta: false # off for reference parity; enable only after measuring
   flip_pairs: [[0, 1], [2, 3], [5, 7]]
   keypoint_names: [FrameTL, FrameTR, FrameBR, FrameBL, MidTop, MidRight, MidBottom, MidLeft, PingerTop]
-  mask_classes: [gate] # the aperture membrane, not the frame silhouette
+  # gate_joint (real r1, clean_real_pose_b/001) is POSE-ONLY (C=0): no aperture
+  # mask; gate_pose is keypoint-only anyway. Restore [gate] for a pose+seg ckpt.
+  mask_classes: []
   mask_threshold: null # null = from checkpoint (0.5)
 
 detection: # consumed by vitpose_detection_node
   bbox_provider:
     type: model
-    checkpoint: gate_objectness.pth
+    checkpoint: gate_objectness.engine # TRT fp16 of gate_objectness.pth
     device: cuda
     threshold: 0.5 # detect
     # NOT tetra's 0.7: for gate an inflated box is nearly free (1.25x pad,
     # tracker takes over) while a tight one clips the pinger pole (kp 8).
     # Revisit with real gate footage.
     measure_threshold: null
-    search_rate: 5.0 # Hz cap on detector retries while the object is absent
+    search_rate: null # every frame: the detector is the crop source (no tracker below)
     # The torpedo housing shows dark side arcs (800x448 rect image); the
     # detector locks onto them when no gate is in view. Detector-only crop.
     detect_columns: {torpedo: [200, 615]} # 08-17 painted housing mask (~/Shared/torpedo_cam_mask.png): no arc pixel in any row; centre row alone would allow [87, 719]
     # Topic names the OBJECT: Detection2DArray has no object field.
     publish_topic: /vitpose_bbox_gate_front
-    tracker:
-      seed_period: 2.0 # s; the detector re-runs at least this often
-      # Gate's mask is the aperture, not the silhouette — the 9 keypoints
-      # are (CropTracker, vitpose_utils SECTION 4).
-      propagate_from: keypoints
-      propagate_min_score: 0.2
-      min_keypoints: 4
-      margin: 0.10 # keypoints already span the object
-      border_slack_px: 4.0
-      max_area_ratio: 2.5
-      min_confidence: 0.2
-      # Judge health on the corners; the post midpoints (5, 7) slide by design.
-      confidence_ids: [0, 1, 2, 3]
+    # No `tracker:` block: objectness runs on EVERY frame and its box is the
+    # crop (08-17 kapı-bag verdict: CropTracker kp-carry drifts the box aspect;
+    # detector-every-frame is visibly best, affordable on TRT).
 
 process: # consumed by vitpose_process_node
   skeleton: [[0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3], [3, 7], [7, 0], [4, 8]]
