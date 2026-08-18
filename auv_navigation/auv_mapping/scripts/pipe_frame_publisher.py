@@ -45,6 +45,7 @@ class PipeFramePublisher:
                 self.camera_forward_direction,
             )
             self.camera_forward_direction = "right"
+        self.camera_forward_direction = "left"
 
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param(

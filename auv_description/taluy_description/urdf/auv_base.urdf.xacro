@@ -95,7 +95,7 @@
       name="${namespace}/base_link/bottom_camera"
       parent="${namespace}/base_link"
       position="0 0 -0.07"
-      orientation="0 ${math.pi/2} ${math.pi/2}"
+      orientation="${math.pi} ${math.pi/2} ${math.pi/2}"
       use_models="$(arg use_models)"
     />
     <xacro:torpedo_camera name="${namespace}/base_link/torpedo_camera" parent="${namespace}/base_link" position="-0.408 0.1 -0.149" orientation="0.0 -0.088 ${math.pi}" use_models="$(arg use_models)"/>

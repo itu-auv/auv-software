@@ -5,4 +5,4 @@ ang_error_eps: 20
 ang_error_close_point_eps: 40
 pipe_width: 0.15
 follow_height: 1.5
-camera_forward_direction: right
+camera_forward_direction: left

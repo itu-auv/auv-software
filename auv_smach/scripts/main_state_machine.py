@@ -148,7 +148,7 @@ class MainStateMachineNode:
         self.pipeline_depth = -0.75
 
         # Pipe follower parameters
-        self.pipe_map_depth = -8.0
+        self.pipe_follow_altitude = 2.0
         self.pipe_target_frame = "pipe_carrot"
         self.pipe_method = rospy.get_param("~pipe_method", "new")
 
@@ -467,7 +467,7 @@ class MainStateMachineNode:
             "FOLLOW_PIPE": (
                 PipeTaskState,
                 {
-                    "pipe_map_depth": self.pipe_map_depth,
+                    "pipe_follow_altitude": self.pipe_follow_altitude,
                     "pipe_target_frame": self.pipe_target_frame,
                     "pipe_method": self.pipe_method,
                 },
