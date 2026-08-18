@@ -38,12 +38,18 @@ class RelativeApproachFramePublisher:
         self.gate_farther_frame = rospy.get_param(
             "~gate_farther_frame", "gate_farther"
         )
+        self.gate_farthest_frame = rospy.get_param(
+            "~gate_farthest_frame", "gate_farthest"
+        )
         self.approach_distance = float(rospy.get_param("~approach_distance", 2.0))
         self.gate_closer_distance = float(
             rospy.get_param("~gate_closer_distance", 1.0)
         )
         self.gate_farther_distance = float(
             rospy.get_param("~gate_farther_distance", 2.5)
+        )
+        self.gate_farthest_distance = float(
+            rospy.get_param("~gate_farthest_distance", 4.0)
         )
         self.z_offset = float(rospy.get_param("~z_offset", 0.0))
         self.lookup_timeout = float(rospy.get_param("~lookup_timeout", 0.5))
@@ -84,6 +90,7 @@ class RelativeApproachFramePublisher:
     def reconfigure_callback(self, config, _level):
         self.gate_closer_distance = config.gate_closer_distance
         self.gate_farther_distance = config.gate_farther_distance
+        self.gate_farthest_distance = config.gate_farthest_distance
         return config
 
     def handle_enable_service(self, request):
@@ -273,6 +280,7 @@ class RelativeApproachFramePublisher:
         for child_frame, local_y in (
             (self.gate_closer_frame, -self.gate_closer_distance),
             (self.gate_farther_frame, self.gate_farther_distance),
+            (self.gate_farthest_frame, self.gate_farthest_distance),
         ):
             offset_x = gate_rotation_matrix[0][1] * local_y
             offset_y = gate_rotation_matrix[1][1] * local_y
