@@ -59,6 +59,7 @@ class TetraBottomCameraHandler:
                 (detection.bbox.center.x, detection.bbox.center.y),
             )
             if stable_center is None:
+                print("IGNORING UNSTABLE TETRA BOTTOM DETECTION")
                 continue
 
             distance = self.shared_state.get("altitude")
