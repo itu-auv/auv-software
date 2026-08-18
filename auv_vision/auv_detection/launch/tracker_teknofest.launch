@@ -1,6 +1,6 @@
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="pipe_camera_forward_direction" default="right" />
+  <arg name="pipe_camera_forward_direction" default="left" />
   <arg name="pipe_legacy_linear_x" default="0.2" />
   <arg name="pipe_legacy_target_width" default="320" />
   <arg name="pipe_legacy_close_kernel_size" default="25" />

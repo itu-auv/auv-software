@@ -1,3 +1,4 @@
+morph_kernel_size: 7
 close_point_filter_eps: 50
 short_segment_filter_eps: 50
 merge_segment_eps: 200

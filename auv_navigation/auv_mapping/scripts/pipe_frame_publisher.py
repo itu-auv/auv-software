@@ -32,7 +32,7 @@ class PipeFramePublisher:
         self.image_center = None
         self.target_width = 320
 
-        self.morph_kernel_size = 20
+        self.morph_kernel_size = rospy.get_param("~morph_kernel_size", 7)
         self.approx_poly_epsilon_factor = 0.05
 
         self.center_offset_threshold = 50
@@ -45,7 +45,6 @@ class PipeFramePublisher:
                 self.camera_forward_direction,
             )
             self.camera_forward_direction = "right"
-        self.camera_forward_direction = "left"
 
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param(
@@ -100,6 +99,11 @@ class PipeFramePublisher:
         rospy.loginfo("[PipeFramePublisher] Initialization complete.")
 
     def callback_reconfigure(self, config, level):
+        # getattr keeps compatibility with a generated dynamic-reconfigure
+        # module from before morph_kernel_size was added to the cfg.
+        self.morph_kernel_size = getattr(
+            config, "morph_kernel_size", self.morph_kernel_size
+        )
         self.close_point_filter_eps = config.close_point_filter_eps
         self.short_segment_filter_eps = config.short_segment_filter_eps
         self.merge_segment_eps = config.merge_segment_eps
@@ -411,8 +415,21 @@ class PipeFramePublisher:
         base_rot = self._get_frame_rotation(
             self.taluy_base_frame, self.bottom_cam_frame
         )
-        if rot_offset:
-            q_yaw = quaternion_from_euler(math.pi, 0, rot_offset)
+        if rot_offset is not None:
+            # The optical frame uses +X for image-right and +Y for image-down.
+            # The carrot frame uses +X as its forward axis, so account for
+            # which image direction is the vehicle's forward direction.
+            camera_forward_yaw = {
+                "right": 0.0,
+                "left": math.pi,
+                "up": -math.pi / 2,
+                "down": math.pi / 2,
+            }[self.camera_forward_direction]
+            q_yaw = quaternion_from_euler(
+                math.pi,
+                0,
+                self._normalize_angle(camera_forward_yaw + rot_offset),
+            )
             pose.orientation.x = q_yaw[0]
             pose.orientation.y = q_yaw[1]
             pose.orientation.z = q_yaw[2]
