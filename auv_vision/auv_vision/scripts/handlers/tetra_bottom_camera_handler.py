@@ -33,7 +33,7 @@ class TetraBottomCameraHandler:
             camera_config.get("stability_min_detections", 5)
         )
         self.stability_radius_px = float(
-            camera_config.get("stability_radius_px", 75.0)
+            camera_config.get("stability_radius_px", 200.0)
         )
         if self.stability_min_detections < 1:
             raise ValueError("stability_min_detections must be at least 1")
