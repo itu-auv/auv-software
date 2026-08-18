@@ -54,6 +54,8 @@ cameras:
     default_enabled: true
     image_width: 1920
     image_height: 1080
+    stability_min_detections: 5
+    stability_radius_px: 200.0
     id_tf_map:
       0: tetra_bottom_link
   bottom:
