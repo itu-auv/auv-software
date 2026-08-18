@@ -29,6 +29,9 @@ class RelativeApproachFramePublisher:
         self.source_frame = rospy.get_param("~source_frame", "pinger_bbox")
         self.output_frame = rospy.get_param("~output_frame", "pinger_close_approach")
         self.gate_frame = rospy.get_param("~gate_frame", "gate_link")
+        self.corrected_gate_frame = rospy.get_param(
+            "~corrected_gate_frame", "gate_corrected"
+        )
         self.gate_closer_frame = rospy.get_param(
             "~gate_closer_frame", "gate_closer"
         )
@@ -204,9 +207,18 @@ class RelativeApproachFramePublisher:
         self.send_transform(transform)
 
     def publish_gate_frames(self):
-        """Publish approach frames at +/- local Y of the ViTPose gate frame."""
+        """Correct the gate orientation and publish frames at +/- local Y.
+
+        ``gate_closer`` is defined at negative local Y. If that direction does
+        not face the robot, rotate the incoming gate orientation by 180 degrees
+        around its local Z axis. The gate position is never changed.
+        """
         gate_transform = self.lookup_transform(self.gate_frame)
         if gate_transform is None:
+            return
+
+        robot_transform = self.lookup_transform(self.robot_frame)
+        if robot_transform is None:
             return
 
         gate_translation = gate_transform.transform.translation
@@ -218,6 +230,41 @@ class RelativeApproachFramePublisher:
             gate_rotation.w,
         )
         gate_rotation_matrix = tf.transformations.quaternion_matrix(gate_quaternion)
+
+        robot_translation = robot_transform.transform.translation
+        gate_to_robot_x = robot_translation.x - gate_translation.x
+        gate_to_robot_y = robot_translation.y - gate_translation.y
+        closer_x = -gate_rotation_matrix[0][1]
+        closer_y = -gate_rotation_matrix[1][1]
+
+        if closer_x * gate_to_robot_x + closer_y * gate_to_robot_y < 0.0:
+            gate_quaternion = tf.transformations.quaternion_multiply(
+                gate_quaternion,
+                tf.transformations.quaternion_from_euler(0.0, 0.0, math.pi),
+            )
+            gate_rotation_matrix = tf.transformations.quaternion_matrix(
+                gate_quaternion
+            )
+            rospy.logdebug_throttle(
+                2.0,
+                "Corrected %s orientation by 180 degrees around local Z",
+                self.gate_frame,
+            )
+
+        corrected_gate_pose = Pose(
+            position=Point(
+                gate_translation.x,
+                gate_translation.y,
+                gate_translation.z,
+            ),
+            orientation=Quaternion(*gate_quaternion),
+        )
+        self.send_transform(
+            self.build_transform_message(
+                self.corrected_gate_frame, corrected_gate_pose
+            )
+        )
+
         frame_quaternion = tf.transformations.quaternion_multiply(
             gate_quaternion,
             tf.transformations.quaternion_from_euler(0.0, 0.0, math.pi / 2.0),
