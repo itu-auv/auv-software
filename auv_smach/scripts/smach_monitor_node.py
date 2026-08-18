@@ -22,6 +22,14 @@ class SmachMonitor:
         self.disable_bottom_service_name = "vision/enable_bottom_camera_detections"
         self.disable_slalom_service_name = "vision/enable_slalom_camera_detections"
 
+        # Mission-specific publishers and ViTPose instances
+        self.pinger_trajectory_service_name = (
+            "toggle_pinger_teknofest_trajectory"
+        )
+        self.tetra_trajectory_service_name = "toggle_tetra_trajectory"
+        self.vitpose_detection_service_name = "vitpose_detection_node/enable"
+        self.vitpose_scan_service_name = "vitpose_scan_node/enable"
+
         self.align_frame_service = rospy.ServiceProxy(
             self.align_frame_service_name, Trigger
         )
@@ -38,6 +46,18 @@ class SmachMonitor:
         )
         self.disable_slalom_service = rospy.ServiceProxy(
             self.disable_slalom_service_name, SetBool
+        )
+        self.pinger_trajectory_service = rospy.ServiceProxy(
+            self.pinger_trajectory_service_name, SetBool
+        )
+        self.tetra_trajectory_service = rospy.ServiceProxy(
+            self.tetra_trajectory_service_name, SetBool
+        )
+        self.vitpose_detection_service = rospy.ServiceProxy(
+            self.vitpose_detection_service_name, SetBool
+        )
+        self.vitpose_scan_service = rospy.ServiceProxy(
+            self.vitpose_scan_service_name, SetBool
         )
 
         self.smach_is_active = False
@@ -116,6 +136,24 @@ class SmachMonitor:
                 req = SetBoolRequest(data=False)
                 service_proxy(req)
                 rospy.loginfo("Disabled detections for service: %s" % service_name)
+            except (
+                rospy.ServiceException,
+                rospy.ROSException,
+                rospy.ROSInterruptException,
+            ) as e:
+                rospy.logerr("Service call to %s failed: %s" % (service_name, e))
+
+        # 4. Disable mission trajectory publishers and ViTPose instances
+        for service_name, service_proxy in [
+            (self.pinger_trajectory_service_name, self.pinger_trajectory_service),
+            (self.tetra_trajectory_service_name, self.tetra_trajectory_service),
+            (self.vitpose_detection_service_name, self.vitpose_detection_service),
+            (self.vitpose_scan_service_name, self.vitpose_scan_service),
+        ]:
+            try:
+                rospy.wait_for_service(service_name, timeout=2.0)
+                service_proxy(SetBoolRequest(data=False))
+                rospy.loginfo("Disabled mission service: %s" % service_name)
             except (
                 rospy.ServiceException,
                 rospy.ROSException,

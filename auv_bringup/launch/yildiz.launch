@@ -20,7 +20,7 @@
   <arg name="object" default="gate" />
   <!-- Loading is lazy; `enabled` decides when checkpoints hit the GPU. A
        failed load logs and leaves the node up but disabled. -->
-  <arg name="enabled" default="true" />
+  <arg name="enabled" default="false" />
   <arg name="scan" default="true" />
   <arg name="scan_enabled" default="false" />
   <arg name="sim" default="false" />

@@ -19,7 +19,7 @@ class TetraTrajectoryPublisher:
     def __init__(self):
         rospy.init_node("tetra_trajectory_publisher")
 
-        self.enabled = bool(rospy.get_param("~enabled", True))
+        self.enabled = bool(rospy.get_param("~enabled", False))
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.tetra_front_frame = rospy.get_param(

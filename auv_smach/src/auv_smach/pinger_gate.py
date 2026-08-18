@@ -37,6 +37,16 @@ class PingerTrajectoryPublisherState(smach_ros.ServiceState):
         )
 
 
+class TetraTrajectoryPublisherState(smach_ros.ServiceState):
+    def __init__(self, enable: bool):
+        super().__init__(
+            "toggle_tetra_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=enable),
+            response_cb=require_success,
+        )
+
+
 class VitposeDetectionState(smach_ros.ServiceState):
     """Enable or pause the pose-producing ViTPose node."""
 
@@ -190,6 +200,33 @@ class PingerGateTaskState(smach.State):
                 "ENABLE_PINGER_CAMERA",
                 SetDetectionState(camera_name="pinger", enable=True),
                 transitions={
+                    "succeeded": "GENERAL_ENABLE_VİTPOSE_NODE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "GENERAL_ENABLE_VİTPOSE_NODE",
+                VitposeDetectionState(enable=True),
+                transitions={
+                    "succeeded": "GATE_CONFİG_AT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "GATE_CONFİG_AT",
+                VitposeConfigState(object_name="gate"),
+                transitions={
+                    "succeeded": "MODE_DETECT_GEC",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "MODE_DETECT_GEC",
+                VitposeModeState(mode="detect"),
+                transitions={
                     "succeeded": "ENABLE_PINGER_TRAJECTORY",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -249,23 +286,25 @@ class PingerGateTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "ENABLE_VITPOSE_DETECTION",
+                    "succeeded": "POSE_ENABLE_VITPOSE_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+
             ##CLOSE APPROCH SEQUANCE'I BİTİYOR ÜSTÜNÜ SİLEBİLİRİZ EN KÖTÜ.
             smach.StateMachine.add(
-                "ENABLE_VITPOSE_DETECTION",
-                VitposeDetectionState(enable=True),
+                "POSE_ENABLE_VITPOSE_DETECTION",
+                VitposeModeState(mode="pose"),
                 transitions={
-                    "succeeded": "WAIT_FOR_GATE_FRAME",
+                    "succeeded": "POSE_BEKLEMEYE_GECİYORUM",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_GATE_FRAME",
+                "POSE_BEKLEMEYE_GECİYORUM",
                 DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "DISABLE_PINGER_TRAJECTORY",
@@ -358,6 +397,15 @@ class PingerGateTaskState(smach.State):
                 "ENABLE_TETRA_FRONT_CAMERA",
                 TetraFrontCameraState(enable=True),
                 transitions={
+                    "succeeded": "ENABLE_TETRA_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_TETRA_TRAJECTORY",
+                TetraTrajectoryPublisherState(enable=True),
+                transitions={
                     "succeeded": "WAIT_FOR_FRONT_TETRA",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -403,6 +451,7 @@ class PingerGateTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "PATH_FRONT_TETRA_UNTIL_BOTTOM_TETRA",
                 DynamicPathWithTransformCheck(

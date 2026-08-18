@@ -156,6 +156,7 @@
       <param name="source_frame" value="pinger_bbox" />
       <param name="output_frame" value="pinger_close_approach" />
       <param name="approach_distance" value="2.0" />
+      <param name="enabled" value="false" />
       <remap from="toggle_pinger_teknofest_trajectory" to="toggle_pinger_teknofest_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
@@ -165,7 +166,7 @@
       <param name="tetra_front_frame" value="tetra_front_link" />
       <param name="tetra_further_frame" value="tetra_further_link" />
       <param name="tetra_further_distance" value="4.0" />
-      <param name="enabled" value="true" />
+      <param name="enabled" value="false" />
       <remap from="toggle_tetra_trajectory" to="toggle_tetra_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
