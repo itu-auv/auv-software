@@ -16,7 +16,7 @@ from auv_smach.tf_utils import get_base_link
 CONFIG_PARAM = "surface_waypoint_mission/config"
 IMAGE_CAPTURE_SERVICE = "image_saver/capture"
 IMAGE_FOLDER_PARAM = "image_saver/waypoint_folder"
-PHOTOS_PER_WAYPOINT = 3
+PHOTOS_PER_WAYPOINT = 1
 PHOTO_INTERVAL_SECONDS = 0.4
 WAYPOINT_COUNT = 3
 
@@ -169,6 +169,19 @@ class NavigateToSurfaceWaypointsState(smach.State):
             self.active_state.request_preempt()
 
     def execute(self, _userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        self.active_state = SetDepthState(depth=-1.0)
+        initial_depth_outcome = self.active_state.execute(None)
+        self.active_state = None
+        if initial_depth_outcome != "succeeded":
+            if initial_depth_outcome == "preempted" or self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+            return "aborted"
+
         waypoints = self._wait_for_waypoints()
         if waypoints is None:
             if self.preempt_requested():
