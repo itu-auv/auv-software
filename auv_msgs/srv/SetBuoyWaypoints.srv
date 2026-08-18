@@ -9,6 +9,7 @@ float64 buoy_x_m
 float64 buoy_y_m
 float64 surface_x_m
 float64 surface_y_m
+float64 odom_heading_from_north_deg
 ---
 bool success
 string message

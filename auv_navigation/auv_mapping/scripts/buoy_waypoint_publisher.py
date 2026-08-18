@@ -48,6 +48,7 @@ class BuoyWaypointPublisher:
 
     def __init__(self):
         self.parent_frame = rospy.get_param("~parent_frame", "odom")
+        self.north_frame = rospy.get_param("~north_frame", "north")
         self.buoy_frame = rospy.get_param("~buoy_frame", "buoy")
         self.surface_frame = rospy.get_param("~surface_frame", "surface")
         self.target_z_m = float(rospy.get_param("~target_z_m", 0.0))
@@ -112,6 +113,11 @@ class BuoyWaypointPublisher:
             request.start_longitude_deg,
             "Start",
         )
+        odom_heading_from_north_deg = float(request.odom_heading_from_north_deg)
+        if not math.isfinite(odom_heading_from_north_deg):
+            raise ValueError("Odom heading must be finite")
+        north_yaw_rad = math.radians(odom_heading_from_north_deg)
+
         if request.use_geodetic:
             buoy_latitude_deg, buoy_longitude_deg = self._validate_coordinate(
                 request.buoy_latitude_deg,
@@ -202,6 +208,8 @@ class BuoyWaypointPublisher:
                 "z_m": self.target_z_m,
             },
             "geodetic": geodetic,
+            "odom_heading_from_north_deg": odom_heading_from_north_deg,
+            "north_yaw_rad": north_yaw_rad,
             "points": points,
         }
 
@@ -246,6 +254,10 @@ class BuoyWaypointPublisher:
     @staticmethod
     def _log_config(config):
         rospy.loginfo("[BuoyWaypoints] Loaded in %s mode", config["mode"])
+        rospy.loginfo(
+            "[BuoyWaypoints] Odom heading from north=%.1f deg",
+            config["odom_heading_from_north_deg"],
+        )
         for point in config["points"]:
             rospy.loginfo(
                 "[BuoyWaypoints] %s: x=%.3f m north, y=%.3f m west, "
@@ -264,15 +276,25 @@ class BuoyWaypointPublisher:
             return
 
         stamp = rospy.Time.now()
-        transforms = [
+        transforms = [self.build_north_transform(config["north_yaw_rad"], stamp)]
+        transforms.extend(
             self.build_transform_message(point, stamp) for point in config["points"]
-        ]
+        )
         self.send_transforms(transforms)
+
+    def build_north_transform(self, yaw_rad, stamp):
+        transform = TransformStamped()
+        transform.header.stamp = stamp
+        transform.header.frame_id = self.parent_frame
+        transform.child_frame_id = self.north_frame
+        transform.transform.rotation.z = math.sin(yaw_rad / 2.0)
+        transform.transform.rotation.w = math.cos(yaw_rad / 2.0)
+        return transform
 
     def build_transform_message(self, point, stamp):
         transform = TransformStamped()
         transform.header.stamp = stamp
-        transform.header.frame_id = self.parent_frame
+        transform.header.frame_id = self.north_frame
         transform.child_frame_id = point["frame_id"]
         transform.transform.translation.x = point["x_m"]
         transform.transform.translation.y = point["y_m"]

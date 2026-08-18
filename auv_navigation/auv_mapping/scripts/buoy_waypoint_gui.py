@@ -23,6 +23,7 @@ class BuoyWaypointGUI:
             "~set_waypoints_service", "map/set_buoy_waypoints"
         )
         self.use_geodetic_var = tk.BooleanVar(value=True)
+        self.odom_heading_from_north_var = tk.StringVar(value="0")
         self.coordinate_vars = {
             "start": {
                 "latitude": tk.StringVar(),
@@ -74,7 +75,7 @@ class BuoyWaypointGUI:
         left = ttk.Frame(main)
         left.grid(row=1, column=0, sticky="nsew", padx=(0, 12))
         left.columnconfigure(0, weight=1)
-        left.rowconfigure(4, weight=1)
+        left.rowconfigure(5, weight=1)
 
         mode_frame = ttk.LabelFrame(
             left,
@@ -161,8 +162,25 @@ class BuoyWaypointGUI:
             wraplength=490,
         ).grid(row=2, column=0, sticky="w", pady=(8, 8))
 
+        north_frame = ttk.LabelFrame(
+            left,
+            text="Kuzey Referansı",
+            style="Section.TLabelframe",
+            padding=8,
+        )
+        north_frame.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        ttk.Label(
+            north_frame,
+            text="Odom +x'in gerçek kuzeye göre saat yönü açısı (°):",
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Entry(
+            north_frame,
+            textvariable=self.odom_heading_from_north_var,
+            width=12,
+        ).grid(row=0, column=1, padx=(8, 12))
+
         action_row = ttk.Frame(left)
-        action_row.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        action_row.grid(row=4, column=0, sticky="ew", pady=(0, 10))
         action_row.columnconfigure(1, weight=1)
         ttk.Button(
             action_row,
@@ -183,7 +201,7 @@ class BuoyWaypointGUI:
             style="Section.TLabelframe",
             padding=8,
         )
-        result_frame.grid(row=4, column=0, sticky="nsew")
+        result_frame.grid(row=5, column=0, sticky="nsew")
         result_frame.rowconfigure(0, weight=1)
         result_frame.columnconfigure(0, weight=1)
         columns = ("frame", "x", "y", "distance")
@@ -300,6 +318,12 @@ class BuoyWaypointGUI:
             request.surface_y_m = self._parse_number(
                 self.coordinate_vars["surface"]["y"].get(), "Surface y"
             )
+        request.odom_heading_from_north_deg = self._parse_coordinate(
+            self.odom_heading_from_north_var.get(),
+            "Odom kuzey açısı",
+            -360.0,
+            360.0,
+        )
         return request
 
     def _check_service_connection(self):
