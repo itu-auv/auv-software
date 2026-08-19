@@ -80,6 +80,11 @@ process: # consumed by vitpose_process_node
         max_distance: 30.0 # house-wide range gate
         prior_timeout: 5.0 # s; last accepted pose serves as init/flip prior
         prior_distance: 3.0 # m; canonical face-on prior before first accept
+        # Resolve planar-PnP's 180-degree normal ambiguity before gate_link is
+        # published. Local -Y is kept on the robot side of the gate.
+        robot_frame: taluy/base_link
+        orientation_reference_frame: odom
+        orientation_lookup_timeout: 0.5
         # refine: {} # FUSED_POSE_DEFAULTS overrides
         outputs:
           # One frame at the aperture centre — what SMACH aligns to and swims

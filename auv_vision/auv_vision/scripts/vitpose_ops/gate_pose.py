@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 import rospy
 import tf.transformations
+import tf2_ros
 
 from utils.vitpose_utils import FusedPlanarPoseEstimator, project_points
 
@@ -40,6 +41,13 @@ class GatePoseOp:
         self.max_distance = float(params.get("max_distance", 30.0))
         self.prior_timeout = float(params.get("prior_timeout", 5.0))
         self.prior_distance = float(params.get("prior_distance", 3.0))
+        self.robot_frame = str(params.get("robot_frame", "taluy/base_link"))
+        self.orientation_reference_frame = str(
+            params.get("orientation_reference_frame", "odom")
+        )
+        self.orientation_lookup_timeout = float(
+            params.get("orientation_lookup_timeout", 0.5)
+        )
         self.outputs = [
             dict(
                 child_frame=str(out["child_frame"]),
@@ -108,6 +116,71 @@ class GatePoseOp:
         self._set_viz(None, False, f"gate_pose: {reason}")
         rospy.logdebug_throttle(2.0, f"gate_pose abstains: {reason}")
 
+    @staticmethod
+    def _transform_matrix(transform):
+        rotation = transform.transform.rotation
+        matrix = tf.transformations.quaternion_matrix(
+            (rotation.x, rotation.y, rotation.z, rotation.w)
+        )
+        translation = transform.transform.translation
+        matrix[:3, 3] = (translation.x, translation.y, translation.z)
+        return matrix
+
+    def _fix_orientation_towards_robot(self, R, gate_xyz, stamp):
+        """Make local -Y point toward the robot in the horizontal plane.
+
+        Planar PnP can return the gate with its normal reversed. Resolve that
+        ambiguity before publishing gate_link, using the same dot-product
+        convention formerly applied by pinger_teknofest_trajectory_publisher.
+        """
+        try:
+            reference_from_camera = self.ctx.tf_buffer.lookup_transform(
+                self.orientation_reference_frame,
+                self.ctx.camera_frame,
+                stamp,
+                rospy.Duration(self.orientation_lookup_timeout),
+            )
+            reference_from_robot = self.ctx.tf_buffer.lookup_transform(
+                self.orientation_reference_frame,
+                self.robot_frame,
+                stamp,
+                rospy.Duration(self.orientation_lookup_timeout),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as exc:
+            rospy.logwarn_throttle(
+                5.0,
+                "gate_pose: cannot fix gate orientation in %s: %s",
+                self.orientation_reference_frame,
+                exc,
+            )
+            return None
+
+        reference_from_camera_matrix = self._transform_matrix(
+            reference_from_camera
+        )
+        gate_position = (
+            reference_from_camera_matrix[:3, :3] @ gate_xyz
+            + reference_from_camera_matrix[:3, 3]
+        )
+        gate_rotation = reference_from_camera_matrix[:3, :3] @ R
+        robot_position = self._transform_matrix(reference_from_robot)[:3, 3]
+
+        gate_to_robot = robot_position[:2] - gate_position[:2]
+        closer_direction = -gate_rotation[:2, 1]
+        if float(np.dot(closer_direction, gate_to_robot)) < 0.0:
+            # Local-Z half turn flips local X/Y while preserving upright Z.
+            R = R @ np.diag((-1.0, -1.0, 1.0))
+            rospy.logdebug_throttle(
+                2.0,
+                "gate_pose: fixed gate_link orientation by 180 degrees "
+                "around local Z",
+            )
+        return R
+
     # ------------------------------------------------------------- process
 
     def process(self, frame):
@@ -149,13 +222,27 @@ class GatePoseOp:
             self._set_viz(polygon, False, f"gate_pose: too far ({status})", axes)
             return
 
+        # Resolve the planar-PnP normal ambiguity before gate_link enters the
+        # object map; all downstream users then see one orientation convention.
+        gate_origin = R @ self.outputs[0]["offset_xyz"] + tvec
+        output_R = self._fix_orientation_towards_robot(R, gate_origin, frame.stamp)
+        if output_R is None:
+            return self._abstain("orientation reference unavailable")
+
+        # The overlay axes represent the orientation that is actually
+        # published, while the polygon remains the raw PnP reprojection.
+        output_rvec = cv2.Rodrigues(output_R)[0].ravel()
+        axes = project_points(self._axes_obj, output_rvec, tvec, K, D)
+
         # --- accept: publish outputs ------------------------------------
+        # Keep the raw PnP pose as its next-frame prior. The corrected output
+        # rotation does not preserve model-point correspondences.
         self._last_accepted = (rvec, tvec, frame.stamp)
         quat = tf.transformations.quaternion_from_matrix(
-            np.block([[R, np.zeros((3, 1))], [np.zeros((1, 3)), 1.0]])
+            np.block([[output_R, np.zeros((3, 1))], [np.zeros((1, 3)), 1.0]])
         )
         for out in self.outputs:
-            xyz = R @ out["offset_xyz"] + tvec
+            xyz = output_R @ out["offset_xyz"] + tvec
             self.ctx.publish_tf(
                 out["child_frame"], xyz, frame.stamp, rotation_quat=quat
             )
