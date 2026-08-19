@@ -19,7 +19,7 @@ model: # consumed by vitpose_inference (via the detection node)
 detection: # consumed by vitpose_detection_node
   bbox_provider:
     type: model
-    checkpoint: gate_objectness.engine # TRT fp16 of gate_objectness.pth
+    checkpoint: olukargagate.pth # TRT fp16 of gate_objectness.pth
     device: cuda
     threshold: 0.5 # detect
     # NOT tetra's 0.7: for gate an inflated box is nearly free (1.25x pad,
