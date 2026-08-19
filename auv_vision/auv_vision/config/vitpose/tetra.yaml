@@ -6,7 +6,7 @@ object: tetra
 camera: bottom # image/result topics, calibration, frame all derive from this
 
 model:
-  checkpoint: tetra_joint.pth # tetra/004: trained WITH random chirality
+  checkpoint: tetra_joint.engine # TRT fp16 of tetra_joint.pth (real r1, clean_real_b/001); trained WITH random chirality
   device: cuda
   decode: {use_udp: false, post_process: unbiased, kernel: 11} # contractual
   # Never flip tetra: mirrored letters don't exist and mirroring fakes the
@@ -25,27 +25,15 @@ model:
 detection:
   bbox_provider:
     type: model
-    checkpoint: tetra_objectness.pth
+    checkpoint: tetra_objectness.engine # TRT fp16 of tetra_objectness.pth
     device: cuda
     threshold: 0.5 # detect
     measure_threshold: 0.7 # box EXTENT only — real ramp is wider than sim
-    search_rate: 5.0 # Hz cap on detector retries while the object is absent
+    search_rate: null # every frame: the detector is the crop source (no tracker below)
     # Topic names the OBJECT: Detection2DArray has no object field.
     publish_topic: /vitpose_bbox_tetra_bottom
-    # Objectness only seeds; the crop is carried by the model's own mask
-    # silhouette (CropTracker, vitpose_utils SECTION 4). Remove the block to
-    # detect every frame.
-    tracker:
-      seed_period: 2.0 # s; the detector re-runs at least this often
-      propagate_from: mask # the 3 face masks union to the silhouette
-      margin: 0.18
-      min_mask_pixels: 200
-      border_slack_px: 4.0
-      max_area_ratio: 2.5
-      min_confidence: 0.2
-      # Judge health on the vertices, never the letters (an averted-face
-      # letter's score is meaningless).
-      confidence_ids: [3, 4, 5, 6]
+    # No `tracker:` block: objectness runs on EVERY frame and its box is the
+    # crop (mask-silhouette CropTracker retired with the move to TRT, 08-19).
 
 process:
   skeleton: [] # letters have no skeleton
