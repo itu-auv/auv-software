@@ -36,15 +36,6 @@ objects:
       - [0.00, 0.0, 0.03] # 6 MidBottom
       - [-0.53, 0.0, 0.76] # 7 MidLeft
       - [0.00, 0.0, 1.59] # 8 PingerTop
-    masks:
-      # The aperture membrane, visible from both sides — no culling.
-      gate:
-        polygon:
-          - [-0.5, 0.0, 0.06]
-          - [0.5, 0.0, 0.06]
-          - [0.5, 0.0, 1.46]
-          - [-0.5, 0.0, 1.46]
-        cull_backface: false
 
   # ── TETRA (bottom camera, pose) ─────────────────────────────────────────
   # Canonical asset, no chirality swap baked: vertices V0 (0, 0.34641, 0),
