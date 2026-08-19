@@ -20,7 +20,7 @@ SENSORS = np.array(
     ]
 )
 A = SENSORS[1:] - SENSORS[0]
-ROBOT_YAW_OFFSET_DEG = 90.0
+ROBOT_YAW_OFFSET_DEG = 0.0
 
 
 def normalize_angle(angle):
@@ -35,6 +35,7 @@ def calculate_angle(tdoa_samples):
 
     norm_k = np.linalg.norm(k_est)
     if norm_k > 1e-12:
+
         k_est /= norm_k
     else:
         k_est = np.array([0.0, 0.0])
