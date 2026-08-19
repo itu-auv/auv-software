@@ -70,10 +70,13 @@ class PingerFramePublisher:
         direction = msg.data.strip().lower()
 
         offsets = {
-            "forward": (self.search_distance, 0.0),
-            "backward": (-self.search_distance, 0.0),
-            "left": (0.0, self.search_distance),
-            "right": (0.0, -self.search_distance),
+            "c0": (3.0, 0.0),
+            "r1": (3.0, -self.search_distance),
+            "r2": (3.0, -self.search_distance * 2),
+            "r3": (3.0, -self.search_distance * 3),
+            "l1": (3.0, self.search_distance),
+            "l2": (3.0, self.search_distance * 2),
+            "l3": (3.0, self.search_distance * 3),
         }
 
         if direction not in offsets:

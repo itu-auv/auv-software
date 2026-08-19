@@ -183,21 +183,6 @@ class PingerSearchState(smach.StateMachine):
                 "PUBLISH_WAYPOINT",
                 PublishPingerWaypointState(direction=direction),
                 transitions={
-                    "succeeded": "AIM_TO_WAYPOINT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "AIM_TO_WAYPOINT",
-                SearchForPropState(
-                    look_at_frame=waypoint_frame,
-                    alignment_frame="waypoint_aim",
-                    full_rotation=False,
-                    source_frame=get_base_link(),
-                    rotation_speed=0.4,
-                ),
-                transitions={
                     "succeeded": "DYNAMIC_TO_WAYPOINT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -227,7 +212,7 @@ class PingerSearchState(smach.StateMachine):
                     timeout=30.0,
                     confirm_duration=10.0,
                     cancel_on_success=True,
-                    keep_orientation=True,
+                    keep_orientation=False,
                 ),
                 transitions={
                     "succeeded": "STABLE_ALIGN_TO_WAYPOINT",
@@ -246,7 +231,7 @@ class PingerSearchState(smach.StateMachine):
                     timeout=30.0,
                     confirm_duration=3.0,
                     cancel_on_success=True,
-                    keep_orientation=True,
+                    keep_orientation=False,
                     max_linear_velocity=0.05,
                     max_angular_velocity=0.05,
                 ),
@@ -321,7 +306,7 @@ class PingerTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_1",
                 PingerSearchState(
-                    direction="forward",
+                    direction="r1",
                     waypoint_frame=self.waypoint_frame,
                     wait_for=self.collection_duration,
                     collection_altitude=self.collection_altitude,
@@ -337,7 +322,7 @@ class PingerTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_2",
                 PingerSearchState(
-                    direction="right",
+                    direction="l1",
                     waypoint_frame=self.waypoint_frame,
                     wait_for=self.collection_duration,
                     collection_altitude=self.collection_altitude,
@@ -353,7 +338,7 @@ class PingerTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_3",
                 PingerSearchState(
-                    direction="backward",
+                    direction="l2",
                     waypoint_frame=self.waypoint_frame,
                     wait_for=self.collection_duration,
                     collection_altitude=self.collection_altitude,
