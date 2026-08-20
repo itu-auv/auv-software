@@ -226,9 +226,9 @@ class PingerSearchState(smach.StateMachine):
                 AlignFrame(
                     source_frame=get_base_link(),
                     target_frame=waypoint_frame,
-                    dist_threshold=0.05,
+                    dist_threshold=0.10,
                     yaw_threshold=0.05,
-                    timeout=30.0,
+                    timeout=10.0,
                     confirm_duration=3.0,
                     cancel_on_success=True,
                     keep_orientation=False,
