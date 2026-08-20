@@ -12,6 +12,9 @@
   <arg name="waypoint_prefix" default="path" />
   <arg name="waypoint_broadcast_rate_hz" default="20.0" />
   <arg name="waypoint_state_file" default="$(find auv_mapping)/config/waypoints/waypoint_gui_state.yaml" />
+  <arg name="pinger_debug_world_width" default="25.0" />
+  <arg name="pinger_debug_world_center_x" default="0.0" />
+  <arg name="pinger_debug_world_center_y" default="0.0" />
 
   <group if="$(arg enable_realsense_nodes)">
     <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
@@ -177,6 +180,12 @@
       <param name="close_distance" value="2.0" />
       <param name="search_distance" value="2.0" />
       <param name="outlier_threshold" value="0.26" />
+      <param name="odom_frame" value="$(arg static_frame)" />
+      <!-- Fixed odom-centred debug view; prevents the world/grid from
+           following the vehicle as new bearing samples arrive. -->
+      <param name="debug_world_width" value="$(arg pinger_debug_world_width)" />
+      <param name="debug_world_center_x" value="$(arg pinger_debug_world_center_x)" />
+      <param name="debug_world_center_y" value="$(arg pinger_debug_world_center_y)" />
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
       <param name="topic_name" value="/$(arg namespace)/acoustic/hydrophone/base_angle" />
       <remap from="set_object_transform" to="map/set_object_transform" />

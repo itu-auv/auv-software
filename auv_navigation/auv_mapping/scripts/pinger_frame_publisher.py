@@ -36,6 +36,9 @@ class PingerFramePublisher:
 
         self.pinger_pose = None
         self.close_pose = None
+        self.intersection_covariance = None
+        self.intersection_rms_error = None
+        self.intersection_condition = None
 
         # --------------------------------------------------------------
         # Parameters
@@ -124,6 +127,18 @@ class PingerFramePublisher:
                 "~debug_max_samples",
                 250,
             )
+        )
+
+        # Keep the debug camera fixed in odom.  Auto-fitting the samples made
+        # the grid appear to move underneath the vehicle while collecting.
+        self.debug_world_width = float(
+            rospy.get_param("~debug_world_width", 16.0)
+        )
+        self.debug_world_center_x = float(
+            rospy.get_param("~debug_world_center_x", 0.0)
+        )
+        self.debug_world_center_y = float(
+            rospy.get_param("~debug_world_center_y", 0.0)
         )
 
         # --------------------------------------------------------------
@@ -554,6 +569,9 @@ class PingerFramePublisher:
 
         self.pinger_pose = None
         self.close_pose = None
+        self.intersection_covariance = None
+        self.intersection_rms_error = None
+        self.intersection_condition = None
 
         msg = (
             "Cleared all collected pinger samples "
@@ -781,6 +799,26 @@ class PingerFramePublisher:
                     "singular matrix."
                 ),
             )
+
+        residuals = []
+        for sample in self.samples:
+            theta = sample["angle_world"]
+            normal = np.array([-math.sin(theta), math.cos(theta)])
+            residuals.append(float(np.dot(normal, p - sample["pos"])))
+
+        residual_sum_sq = float(np.dot(residuals, residuals))
+        self.intersection_rms_error = math.sqrt(
+            residual_sum_sq / max(len(residuals), 1)
+        )
+        self.intersection_condition = float(condition_number)
+
+        # Approximate 2-D covariance of the least-squares intersection.  It is
+        # used only by the debug view to communicate solution geometry.
+        try:
+            variance = residual_sum_sq / max(len(residuals) - 2, 1)
+            self.intersection_covariance = variance * np.linalg.inv(A)
+        except np.linalg.LinAlgError:
+            self.intersection_covariance = None
 
         self.pinger_pose = Pose()
 
@@ -1103,7 +1141,7 @@ class PingerFramePublisher:
             * magnitude
         )
 
-    def publish_debug_image(self):
+    def _publish_debug_image_legacy(self):
         size = self.debug_image_size
         margin = 70
 
@@ -1820,6 +1858,325 @@ class PingerFramePublisher:
                 2.0,
                 f"Debug image publish failed: {e}",
             )
+
+    def _get_robot_pose_2d(self):
+        """Return robot x, y and yaw expressed in the fixed odom frame."""
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.robot_base_frame,
+                rospy.Time(0),
+                rospy.Duration(0.05),
+            )
+            translation = transform.transform.translation
+            rotation = transform.transform.rotation
+            _, _, yaw = tf.transformations.euler_from_quaternion(
+                [rotation.x, rotation.y, rotation.z, rotation.w]
+            )
+            return translation.x, translation.y, yaw
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            return None
+
+    @staticmethod
+    def _forward_ray_intersection(first, second):
+        """Intersect two directed bearing rays; reject rear intersections."""
+        p = np.asarray(first["pos"], dtype=float)
+        q = np.asarray(second["pos"], dtype=float)
+        d = np.array(
+            [math.cos(first["angle_world"]), math.sin(first["angle_world"])]
+        )
+        e = np.array(
+            [math.cos(second["angle_world"]), math.sin(second["angle_world"])]
+        )
+        cross = d[0] * e[1] - d[1] * e[0]
+        if abs(cross) < 1e-4:
+            return None
+        delta = q - p
+        first_distance = (delta[0] * e[1] - delta[1] * e[0]) / cross
+        second_distance = (delta[0] * d[1] - delta[1] * d[0]) / cross
+        if first_distance < 0.0 or second_distance < 0.0:
+            return None
+        return p + first_distance * d
+
+    def publish_debug_image(self):
+        """Publish a north-up, odom-fixed view of bearing geometry."""
+        size = max(self.debug_image_size, 320)
+        margin = 48
+        image = np.full((size, size, 3), 12, dtype=np.uint8)
+
+        world_width = max(self.debug_world_width, 1.0)
+        pixels_per_meter = min(
+            (size - 2 * margin) / world_width,
+            max(self.debug_max_pixels_per_meter, 1.0),
+        )
+        visible_width = size / pixels_per_meter
+        center_x = self.debug_world_center_x
+        center_y = self.debug_world_center_y
+        view_min_x = center_x - visible_width / 2.0
+        view_max_x = center_x + visible_width / 2.0
+        view_min_y = center_y - visible_width / 2.0
+        view_max_y = center_y + visible_width / 2.0
+
+        def world_to_pixel(x, y):
+            u = int(round(size / 2.0 + (x - center_x) * pixels_per_meter))
+            v = int(round(size / 2.0 - (y - center_y) * pixels_per_meter))
+            # Keep pathological, poorly-conditioned solutions inside OpenCV's
+            # integer drawing range.  Normal visible coordinates are unchanged.
+            drawing_limit = size * 5
+            return (
+                max(-drawing_limit, min(drawing_limit, u)),
+                max(-drawing_limit, min(drawing_limit, v)),
+            )
+
+        def is_visible(point):
+            return (
+                view_min_x <= point[0] <= view_max_x
+                and view_min_y <= point[1] <= view_max_y
+            )
+
+        # A fixed grid makes vehicle motion visible without moving the world.
+        grid_step = self._nice_grid_step(max(1.0, 70.0 / pixels_per_meter))
+        gx = math.ceil(view_min_x / grid_step) * grid_step
+        while gx <= view_max_x:
+            color = (50, 50, 50) if abs(gx) < 1e-8 else (29, 29, 29)
+            cv2.line(
+                image,
+                world_to_pixel(gx, view_min_y),
+                world_to_pixel(gx, view_max_y),
+                color,
+                1,
+            )
+            gx += grid_step
+        gy = math.ceil(view_min_y / grid_step) * grid_step
+        while gy <= view_max_y:
+            color = (50, 50, 50) if abs(gy) < 1e-8 else (29, 29, 29)
+            cv2.line(
+                image,
+                world_to_pixel(view_min_x, gy),
+                world_to_pixel(view_max_x, gy),
+                color,
+                1,
+            )
+            gy += grid_step
+
+        # Odom orientation uses ROS axis colours: +X red, +Y green.
+        odom_origin = world_to_pixel(0.0, 0.0)
+        axis_length = min(1.5, visible_width * 0.12)
+        cv2.arrowedLine(
+            image,
+            odom_origin,
+            world_to_pixel(axis_length, 0.0),
+            (40, 40, 255),
+            3,
+            cv2.LINE_AA,
+            tipLength=0.18,
+        )
+        cv2.arrowedLine(
+            image,
+            odom_origin,
+            world_to_pixel(0.0, axis_length),
+            (40, 220, 40),
+            3,
+            cv2.LINE_AA,
+            tipLength=0.18,
+        )
+        cv2.putText(
+            image, "+X odom", world_to_pixel(axis_length, -0.18),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (80, 80, 255), 1, cv2.LINE_AA,
+        )
+        cv2.putText(
+            image, "+Y", world_to_pixel(0.12, axis_length),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (80, 240, 80), 1, cv2.LINE_AA,
+        )
+
+        valid_samples = self.samples[-self.debug_max_samples:]
+        rejected_samples = self.rejected_samples[-self.debug_max_samples:]
+        current_samples = self.current_leg_samples[-self.debug_max_samples:]
+
+        def ray_endpoint(sample):
+            x, y = sample["pos"]
+            dx = math.cos(sample["angle_world"])
+            dy = math.sin(sample["angle_world"])
+            limits = []
+            if dx > 1e-9:
+                limits.append((view_max_x - x) / dx)
+            elif dx < -1e-9:
+                limits.append((view_min_x - x) / dx)
+            if dy > 1e-9:
+                limits.append((view_max_y - y) / dy)
+            elif dy < -1e-9:
+                limits.append((view_min_y - y) / dy)
+            positive_limits = [distance for distance in limits if distance >= 0.0]
+            if not positive_limits:
+                return None
+            distance = min(positive_limits)
+            return x + distance * dx, y + distance * dy
+
+        def draw_samples(samples, color, thickness, radius):
+            overlay = image.copy()
+            for sample in samples:
+                endpoint = ray_endpoint(sample)
+                if endpoint is None or not is_visible(sample["pos"]):
+                    continue
+                origin_px = world_to_pixel(*sample["pos"])
+                cv2.line(
+                    overlay, origin_px, world_to_pixel(*endpoint), color,
+                    thickness, cv2.LINE_AA,
+                )
+                cv2.circle(overlay, origin_px, radius, color, -1, cv2.LINE_AA)
+            cv2.addWeighted(overlay, 0.72, image, 0.28, 0.0, image)
+
+        draw_samples(rejected_samples, (40, 40, 210), 1, 2)
+        draw_samples(valid_samples, (40, 210, 80), 2, 3)
+        draw_samples(current_samples, (30, 220, 230), 1, 2)
+
+        # Show where pairs of forward rays agree.  These dots communicate the
+        # spread hidden by a single least-squares result.
+        intersection_candidates = []
+        candidate_samples = valid_samples[-40:]
+        for first_index, first in enumerate(candidate_samples):
+            for second in candidate_samples[first_index + 1:]:
+                candidate = self._forward_ray_intersection(first, second)
+                if candidate is not None and is_visible(candidate):
+                    intersection_candidates.append(candidate)
+        if len(intersection_candidates) > 180:
+            step = int(math.ceil(len(intersection_candidates) / 180.0))
+            intersection_candidates = intersection_candidates[::step]
+        for candidate in intersection_candidates:
+            cv2.circle(
+                image, world_to_pixel(*candidate), 2, (0, 150, 255),
+                -1, cv2.LINE_AA,
+            )
+
+        if self.pinger_pose is not None:
+            pinger = np.array(
+                [self.pinger_pose.position.x, self.pinger_pose.position.y]
+            )
+
+            # Perpendicular residuals show how the LS solution relates to all
+            # bearing lines, instead of suggesting an exact intersection.
+            for sample in valid_samples[-60:]:
+                theta = sample["angle_world"]
+                direction = np.array([math.cos(theta), math.sin(theta)])
+                origin = np.asarray(sample["pos"], dtype=float)
+                projection = origin + np.dot(pinger - origin, direction) * direction
+                if is_visible(projection):
+                    cv2.line(
+                        image, world_to_pixel(*pinger), world_to_pixel(*projection),
+                        (100, 75, 120), 1, cv2.LINE_AA,
+                    )
+
+            # 95% covariance ellipse of the least-squares position.
+            covariance = self.intersection_covariance
+            if covariance is not None and np.all(np.isfinite(covariance)):
+                eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+                order = np.argsort(eigenvalues)[::-1]
+                eigenvalues = np.maximum(eigenvalues[order], 0.0)
+                eigenvectors = eigenvectors[:, order]
+                radii = np.sqrt(5.991 * eigenvalues) * pixels_per_meter
+                if radii[0] >= 1.0:
+                    major = eigenvectors[:, 0]
+                    angle = math.degrees(math.atan2(-major[1], major[0]))
+                    cv2.ellipse(
+                        image,
+                        world_to_pixel(*pinger),
+                        (
+                            max(1, min(size * 4, int(radii[0]))),
+                            max(1, min(size * 4, int(radii[1]))),
+                        ),
+                        angle, 0.0, 360.0, (255, 80, 220), 2, cv2.LINE_AA,
+                    )
+
+            pinger_px = world_to_pixel(*pinger)
+            cv2.circle(image, pinger_px, 13, (255, 80, 230), 2, cv2.LINE_AA)
+            cv2.circle(image, pinger_px, 4, (255, 255, 255), -1, cv2.LINE_AA)
+            cv2.putText(
+                image,
+                "PINGER ({:.2f}, {:.2f})".format(*pinger),
+                (pinger_px[0] + 16, pinger_px[1] - 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 100, 235), 1,
+                cv2.LINE_AA,
+            )
+
+        if self.close_pose is not None:
+            close = (self.close_pose.position.x, self.close_pose.position.y)
+            if is_visible(close):
+                close_px = world_to_pixel(*close)
+                cv2.drawMarker(
+                    image, close_px, (255, 230, 40), cv2.MARKER_DIAMOND, 18, 2,
+                    cv2.LINE_AA,
+                )
+                cv2.putText(
+                    image, "CLOSE", (close_px[0] + 10, close_px[1] + 18),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 230, 40), 1,
+                    cv2.LINE_AA,
+                )
+
+        robot_pose = self._get_robot_pose_2d()
+        if robot_pose is not None and is_visible(robot_pose):
+            rx, ry, yaw = robot_pose
+            robot_px = world_to_pixel(rx, ry)
+            arrow_length = min(1.2, visible_width * 0.09)
+            heading = (
+                rx + arrow_length * math.cos(yaw),
+                ry + arrow_length * math.sin(yaw),
+            )
+            cv2.circle(image, robot_px, 8, (245, 245, 245), 2, cv2.LINE_AA)
+            cv2.arrowedLine(
+                image, robot_px, world_to_pixel(*heading), (255, 190, 40),
+                4, cv2.LINE_AA, tipLength=0.28,
+            )
+            cv2.putText(
+                image, "ROBOT  yaw {:+.1f} deg".format(math.degrees(yaw)),
+                (robot_px[0] + 12, robot_px[1] - 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (250, 250, 250), 1,
+                cv2.LINE_AA,
+            )
+
+        cv2.rectangle(image, (10, 10), (390, 150), (18, 18, 18), -1)
+        info_lines = [
+            ("ODOM FIXED / NORTH-UP", (230, 230, 230)),
+            (
+                "VALID {}   REJECTED {}   LIVE {}".format(
+                    len(self.samples), len(self.rejected_samples),
+                    len(self.current_leg_samples),
+                ),
+                (80, 220, 120),
+            ),
+            (
+                "PAIR INTERSECTIONS: {}".format(len(intersection_candidates)),
+                (0, 170, 255),
+            ),
+            ("GRID {:.1f} m   VIEW {:.1f} m".format(grid_step, world_width),
+             (180, 180, 180)),
+        ]
+        if self.intersection_rms_error is not None:
+            info_lines.append(
+                (
+                    "LS RMS {:.3f} m   COND {:.2e}".format(
+                        self.intersection_rms_error,
+                        self.intersection_condition,
+                    ),
+                    (255, 120, 230),
+                )
+            )
+        for line_index, (label, color) in enumerate(info_lines):
+            cv2.putText(
+                image, label, (20, 34 + 25 * line_index),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA,
+            )
+
+        try:
+            image_msg = self.cv_bridge.cv2_to_imgmsg(image, encoding="bgr8")
+            image_msg.header.stamp = rospy.Time.now()
+            image_msg.header.frame_id = self.odom_frame
+            self.debug_image_pub.publish(image_msg)
+        except Exception as error:
+            rospy.logwarn_throttle(2.0, "Debug image publish failed: %s", error)
 
     # ==================================================================
     # DYNAMIC RECONFIGURE
