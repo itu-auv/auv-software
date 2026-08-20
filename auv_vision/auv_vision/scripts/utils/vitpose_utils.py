@@ -64,14 +64,30 @@ def resolve_checkpoint_path(checkpoint: str) -> str:
     return os.path.join(_rospack.get_path("auv_detection"), "models", checkpoint)
 
 
-def load_object_config(name_or_path: str, ns: str = "taluy") -> dict:
+def load_object_config(name_or_path: str, ns: str = "taluy", variant: str = None) -> dict:
     """Load one object config. all_object_configs() loads every YAML in the
     dir, so raising here takes down the whole process node — keep the
     required set minimal (`object`, `detection`, `camera`). The `camera`
-    token is expanded into every camera-derived key (apply_camera)."""
+    token is expanded into every camera-derived key (apply_camera).
+
+    `variant` selects an overlay from the config's optional `variants:`
+    block (same object, same topics — only the listed keys change; e.g.
+    gate/no_detection swaps the checkpoint + bbox provider). Two-level
+    merge: a variant section's keys replace the base section's WHOLESALE
+    (variant detection.bbox_provider = the entire provider dict). A config
+    without the requested variant loads its base silently, so one
+    node-level ~variant applies across set_config switches."""
     path = resolve_config_path(name_or_path)
     with open(path, "r") as handle:
         config = yaml.safe_load(handle)
+    variants = config.pop("variants", None) or {}
+    if variant:
+        for section, keys in (variants.get(variant) or {}).items():
+            base = config.get(section)
+            if isinstance(keys, dict) and isinstance(base, dict):
+                base.update(keys)
+            else:
+                config[section] = keys
     for section in ("object", "detection", "camera"):
         if section not in config:
             raise ValueError(f"{path}: missing required key '{section}'")
@@ -194,6 +210,7 @@ def model_kwargs(config: dict) -> dict:
         flip_tta=bool(model.get("flip_tta", False)),
         flip_pairs=model.get("flip_pairs"),
         mask_threshold=model.get("mask_threshold"),
+        padding=float(model.get("padding", 1.25)),
     )
     return kwargs
 

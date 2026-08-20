@@ -400,8 +400,11 @@ class JointVitpose(nn.Module):
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-def box2cs(bbox_xywh, input_width, input_height):
-    """ViTPose aspect-fit crop with the contractually fixed 1.25x pad."""
+def box2cs(bbox_xywh, input_width, input_height, padding=1.25):
+    """ViTPose aspect-fit crop with the contractually fixed 1.25x pad.
+
+    `padding` overrides the pad for models whose bbox IS the crop (fixed
+    column-band configs, e.g. gate_torpedo: model.padding 1.0)."""
     x, y, width, height = (float(v) for v in bbox_xywh)
     center = np.asarray([x + width * 0.5, y + height * 0.5], dtype=np.float32)
     aspect = input_width / input_height
@@ -410,7 +413,7 @@ def box2cs(bbox_xywh, input_width, input_height):
     elif width < aspect * height:
         width = height * aspect
     scale = np.asarray([width / PIXEL_STD, height / PIXEL_STD], dtype=np.float32)
-    return center, scale * 1.25
+    return center, scale * padding
 
 
 def _get_3rd_point(a, b):
@@ -613,7 +616,8 @@ class VitposeModel:
 
     Args: ckpt, device, decode (DEFAULT_DECODE overrides), flip_tta
     (horizontal-flip TTA — never for chiral objects like tetra), flip_pairs,
-    mask_threshold (None = checkpoint's value).
+    mask_threshold (None = checkpoint's value), padding (box2cs pad, 1.25;
+    1.0 = the bbox is fed as the crop verbatim — fixed-band configs).
     """
 
     def __init__(
@@ -624,6 +628,7 @@ class VitposeModel:
         flip_tta=False,
         flip_pairs=None,
         mask_threshold=None,
+        padding=1.25,
     ):
         payload = torch.load(ckpt, map_location="cpu", weights_only=False)
         for key in ("model", "active_heads", "img_size"):
@@ -643,6 +648,7 @@ class VitposeModel:
                 else train_config.get("mask_threshold", 0.5)
             ),
             amp=train_config.get("amp", False),
+            padding=padding,
         )
 
         embed_dim = int(state["backbone.patch_embed.proj.bias"].shape[0])
@@ -684,11 +690,12 @@ class VitposeModel:
         )
 
     # Shared with VitposeTRT: everything except how a tensor becomes heatmaps.
-    def _init_meta(self, active_heads, img_size, mask_threshold, amp):
+    def _init_meta(self, active_heads, img_size, mask_threshold, amp, padding=1.25):
         self.active_heads = tuple(active_heads)
         self.img_h, self.img_w = (int(v) for v in img_size)
         self.mask_threshold = float(mask_threshold)
         self.amp = bool(amp)
+        self.padding = float(padding)  # box2cs pad; 1.0 = the bbox IS the crop
 
     def _init_heads(self, num_kps, num_masks, decode, flip_tta, flip_pairs):
         self.num_kps = int(num_kps)
@@ -723,7 +730,7 @@ class VitposeModel:
     def predict(self, img_rgb, bbox_xywh):
         """One RGB crop -> (kps (K, 2), scores (K, 1), mask_probs
         (C, H_src, W_src) | None), everything in source-image coordinates."""
-        center, scale = box2cs(bbox_xywh, self.img_w, self.img_h)
+        center, scale = box2cs(bbox_xywh, self.img_w, self.img_h, self.padding)
         transform = get_affine_transform(
             center, scale, PIXEL_STD, 0, (self.img_w, self.img_h)
         )
@@ -941,6 +948,7 @@ class VitposeTRT(VitposeModel):
         flip_tta=False,
         flip_pairs=None,
         mask_threshold=None,
+        padding=1.25,
     ):
         self.engine = TrtEngine(engine)
         meta = engine_meta(self.engine)
@@ -951,6 +959,7 @@ class VitposeTRT(VitposeModel):
             img_size=meta["img_size"],
             mask_threshold=0.5 if mask_threshold is None else mask_threshold,
             amp=False,
+            padding=padding,
         )
         self._init_heads(
             meta["num_kps"], meta["num_masks"], decode, flip_tta, flip_pairs

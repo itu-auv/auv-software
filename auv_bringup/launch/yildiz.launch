@@ -15,6 +15,13 @@
 -->
 <launch>
   <arg name="namespace" default="taluy" />
+  <!-- Gate with no detection, just column crop: selects gate.yaml's
+       no_detection variant (detector-free gate — fixed torpedo-cam
+       column-band crop fed verbatim, kp scores as presence) instead of the
+       base objectness detector. Same object, same topics, same everything;
+       sticks across set_config switches (configs without the variant load
+       their base). -->
+  <arg name="gate_no_detection" default="true" />
   <!-- Object the pose node loads: a name under auv_vision/config/vitpose/
        or an absolute YAML path. -->
   <arg name="object" default="gate" />
@@ -63,6 +70,8 @@
           pkg="auv_vision" type="vitpose_detection_node.py"
           name="vitpose_detection_node" output="screen">
       <param name="config" value="$(arg object)" />
+      <param name="variant"
+             value="$(eval 'no_detection' if arg('gate_no_detection') else '')" />
       <param name="enabled" value="$(arg enabled)" />
       <param name="camera" value="$(arg camera)" />
     </node>
@@ -70,6 +79,8 @@
           pkg="auv_vision" type="sim_vitpose_node.py"
           name="vitpose_detection_node" output="screen">
       <param name="config" value="$(arg object)" />
+      <param name="variant"
+             value="$(eval 'no_detection' if arg('gate_no_detection') else '')" />
       <param name="enabled" value="$(arg enabled)" />
       <param name="namespace" value="$(arg namespace)" />
     </node>

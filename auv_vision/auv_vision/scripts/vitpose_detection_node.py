@@ -8,8 +8,10 @@ gate_tetra_overview.md; decisions + evidence: auv_vision/VITPOSE_PLAN.md.
 Bbox providers: `full_frame`; `model` (in-process objectness — no fallback,
 no fire = no result; retries at `search_rate` while absent; an optional
 `tracker:` block makes it a seed and CropTracker carries the crop); `topic`
-(external Detection2DArray). A config with no `model:` section is
-detect-only: objectness boxes only, empty detections[] as heartbeat.
+(external Detection2DArray); `fixed` (constant column-band crop, no
+detector — the pose model itself is the presence signal). A config with no
+`model:` section is detect-only: objectness boxes only, empty detections[]
+as heartbeat.
 
 The node starts cold, holding just a config name, and runs in one of three
 modes (~set_mode, SetString): "off" (nothing loaded), "detect" (objectness
@@ -214,6 +216,67 @@ class ModelProvider:
             self._pub.unregister()
 
 
+class FixedProvider:
+    """Constant crop, no detector: the pose model IS the detector.
+
+    Built for gate's no_detection variant (detector-free gate pose on the
+    torpedo cam): the bbox handed to the joint model is the column band itself —
+    pair with `model.padding: 1.0` in the config so box2cs applies no pad and
+    the model sees exactly the band, the training-time contract
+    (valve-vision tools/pad_boxes_coco.py; torpedo_models README).
+
+    params: columns ([x0, x1] source px, or {camera: [x0, x1]}; absent or no
+    entry for the active camera = full width), publish_topic,
+    class_id, presence_threshold (0.5). There is no detection to publish from
+    get_bboxes; instead the post-inference `feedback` hook publishes the
+    bounding box of keypoints scoring >= presence_threshold (score = max
+    keypoint score), or the empty heartbeat when none do. Consequently in
+    mode 'detect' (joint model not loaded) this provider publishes nothing.
+    """
+
+    def __init__(self, params):
+        cols = params.get("columns")
+        if isinstance(cols, dict):
+            cols = cols.get(params.get("_camera"))
+        self._columns = (float(cols[0]), float(cols[1])) if cols else None
+        self._presence = float(params.get("presence_threshold", 0.5))
+        self._class_id = int(params.get("class_id", 0))
+        topic = params.get("publish_topic")
+        self._pub = (
+            rospy.Publisher(topic, Detection2DArray, queue_size=1) if topic else None
+        )
+        self._header = None  # feedback() has no header param; carried per frame
+
+    def get_bboxes(self, img_rgb, header):
+        self._header = header
+        h, w = img_rgb.shape[:2]
+        x0, x1 = self._columns if self._columns is not None else (0.0, float(w))
+        return [(x0, 0.0, x1 - x0, float(h))]
+
+    def feedback(self, kps, scores, mask_probs, mask_threshold, image_shape):
+        """Publish the kp-derived box (presence-gated) for bbox consumers."""
+        if self._pub is None or self._header is None:
+            return
+        confident = scores >= self._presence
+        if confident.any():
+            xs, ys = kps[confident, 0], kps[confident, 1]
+            bbox = (
+                float(xs.min()),
+                float(ys.min()),
+                float(xs.max() - xs.min()),
+                float(ys.max() - ys.min()),
+            )
+        else:
+            bbox = None
+        self._pub.publish(
+            detection_array(bbox, float(scores.max()), self._class_id, self._header)
+        )
+
+    def shutdown(self):
+        if self._pub is not None:
+            self._pub.unregister()
+
+
 class TopicProvider:
     """Bboxes from an external Detection2DArray topic.
 
@@ -259,6 +322,7 @@ _BBOX_PROVIDERS = {
     "full_frame": FullFrameProvider,
     "model": ModelProvider,
     "topic": TopicProvider,
+    "fixed": FixedProvider,
 }
 
 
@@ -412,6 +476,10 @@ class VitposeNodeBase:
         self._pipeline_lock = threading.Lock()
         self._load_lock = threading.Lock()
         self._config_name = rospy.get_param("~config", "gate")
+        # Config-variant overlay (vitpose_utils.load_object_config): applies
+        # to every config load, including set_config switches; configs
+        # without the variant load their base.
+        self._variant = rospy.get_param("~variant", "") or None
         self._pipeline = None
 
         rospy.Service("~enable", SetBool, self._handle_enable)
@@ -473,7 +541,7 @@ class VitposeNodeBase:
                 self._publish_status(None)
                 return True, "mode 'off' (unloaded)"
             try:
-                config = load_object_config(self._config_name)
+                config = load_object_config(self._config_name, variant=self._variant)
                 if target == "pose" and is_detect_only(config):
                     return False, (
                         f"'{config['object']}' is detect-only (no `model:` "
@@ -495,7 +563,7 @@ class VitposeNodeBase:
     def _enable_full(self) -> tuple:
         """The fullest mode the current config supports."""
         try:
-            config = load_object_config(self._config_name)
+            config = load_object_config(self._config_name, variant=self._variant)
         except Exception as exc:
             return False, f"cannot read config '{self._config_name}': {exc}"
         return self._transition("detect" if is_detect_only(config) else "pose")
@@ -559,7 +627,7 @@ class VitposeDetectionNode(VitposeNodeBase):
 
     def _build_pipeline(self, name_or_path, load_pose=True):
         ns = rospy.get_namespace().strip("/") or "taluy"
-        config = load_object_config(name_or_path, ns)
+        config = load_object_config(name_or_path, ns, variant=self._variant)
         camera = rospy.get_param("~camera", "")
         if camera:
             apply_camera(config, camera, ns)

@@ -363,7 +363,7 @@ class SimVitposeNode(VitposeNodeBase):
     # ------------------------------------------------------------- pipeline
 
     def _build_pipeline(self, name_or_path, load_pose=True) -> _SimPipeline:
-        config = load_object_config(name_or_path, self._ns)
+        config = load_object_config(name_or_path, self._ns, variant=self._variant)
         return _SimPipeline(
             config,
             self._sim_cameras,

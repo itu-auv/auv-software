@@ -83,3 +83,29 @@ process: # consumed by vitpose_process_node
           # through. Collides with the YOLO gate frame on purpose (one
           # pipeline at a time); rename here to run both.
           - {child_frame: gate_link, offset_xyz: [0.0, 0.0, 0.76]}
+
+# Config-variant overlays (vitpose_utils.load_object_config): same object,
+# same topics, same process — only the listed keys change. Two-level merge:
+# a variant section's keys replace the base section's WHOLESALE. Selected by
+# the detection node's ~variant param (yildiz.launch gate_no_detection, on by
+# default) and it sticks across set_config switches; configs without the
+# variant load their base.
+variants:
+  no_detection: # gate with no detector, just the fixed column crop
+    model:
+      checkpoint: gate_torpedo.engine # joint/gate/torpedo_pose_b/002, TRT fp16, input 224x208 (built on the Orin from gate_torpedo.pth, ~/vitpose_trt); trained on gate_torpedo_real2: torpedo-geometry renders + partial gates + red-pipe hard negatives
+      padding: 1.0 # the fixed band below IS the crop: skip box2cs' 1.25x pad
+    detection:
+      bbox_provider:
+        # Training-time crop contract (torpedo_models README): the model sees
+        # the housing-free column band [200, 616) of the 800x448 rect frame
+        # (416x448, exactly 2x the 208x224 input), fed verbatim (padding 1.0
+        # above). 616, not detect_columns' 615: width must be exactly 416.
+        type: fixed
+        columns: {torpedo: [200, 616]}
+        # No detector box exists; the provider's feedback hook publishes the
+        # bounding box of keypoints scoring >= presence_threshold instead
+        # (empty heartbeat otherwise) — kp scores ARE the presence signal
+        # (empty water max heatmap p95 ~0.01, gate in view ~0.95).
+        presence_threshold: 0.5
+        publish_topic: /vitpose_bbox_gate_front
