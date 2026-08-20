@@ -7,6 +7,7 @@ from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_smach.common import (
     AlignFrame,
     SetAltitudeState,
+    SetDepthState,
 )
 
 
@@ -77,7 +78,7 @@ class TimedPipeFollowerLegacyState(smach.State):
 
 
 class PipeTaskState(smach.State):
-    def __init__(self, pipe_follow_altitude, pipe_target_frame, pipe_method="new"):
+    def __init__(self, pipe_follow_depth, pipe_target_frame, pipe_method="new"):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.pipe_method = pipe_method
         self.legacy_duration = rospy.get_param("~pipe_legacy_duration", 60.0)
@@ -96,7 +97,7 @@ class PipeTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "PIPI_FOLLOW_ALTITUDE",
-                SetAltitudeState(altitude=pipe_follow_altitude, confirm_duration=3.0),
+                SetDepthState(depth=pipe_follow_depth, confirm_duration=3.0),
                 transitions={
                     "succeeded": (
                         "ENABLE_LEGACY"
@@ -156,8 +157,8 @@ class PipeTaskState(smach.State):
                         target_frame=pipe_target_frame,
                         dist_threshold=0.2,
                         yaw_threshold=0.2,
-                        max_linear_velocity=0.2,
-                        max_angular_velocity=0.4,
+                        max_linear_velocity=0.1,
+                        max_angular_velocity=0.2,
                         confirm_duration=5.0,
                         timeout=120.0,
                         cancel_on_success=False,
