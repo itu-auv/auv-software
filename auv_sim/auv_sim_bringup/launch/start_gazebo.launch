@@ -86,7 +86,7 @@
     <arg name="z" default="-0.881632" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
-    <arg name="z" default="-8.5" if="$(eval arg('world') == 'teknofest_pipe')" />
+    <arg name="z" default="-0.5" if="$(eval arg('world') == 'teknofest_pipe')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0.000033" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="pitch" value="0" unless="$(eval arg('world') == 'semi_final_pool')" />
