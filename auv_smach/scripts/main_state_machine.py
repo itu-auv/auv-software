@@ -144,7 +144,7 @@ class MainStateMachineNode:
             rospy.get_param("~buoy_rotation_radius_m", 3.0)
         )
         self.buoy_rotation_direction = rospy.get_param(
-            "~buoy_rotation_direction", "ccw"
+            "~buoy_rotation_direction", "cw"
         )
 
         self.torpedo_map_depth = -1.10

@@ -35,9 +35,9 @@ class BuoySurfaceTaskState(smach.State):
 
     def __init__(
         self,
-        mission_depth_m=-0.7,
+        mission_depth_m=-0.4,
         rotation_radius_m=3.0,
-        rotation_direction="ccw",
+        rotation_direction="cw",
         frame_wait_seconds=2.0,
         buoy_frame=BUOY_FRAME,
         close_approach_frame=BUOY_CLOSE_APPROACH_FRAME,

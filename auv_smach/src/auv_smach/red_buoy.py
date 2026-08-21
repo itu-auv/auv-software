@@ -68,10 +68,10 @@ class RotateAroundCenterState(smach.State):
             )
             initial_angle = np.arctan2(base_position[1], base_position[0])
 
-            # Calculate the duration for one full rotation (2 * pi radians)
-            duration = 2 * np.pi * self.radius / self.linear_velocity
+            # Calculate the duration for a half rotation (pi radians)
+            duration = np.pi * self.radius / self.linear_velocity
             num_steps = int(duration * 10)  # Number of steps based on the rate
-            angular_step = 2 * np.pi / num_steps  # Angle step per iteration
+            angular_step = np.pi / num_steps  # Angle step per iteration
 
             # Adjust the direction based on the input argument
             if self.direction == "cw":
