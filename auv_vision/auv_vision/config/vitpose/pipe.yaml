@@ -11,9 +11,9 @@ object: pipe
 camera: bottom # image/result topics derive from this
 
 model:
-  checkpoint: track_mask.pth # slimmed "track mask.pth" (utils/slim_checkpoint.py)
+  checkpoint: track_mask.engine # TensorRT; torch fallback: track_mask.pth (slimmed)
   device: cuda
   flip_tta: false
   keypoint_names: [] # seg-only checkpoint: K=0
   mask_classes: [pipe]
-  mask_threshold: null # checkpoint's own (0.5)
+  mask_threshold: null # 0.5 (the trained value; an engine carries none)

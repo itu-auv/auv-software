@@ -20,11 +20,10 @@ Everything is RGB. Decode default use_udp=False is contractual: the heads are
 MSRA-encoded and UDP decode measured ~3x worse (7.38 vs 2.38 px).
 
 Dependencies: torch, numpy, cv2 — nothing else (tensorrt only for .engine
-files; see the TensorRT section + utils/vitpose_export.py).
+files; see the TensorRT section; export/build tooling: ~/vitpose_trt on the Orin).
 """
 
 import collections.abc
-import json
 import math
 import os
 from functools import partial
@@ -799,14 +798,16 @@ class VitposeModel:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TensorRT backends (.engine + sidecar .json, Orin)
+# TensorRT backends (.engine, Orin)
 # ══════════════════════════════════════════════════════════════════════════════
 #
-# Export chain (utils/vitpose_export.py -> utils/vitpose_build_engine.py):
-#   ckpt.pth --> model.onnx + model.json (sidecar: kind, img_size, K, C,
-#   mask_threshold, io names) --> model.engine (built ON the target GPU;
-#   engines are device-specific). The sidecar is required: an engine carries
-#   shapes but not the checkpoint metadata predict() needs.
+# Export chain (~/vitpose_trt/vitpose_export.py -> vitpose_build_engine.py, Orin):
+#   ckpt.pth --> model.onnx --> model.engine (built ON the target GPU;
+#   engines are device-specific). No sidecar: everything predict() needs is
+#   read off the engine's own IO tensors (engine_meta below) — input HxW,
+#   K from `heatmaps` (0 for a seg-only engine like pipe/track), C from
+#   `mask_logits`, objectness from `logits`; the only non-shape value,
+#   mask_threshold, comes from the YAML (default 0.5).
 #
 # Design: torch owns the CUDA memory (torch is on the Orin already, and its
 # primary context works from any rospy thread — the pycuda push/pop dance of
@@ -818,21 +819,37 @@ class VitposeModel:
 _TRT_LOGGER = None
 
 
-def _sidecar_path(engine_path):
-    root, _ = os.path.splitext(str(engine_path))
-    return root + ".json"
+# ONNX output names written by vitpose_export.py — the engine's contract.
+TRT_OUT_HEATMAPS = "heatmaps"
+TRT_OUT_MASKS = "mask_logits"
+TRT_OUT_LOGITS = "logits"
 
 
-def load_sidecar(engine_path):
-    """Metadata written next to the ONNX/engine by vitpose_export.py."""
-    path = _sidecar_path(engine_path)
-    if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"{path} missing — every .engine needs the sidecar .json written "
-            "by utils/vitpose_export.py (copy it next to the engine)"
+def engine_meta(engine):
+    """Checkpoint-equivalent metadata from a TrtEngine's IO tensors.
+
+    Returns dict(kind, img_size, num_kps, num_masks) — kind 'joint' when the
+    engine has a `heatmaps` and/or `mask_logits` output (K = `heatmaps`
+    channels, 0 for a seg-only engine; C = `mask_logits` channels or 0),
+    'objectness' when it has `logits` (1 channel)."""
+    outs = {name: tuple(t.shape) for name, t in engine.outputs.items()}
+    _, _, h, w = engine.input_shape
+    if TRT_OUT_HEATMAPS in outs or TRT_OUT_MASKS in outs:
+        heatmaps = outs.get(TRT_OUT_HEATMAPS)
+        masks = outs.get(TRT_OUT_MASKS)
+        return dict(
+            kind="joint",
+            img_size=[h, w],
+            num_kps=int(heatmaps[1]) if heatmaps else 0,
+            num_masks=int(masks[1]) if masks else 0,
         )
-    with open(path, "r") as handle:
-        return json.load(handle)
+    if TRT_OUT_LOGITS in outs:
+        return dict(kind="objectness", img_size=[h, w], num_kps=0, num_masks=0)
+    raise ValueError(
+        f"{engine.path}: outputs {sorted(outs)} — expected {TRT_OUT_HEATMAPS!r} "
+        f"or {TRT_OUT_MASKS!r} (joint) or {TRT_OUT_LOGITS!r} (objectness); "
+        "rebuild with vitpose_export.py"
+    )
 
 
 class TrtEngine:
@@ -932,9 +949,12 @@ def _torch_dtype(trt, trt_dtype):
 
 class VitposeTRT(VitposeModel):
     """TensorRT joint model — drop-in for VitposeModel (same constructor
-    surface; `device` is ignored, TRT is CUDA). Reads <engine>.json for the
-    checkpoint metadata; heatmaps/mask_logits come back as torch tensors and
-    flow through VitposeModel.predict unchanged."""
+    surface; `device` is ignored, TRT is CUDA). K/C/input size come from the
+    engine's IO tensors (engine_meta); a heatmaps-less engine is a seg-only
+    model (K=0, e.g. pipe/track). mask_threshold comes from the YAML (0.5
+    when null — an engine has no training config to fall back on). heatmaps /
+    mask_logits come back as torch tensors and flow through
+    VitposeModel.predict unchanged."""
 
     def __init__(
         self,
@@ -945,35 +965,24 @@ class VitposeTRT(VitposeModel):
         flip_pairs=None,
         mask_threshold=None,
     ):
-        meta = load_sidecar(engine)
-        if meta.get("kind") != "joint":
-            raise ValueError(f"{engine}: sidecar kind {meta.get('kind')!r} != 'joint'")
+        self.engine = TrtEngine(engine)
+        meta = engine_meta(self.engine)
+        if meta["kind"] != "joint":
+            raise ValueError(f"{engine}: {meta['kind']} engine, expected a joint model")
         self._init_meta(
-            active_heads=meta["active_heads"],
+            active_heads=(["pose"] if meta["num_kps"] else [])
+            + (["seg"] if meta["num_masks"] else []),
             img_size=meta["img_size"],
-            mask_threshold=(
-                mask_threshold
-                if mask_threshold is not None
-                else meta.get("mask_threshold", 0.5)
-            ),
+            mask_threshold=0.5 if mask_threshold is None else mask_threshold,
             amp=False,
         )
         self._init_heads(
-            meta["num_kps"], meta.get("num_masks", 0), decode, flip_tta, flip_pairs
+            meta["num_kps"], meta["num_masks"], decode, flip_tta, flip_pairs
         )
-        self.engine = TrtEngine(engine)
         self.device = self.engine.device
         self.model = None
-        expect = (1, 3, self.img_h, self.img_w)
-        if self.engine.input_shape != expect:
-            raise ValueError(
-                f"{engine}: input {self.engine.input_shape} != sidecar {expect}"
-            )
-        self._out_heatmaps = meta["outputs"].get("heatmaps")
-        self._out_masks = meta["outputs"].get("mask_logits")
-        for name in (self._out_heatmaps, self._out_masks):
-            if name and name not in self.engine.outputs:
-                raise ValueError(f"{engine}: output {name!r} not in engine")
+        self._out_heatmaps = TRT_OUT_HEATMAPS if meta["num_kps"] else None
+        self._out_masks = TRT_OUT_MASKS if meta["num_masks"] else None
         print(
             f"VitposeTRT loaded: {engine} (K={self.num_kps}, C={self.num_masks}, "
             f"input {self.img_h}x{self.img_w}, decode={self.decode})"
@@ -1171,26 +1180,25 @@ class ObjectnessTRT(ObjectnessDetector):
     """TensorRT objectness detector — drop-in for ObjectnessDetector."""
 
     def __init__(self, engine, device="cuda", threshold=0.5, measure_threshold=0.7):
-        meta = load_sidecar(engine)
-        if meta.get("kind") != "objectness":
+        self.engine = TrtEngine(engine)
+        meta = engine_meta(self.engine)
+        if meta["kind"] != "objectness":
+            raise ValueError(f"{engine}: {meta['kind']} engine, expected objectness")
+        self.img_h, self.img_w = meta["img_size"]
+        self.stride = OBJECTNESS_STRIDE
+        _, _, gh, gw = self.engine.outputs[TRT_OUT_LOGITS].shape
+        if (gh * self.stride, gw * self.stride) != (self.img_h, self.img_w):
             raise ValueError(
-                f"{engine}: sidecar kind {meta.get('kind')!r} != 'objectness'"
+                f"{engine}: logits {gh}x{gw} vs input {self.img_h}x{self.img_w} "
+                f"is not stride {self.stride}"
             )
-        self.img_h, self.img_w = (int(v) for v in meta["img_size"])
-        self.stride = int(meta.get("stride", OBJECTNESS_STRIDE))
         self.threshold = float(threshold)
         self.measure_threshold = (
             None if measure_threshold is None else float(measure_threshold)
         )
-        self.engine = TrtEngine(engine)
         self.device = self.engine.device
         self.model = None
-        expect = (1, 3, self.img_h, self.img_w)
-        if self.engine.input_shape != expect:
-            raise ValueError(
-                f"{engine}: input {self.engine.input_shape} != sidecar {expect}"
-            )
-        self._out_logits = meta["outputs"]["logits"]
+        self._out_logits = TRT_OUT_LOGITS
         print(
             f"ObjectnessTRT loaded: {engine} (input {self.img_h}x{self.img_w}, "
             f"stride {self.stride}, detect {self.threshold} / measure "
