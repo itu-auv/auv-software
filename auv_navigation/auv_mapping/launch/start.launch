@@ -117,6 +117,23 @@
       <remap from="get_waypoint" to="map/get_waypoint" />
     </node>
 
+    <node pkg="auv_mapping" type="buoy_waypoint_publisher.py" name="buoy_waypoint_publisher" output="screen">
+      <param name="parent_frame" value="$(arg static_frame)" />
+      <param name="buoy_frame" value="buoy" />
+      <param name="surface_frame" value="surface" />
+      <remap from="set_buoy_waypoints" to="map/set_buoy_waypoints" />
+    </node>
+
+    <node pkg="auv_mapping" type="buoy_trajectory_publisher.py" name="buoy_trajectory_publisher" output="screen">
+      <param name="parent_frame" value="$(arg static_frame)" />
+      <param name="robot_frame" value="$(arg namespace)/base_link" />
+      <param name="buoy_frame" value="buoy" />
+      <param name="close_approach_frame" value="buoy_close_approach" />
+      <param name="approach_distance_m" value="3.0" />
+      <remap from="toggle_buoy_trajectory" to="toggle_buoy_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
     <group if="$(arg enable_realsense_nodes)">
       <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
         <remap from="camera/depth/color/points" to="camera/depth/color/points" />
