@@ -1,0 +1,50 @@
+min_pwm: 1400
+neutral_pwm: 1500
+max_pwm: 1600
+
+publish_topic: /minirov/drive_pulse
+publish_rate: 20.0
+motor_count: 4
+ramp_step: 15
+
+lumen_topic: /minirov/lumen_brightness
+lumen_on_button: 3
+lumen_off_button: 0
+
+rtsp_url: rtsp://192.168.1.33:554/
+width: 640
+height: 480
+fps: 30
+
+controls:
+  left_x:
+    motor: 0
+    axis: [1, 7]
+    inverse: false
+
+  right_x:
+    motor: 1
+    axis: 4
+    inverse: false
+
+  left_z_forward:
+    motor: 2
+    trigger: 2
+    inverse: false
+
+  right_z_forward:
+    motor: 3
+    trigger: 5
+    inverse: false
+
+  left_z_reverse:
+    motor: 2
+    button: 4
+    inverse: true
+    ramp: true
+
+  right_z_reverse:
+    motor: 3
+    button: 5
+    inverse: true
+    ramp: true

@@ -9,13 +9,18 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_detection</depend>
   <depend>cv_bridge</depend>
+  <depend>dynamic_reconfigure</depend>
+  <depend>geometry_msgs</depend>
   <depend>image_transport</depend>
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
   <depend>python3-zmq</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>tf</depend>
+  <depend>ultralytics_ros</depend>
+  <depend>vision_msgs</depend>
   <export/>
 </package>

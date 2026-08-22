@@ -1,0 +1,9 @@
+morph_kernel_size: 7
+close_point_filter_eps: 50
+short_segment_filter_eps: 50
+merge_segment_eps: 200
+ang_error_eps: 20
+ang_error_close_point_eps: 40
+pipe_width: 0.15
+follow_height: 1.5
+camera_forward_direction: left

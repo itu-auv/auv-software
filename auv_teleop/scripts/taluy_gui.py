@@ -3,6 +3,7 @@
 import sys
 import os
 import rospy
+import subprocess
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -33,6 +34,8 @@ class MainControlPanel(QWidget):
 
         self.setGeometry(screen_width - min_width, 0, min_width, screen_height)
 
+        self.minirov_process = None
+
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -48,9 +51,69 @@ class MainControlPanel(QWidget):
             tabs_layout.addWidget(DryTestTab())
 
         main_layout.addLayout(tabs_layout)
+
+        button_layout = QHBoxLayout()
+        button_layout.setAlignment(Qt.AlignCenter)
+        button_layout.setSpacing(10)
+
+        self.start_minirov_btn = QPushButton("Start minirov teleop")
+        self.start_minirov_btn.setFont(QFont("Arial", 10))
+        self.start_minirov_btn.setMinimumSize(120, 30)
+        self.start_minirov_btn.clicked.connect(self.start_minirov_teleop)
+
+        self.stop_minirov_btn = QPushButton("Stop minirov teleop")
+        self.stop_minirov_btn.setFont(QFont("Arial", 10))
+        self.stop_minirov_btn.setMinimumSize(120, 30)
+        self.stop_minirov_btn.clicked.connect(self.stop_minirov_teleop)
+
+        self.deploy_minirov_btn = QPushButton("Deploy minirov")
+        self.deploy_minirov_btn.setFont(QFont("Arial", 10))
+        self.deploy_minirov_btn.setMinimumSize(120, 30)
+        self.deploy_minirov_btn.clicked.connect(self.deploy_minirov)
+
+        button_layout.addWidget(self.start_minirov_btn)
+        button_layout.addWidget(self.stop_minirov_btn)
+        button_layout.addWidget(self.deploy_minirov_btn)
+
+        main_layout.addLayout(button_layout)
         main_layout.addStretch(0)
 
         self.setLayout(main_layout)
+
+    def start_minirov_teleop(self):
+        cmd = ["roslaunch", "auv_teleop", "start_minirov_drive.launch"]
+        print(f"Executing: {' '.join(cmd)}")
+        self.minirov_process = subprocess.Popen(cmd)
+        print("MiniROV teleop started")
+
+    def stop_minirov_teleop(self):
+        if self.minirov_process is not None:
+            print("Terminating minirov teleop process...")
+            self.minirov_process.terminate()
+            try:
+                self.minirov_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                print("Process did not terminate, killing it...")
+                self.minirov_process.kill()
+            self.minirov_process = None
+            print("MiniROV teleop stopped")
+        else:
+            print("No minirov teleop process to stop.")
+
+    def deploy_minirov(self):
+        try:
+            rospy.wait_for_service("minirov/deploy", timeout=1)
+            from std_srvs.srv import Trigger
+            deploy_service = rospy.ServiceProxy("minirov/deploy", Trigger)
+            response = deploy_service(TriggerRequest())
+            if response.success:
+                print("MiniROV deployed successfully")
+            else:
+                print(f"Failed to deploy minirov: {response.message}")
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
 
 
 class StartScreen(QMainWindow):

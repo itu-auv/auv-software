@@ -49,6 +49,17 @@ cameras:
     image_out_topic: "/yolo_image_realsense"
 
 objects:
+  - class_id: 0
+    name: teknofest_pipe
+    cameras: [bottom_seg]
+    gazebo_model: teknofest_pipe
+    match_prefix: true
+    offset: [0.0, 0.0, 0.025]
+    boundary:
+      shape: box
+      args: [0.5, 0.075, 0.025]
+    render_mask: true
+
   # Gate signs - 0.3048 m (1 ft) square, face in YZ plane
   - class_id: 0
     name: gate_search_rescue

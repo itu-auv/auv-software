@@ -2,6 +2,8 @@
 <launch>
     <arg name="namespace" default="taluy" />
     <arg name="enable_rate" default="20" />
+    <arg name="pipe_method" default="new" doc="Pipe follower implementation: new or legacy"/>
+    <arg name="pipe_legacy_duration" default="60.0" doc="Duration to run legacy pipe follower in seconds"/>
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
@@ -21,6 +23,7 @@
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
+        pipe:FOLLOW_PIPE,
         path1:path1,
         path2:path2,
         path3:path3,
@@ -114,6 +117,12 @@
 
             <!--pipeline.py-->
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
+
+            <!--pipe_follower.py-->
+            <remap from="pipe_frame_publisher/enable" to="pipe_frame_publisher/enable"/>
+            <remap from="pipe_follower_legacy/enable" to="pipe_follower_legacy/enable"/>
+            <param name="~pipe_method" value="$(arg pipe_method)"/>
+            <param name="~pipe_legacy_duration" value="$(arg pipe_legacy_duration)"/>
 
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>

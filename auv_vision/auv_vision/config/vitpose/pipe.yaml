@@ -1,0 +1,19 @@
+# TEKNOFEST pipe (hat takip): bottom-camera pipe segmentation feeding
+# pipe_frame_publisher (auv_mapping) through /seg_mask.
+#
+# Seg-only ViT-B (valve-vision "track mask", 224x384, one channel). No
+# `detection:` section on purpose: there is no detector and no crop — the
+# whole frame is letterboxed into the model input every frame. The result
+# (VitposeResult on /vitpose_result_bottom) is thresholded to a mono8 mask by
+# vitpose_seg_mask_node, which is what the pipe follower consumes.
+
+object: pipe
+camera: bottom # image/result topics derive from this
+
+model:
+  checkpoint: track_mask.engine # TensorRT; torch fallback: track_mask.pth (slimmed)
+  device: cuda
+  flip_tta: false
+  keypoint_names: [] # seg-only checkpoint: K=0
+  mask_classes: [pipe]
+  mask_threshold: null # 0.5 (the trained value; an engine carries none)

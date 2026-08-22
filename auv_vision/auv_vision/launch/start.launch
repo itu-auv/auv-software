@@ -1,15 +1,36 @@
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="pipe_legacy_mask_topic" default="/seg_mask" />
+  <arg name="pipe_legacy_cmd_vel_topic" default="cmd_vel" />
+  <arg name="pipe_camera_forward_direction" default="left" />
+  <arg name="pipe_legacy_linear_x" default="0.2" />
+  <arg name="pipe_legacy_target_width" default="320" />
+  <arg name="pipe_legacy_close_kernel_size" default="25" />
+  <arg name="pipe_legacy_open_kernel_size" default="5" />
+  <arg name="pipe_legacy_min_contour_area" default="250" />
+  <!-- ViTPose seg-only pipe model on the bottom camera -> /seg_mask
+       (config/vitpose/pipe.yaml). The YOLO path (yolo_seg_to_mask_node
+       below) stays passive unless the segment tracker runs. -->
+  <arg name="vitpose_pipe" default="true" />
+  <arg name="vitpose_pipe_enabled" default="true" />
+  <arg name="sim" default="false" />
+
+  <include if="$(arg vitpose_pipe)" file="$(find auv_vision)/launch/vitpose_pipe.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="sim" value="$(arg sim)" />
+    <arg name="enabled" value="$(arg vitpose_pipe_enabled)" />
+    <arg name="mask_topic" value="$(arg pipe_legacy_mask_topic)" />
+  </include>
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->
     <node
       pkg="auv_vision"
-      type="yolo_to_mask_node.py"
+      type="yolo_seg_to_mask.py"
       name="yolo_seg_to_mask_node"
       output="screen">
       <remap from="yolo_result_seg" to="/yolo_result_seg" />
-      <param name="output_mask_topic" value="bottle_mask" />
+      <param name="output_mask_topic" value="/seg_mask" />
     </node>
 
     <node
@@ -27,5 +48,20 @@
       <param name="camera_optical_frame" value="$(arg namespace)/base_link/front_camera_optical_link"/>
       <param name="camera_optical_frame_stabilized" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized"/>
     </node>
+
+    <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
+      <remap from="seg_mask" to="$(arg pipe_legacy_mask_topic)" />
+      <remap from="cmd_vel" to="$(arg pipe_legacy_cmd_vel_topic)" />
+      <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
+      <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
+      <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
+      <param name="target_width" value="$(arg pipe_legacy_target_width)" />
+      <param name="close_kernel_size" value="$(arg pipe_legacy_close_kernel_size)" />
+      <param name="open_kernel_size" value="$(arg pipe_legacy_open_kernel_size)" />
+      <param name="min_contour_area" value="$(arg pipe_legacy_min_contour_area)" />
+    </node>
+
+    <!-- Interactive Mask Drawing Node -->
+
   </group>
 </launch>
