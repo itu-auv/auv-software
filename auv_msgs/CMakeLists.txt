@@ -43,7 +43,11 @@ add_service_files(
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv
+<<<<<<< HEAD
   SetString.srv
+=======
+  SetBuoyWaypoints.srv
+>>>>>>> origin/fevzi/buoy_normal_teknofest
   SetWaypoint.srv
 )
 

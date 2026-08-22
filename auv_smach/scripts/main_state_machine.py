@@ -8,6 +8,7 @@ from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
+from auv_smach.buoy_surface import BuoySurfaceTaskState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
@@ -33,6 +34,7 @@ RANDOM_PINGER_MEMBER_STATES = {
     "NAVIGATE_TO_TORPEDO_TASK",
     "NAVIGATE_TO_OCTAGON_TASK",
 }
+FAIL_FAST_STATES = {"BUOY_SURFACE_MISSION"}
 ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
@@ -135,6 +137,16 @@ class MainStateMachineNode:
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
+
+        self.buoy_surface_depth_m = float(
+            rospy.get_param("~buoy_surface_depth_m", -0.7)
+        )
+        self.buoy_rotation_radius_m = float(
+            rospy.get_param("~buoy_rotation_radius_m", 3.0)
+        )
+        self.buoy_rotation_direction = rospy.get_param(
+            "~buoy_rotation_direction", "cw"
+        )
 
         self.torpedo_map_depth = -1.10
         self.torpedo_target_frame = "torpedo_target"
@@ -430,6 +442,14 @@ class MainStateMachineNode:
                     "octagon_params": octagon_task_params,
                 },
             ),
+            "BUOY_SURFACE_MISSION": (
+                BuoySurfaceTaskState,
+                {
+                    "mission_depth_m": self.buoy_surface_depth_m,
+                    "rotation_radius_m": self.buoy_rotation_radius_m,
+                    "rotation_direction": self.buoy_rotation_direction,
+                },
+            ),
             "NAVIGATE_TO_GPS_TARGET": (
                 NavigateToGpsTargetState,
                 {
@@ -516,7 +536,9 @@ class MainStateMachineNode:
                     transitions={
                         "succeeded": next_state,
                         "preempted": "preempted",
-                        "aborted": next_state,
+                        "aborted": (
+                            "aborted" if state_name in FAIL_FAST_STATES else next_state
+                        ),
                     },
                 )
 
