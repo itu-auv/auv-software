@@ -139,7 +139,7 @@ class MainStateMachineNode:
         self.red_buoy_depth = -0.7
 
         self.buoy_surface_depth_m = float(
-            rospy.get_param("~buoy_surface_depth_m", -0.7)
+            rospy.get_param("~buoy_surface_depth_m", -0.4)
         )
         self.buoy_rotation_radius_m = float(
             rospy.get_param("~buoy_rotation_radius_m", 3.0)
