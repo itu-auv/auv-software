@@ -1,34 +1,34 @@
-min_pwm: 1400
+min_pwm: 1450
 neutral_pwm: 1500
-max_pwm: 1600
+max_pwm: 1550
 
-publish_topic: /minirov/drive_pulse
+publish_topic: /taluy/mini_rov_board/drive_pulse
 publish_rate: 20.0
 motor_count: 4
 ramp_step: 15
 
-lumen_topic: /minirov/lumen_brightness
+lumen_topic: /taluy/mini_rov_board/lumen_brightness
 lumen_on_button: 3
 lumen_off_button: 0
 
-rtsp_url: rtsp://192.168.1.33:554/
+rtsp_url: rtsp://192.168.1.11:554/
 width: 640
 height: 480
 fps: 30
 
 controls:
   left_x:
-    motor: 0
+    motor: 2
     axis: [1, 7]
     inverse: false
 
   right_x:
     motor: 1
     axis: 4
-    inverse: false
+    inverse: true
 
   left_z_forward:
-    motor: 2
+    motor: 0
     trigger: 2
     inverse: false
 
@@ -38,7 +38,7 @@ controls:
     inverse: false
 
   left_z_reverse:
-    motor: 2
+    motor: 0
     button: 4
     inverse: true
     ramp: true
