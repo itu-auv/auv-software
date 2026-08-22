@@ -1,27 +1,16 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="dev" default="/dev/input/js0" />
+  <arg name="dev" default="/dev/input/js1" />
   <arg name="pulse_topic" default="/minirov/drive_pulse" />
   <arg name="start_ui" default="true" />
   <arg name="start_camera" default="true" />
 
   <node pkg="joy" type="joy_node" name="minirov_joy" output="screen">
     <param name="dev" value="$(arg dev)" />
-</node>
-
-
-  <node pkg="rosserial_python" type="serial_node.py" name="rosserial_tcp"
-        args="tcp" output="screen" respawn="true">
-    <param name="tcp_port" value="11411" />
   </node>
-
   <node pkg="auv_teleop" type="minirov_drive.py" name="minirov_drive" output="screen">
     <rosparam command="load" file="$(find auv_teleop)/config/minirov_drive.yaml" />
     <param name="publish_topic" value="$(arg pulse_topic)" />
-  </node>
-
-  <node if="$(arg start_ui)" pkg="auv_teleop" type="minirov_drive_ui.py" name="minirov_drive_ui" output="screen">
-    <param name="pulse_topic" value="$(arg pulse_topic)" />
   </node>
 
   <include if="$(arg start_camera)" file="$(find auv_cam)/launch/start_rtsp_camera.launch">

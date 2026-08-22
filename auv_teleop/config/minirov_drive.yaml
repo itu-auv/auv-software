@@ -1,6 +1,6 @@
-min_pwm: 1200
+min_pwm: 1400
 neutral_pwm: 1500
-max_pwm: 1800
+max_pwm: 1600
 
 publish_topic: /minirov/drive_pulse
 publish_rate: 20.0
