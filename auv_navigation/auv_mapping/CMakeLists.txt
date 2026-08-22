@@ -91,13 +91,10 @@ catkin_install_python(PROGRAMS
   scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
-<<<<<<< HEAD
   scripts/pipe_frame_publisher.py
-=======
   scripts/buoy_waypoint_gui.py
   scripts/buoy_waypoint_publisher.py
   scripts/buoy_trajectory_publisher.py
->>>>>>> origin/fevzi/buoy_normal_teknofest
   scripts/waypoint_gui.py
   scripts/waypoint_publisher.py
   scripts/premap_publisher.py
