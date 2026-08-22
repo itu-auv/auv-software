@@ -4,6 +4,7 @@ import sys
 import os
 import rospy
 import subprocess
+from std_msgs.msg import UInt16
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -35,6 +36,9 @@ class MainControlPanel(QWidget):
         self.setGeometry(screen_width - min_width, 0, min_width, screen_height)
 
         self.minirov_process = None
+        self.minirov_deploy_publisher = rospy.Publisher(
+            "/taluy/actuators/gripper1/set_angle", UInt16, queue_size=1
+        )
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -69,7 +73,9 @@ class MainControlPanel(QWidget):
         self.deploy_minirov_btn = QPushButton("Deploy minirov")
         self.deploy_minirov_btn.setFont(QFont("Arial", 10))
         self.deploy_minirov_btn.setMinimumSize(120, 30)
-        self.deploy_minirov_btn.clicked.connect(self.deploy_minirov)
+        self.deploy_minirov_btn.setCheckable(True)
+        self.deploy_minirov_btn.setChecked(False)
+        self.deploy_minirov_btn.toggled.connect(self.deploy_minirov)
 
         button_layout.addWidget(self.start_minirov_btn)
         button_layout.addWidget(self.stop_minirov_btn)
@@ -100,20 +106,13 @@ class MainControlPanel(QWidget):
         else:
             print("No minirov teleop process to stop.")
 
-    def deploy_minirov(self):
-        try:
-            rospy.wait_for_service("minirov/deploy", timeout=1)
-            from std_srvs.srv import Trigger
-            deploy_service = rospy.ServiceProxy("minirov/deploy", Trigger)
-            response = deploy_service(TriggerRequest())
-            if response.success:
-                print("MiniROV deployed successfully")
-            else:
-                print(f"Failed to deploy minirov: {response.message}")
-        except rospy.ServiceException as e:
-            print(f"Service call failed: {e}")
-        except rospy.ROSException as e:
-            print(f"Service not available: {e}")
+    def deploy_minirov(self, deployed):
+        pulse = 2400 if deployed else 1500
+        self.minirov_deploy_publisher.publish(UInt16(data=pulse))
+        self.deploy_minirov_btn.setText(
+            "Retract minirov" if deployed else "Deploy minirov"
+        )
+        print(f"MiniROV gripper1 pulse published: {pulse}")
 
 
 class StartScreen(QMainWindow):

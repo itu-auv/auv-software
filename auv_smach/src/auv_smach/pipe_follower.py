@@ -159,7 +159,7 @@ class PipeTaskState(smach.State):
                         yaw_threshold=0.2,
                         max_linear_velocity=0.1,
                         max_angular_velocity=0.2,
-                        confirm_duration=5.0,
+                        confirm_duration=20.0,
                         timeout=120.0,
                         cancel_on_success=False,
                         use_frame_depth=False,

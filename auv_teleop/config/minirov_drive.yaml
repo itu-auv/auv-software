@@ -1,6 +1,6 @@
-min_pwm: 1450
+min_pwm: 1400
 neutral_pwm: 1500
-max_pwm: 1550
+max_pwm: 1600
 
 publish_topic: /taluy/mini_rov_board/drive_pulse
 publish_rate: 20.0
@@ -11,7 +11,7 @@ lumen_topic: /taluy/mini_rov_board/lumen_brightness
 lumen_on_button: 3
 lumen_off_button: 0
 
-rtsp_url: rtsp://192.168.1.11:554/
+rtsp_url: rtsp://192.168.1.77:554/
 width: 640
 height: 480
 fps: 30
