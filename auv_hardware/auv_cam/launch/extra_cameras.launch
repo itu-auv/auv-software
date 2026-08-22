@@ -1,4 +1,6 @@
 <launch>
   <include file="$(find auv_cam)/launch/realsense_camera.launch" />
-  <include file="$(find auv_cam)/launch/start_rtsp_camera.launch" />
+  <include file="$(find auv_cam)/launch/start_rtsp_camera.launch">
+    <arg name="camera_config" value="$(find auv_bringup)/config/rtsp_cam_torpedo.yaml" />
+  </include>
 </launch>

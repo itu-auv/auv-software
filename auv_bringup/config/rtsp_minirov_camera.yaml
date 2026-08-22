@@ -1,0 +1,7 @@
+rtsp_url: rtsp://192.168.1.77:554/
+latency: 0
+width: 640
+height: 480
+fps: 30
+verbose: true
+pub_camera_info: false

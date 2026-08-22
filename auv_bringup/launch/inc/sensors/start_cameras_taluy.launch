@@ -27,12 +27,10 @@
   <include file="$(find auv_cam)/launch/extra_cameras.launch">
   </include>
 
-  <!-- MiniROV's RTSP stream is started with Taluy's camera bringup. -->
   <include file="$(find auv_cam)/launch/start_rtsp_camera.launch">
     <arg name="namespace" value="minirov" />
     <arg name="name" value="minirov_camera" />
-    <arg name="pub_camera_info" value="false" />
-    <arg name="camera_config" value="$(find auv_teleop)/config/minirov_drive.yaml" />
+    <arg name="camera_config" value="$(find auv_bringup)/config/rtsp_minirov_camera.yaml" />
   </include>
 
   <!-- launch ov2710 camera -->

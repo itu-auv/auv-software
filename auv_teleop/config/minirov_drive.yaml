@@ -11,11 +11,6 @@ lumen_topic: /taluy/mini_rov_board/lumen_brightness
 lumen_on_button: 3
 lumen_off_button: 0
 
-rtsp_url: rtsp://192.168.1.77:554/
-width: 640
-height: 480
-fps: 30
-
 controls:
   left_x:
     motor: 2

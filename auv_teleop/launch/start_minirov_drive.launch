@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="dev" default="/dev/input/js0" />
+  <arg name="dev" default="/dev/input/js1" />
   <arg name="pulse_topic" default="/taluy/mini_rov_board/drive_pulse" />
   <arg name="start_ui" default="true" />
 
