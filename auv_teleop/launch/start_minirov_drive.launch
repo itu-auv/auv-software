@@ -3,7 +3,6 @@
   <arg name="dev" default="/dev/input/js0" />
   <arg name="pulse_topic" default="/taluy/mini_rov_board/drive_pulse" />
   <arg name="start_ui" default="true" />
-  <arg name="start_camera" default="true" />
 
   <node pkg="joy" type="joy_node" name="minirov_joy" output="screen">
     <param name="dev" value="$(arg dev)" />
@@ -13,13 +12,4 @@
     <param name="publish_topic" value="$(arg pulse_topic)" />
   </node>
 
-  <include if="$(arg start_camera)" file="$(find auv_cam)/launch/start_rtsp_camera.launch">
-    <arg name="namespace" value="minirov" />
-    <arg name="name" value="minirov_camera" />
-    <arg name="pub_camera_info" value="false" />
-    <arg name="camera_config" value="$(find auv_teleop)/config/minirov_drive.yaml" />
-  </include>
-
-  <rosparam command="load" file="$(find auv_teleop)/config/minirov_drive.yaml"
-            ns="/minirov/cameras/minirov_camera" />
 </launch>
