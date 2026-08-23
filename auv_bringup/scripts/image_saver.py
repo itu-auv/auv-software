@@ -6,6 +6,7 @@ import os
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from std_srvs.srv import Trigger, TriggerResponse
+from datetime import datetime
 import time
 
 
@@ -133,7 +134,29 @@ class ImageSaver:
             timestamp = rospy.Time.now().to_sec()
             filename = f"image_{self.image_count + 1}_{timestamp:.3f}.jpg"
             filepath = os.path.join(folder or self.current_folder, filename)
-            if not cv2.imwrite(filepath, self.latest_image):
+            image = self.latest_image.copy()
+            capture_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cv2.putText(
+                image,
+                capture_time,
+                (12, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 0, 0),
+                3,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                image,
+                capture_time,
+                (12, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            if not cv2.imwrite(filepath, image):
                 rospy.logerr("Could not save image: %s", filepath)
                 return False
 
