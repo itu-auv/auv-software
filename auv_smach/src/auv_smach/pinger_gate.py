@@ -1,9 +1,12 @@
+import os
 import threading
+import time
 
 import rospy
 import smach
 import smach_ros
 from auv_msgs.srv import SetString, SetStringRequest
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 from std_srvs.srv import Empty, EmptyRequest, SetBool, SetBoolRequest
 
@@ -119,21 +122,80 @@ class ResetTetraUnfoldState(smach_ros.ServiceState):
 
 
 class WaitForTetraUnfoldState(smach.State):
-    """Wait for a fresh, locked unfold result and print the mission payload."""
+    """Wait for a fresh, locked unfold result and print the mission payload.
 
-    def __init__(self, topic="tetra/letter_colors", timeout=30.0):
+    Also keeps a subscription on the unfolded-net image topic — the unfold op
+    only renders the net while someone is subscribed — and saves the final
+    image to the desktop once the result locks.
+    """
+
+    def __init__(
+        self,
+        topic="tetra/letter_colors",
+        timeout=30.0,
+        image_topic="tetra_unfold_image/compressed",
+        save_dir="~/Desktop",
+    ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
         self.timeout = float(timeout)
+        self.save_dir = os.path.expanduser(save_dir)
         self.condition = threading.Condition()
         self.sequence = 0
         self.latest = None
+        self.image_sequence = 0
+        self.latest_image = None
         self.subscriber = rospy.Subscriber(topic, String, self._callback, queue_size=1)
+        self.image_subscriber = rospy.Subscriber(
+            image_topic, CompressedImage, self._image_callback, queue_size=1
+        )
 
     def _callback(self, message):
         with self.condition:
             self.sequence += 1
             self.latest = message.data
             self.condition.notify_all()
+
+    def _image_callback(self, message):
+        with self.condition:
+            self.image_sequence += 1
+            self.latest_image = message
+            self.condition.notify_all()
+
+    def _save_unfolded_image(self, grace=2.0):
+        """Write the freshest unfolded-net image to the desktop.
+
+        Waits up to `grace` seconds for one more frame after the lock so the
+        saved net reflects the locked estimate; falls back to the last cached
+        frame. Never raises — a failed snapshot must not abort the mission.
+        """
+        with self.condition:
+            seen = self.image_sequence
+        deadline = time.monotonic() + grace
+        while time.monotonic() < deadline and not rospy.is_shutdown():
+            with self.condition:
+                if self.image_sequence > seen:
+                    break
+                self.condition.wait(timeout=0.1)
+
+        with self.condition:
+            image = self.latest_image
+        if image is None:
+            rospy.logwarn("[TetraUnfold] No unfolded image received; nothing saved")
+            return
+
+        extension = "jpg" if image.format in ("", "jpeg", "jpg") else image.format
+        filename = "tetra_unfold_%s.%s" % (
+            time.strftime("%Y%m%d_%H%M%S"),
+            extension,
+        )
+        path = os.path.join(self.save_dir, filename)
+        try:
+            os.makedirs(self.save_dir, exist_ok=True)
+            with open(path, "wb") as handle:
+                handle.write(bytes(image.data))
+            rospy.loginfo("[TetraUnfold] Saved unfolded net to %s", path)
+        except OSError as error:
+            rospy.logwarn("[TetraUnfold] Could not save %s: %s", path, error)
 
     def execute(self, _userdata):
         with self.condition:
@@ -154,6 +216,7 @@ class WaitForTetraUnfoldState(smach.State):
 
             rospy.loginfo("[TetraUnfold] %s", result)
             if result and "state=LOCKED" in result:
+                self._save_unfolded_image()
                 return "succeeded"
 
         rospy.logwarn("Timed out waiting for a fresh LOCKED tetra unfold result")
@@ -291,7 +354,6 @@ class PingerGateTaskState(smach.State):
             #         "aborted": "aborted",
             #     },
             # )
-
 
             ##CLOSE APPROCH SEQUANCE'I BİTİYOR ÜSTÜNÜ SİLEBİLİRİZ EN KÖTÜ.
             smach.StateMachine.add(
