@@ -12,6 +12,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
     ClearKDEMapState,
+    SetDepthState,
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
@@ -166,6 +167,17 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "boknofest",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "boknofest",
+                SetDepthState(
+                    depth=-0.4,
+                ),
                 transitions={
                     "succeeded": "DISABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
