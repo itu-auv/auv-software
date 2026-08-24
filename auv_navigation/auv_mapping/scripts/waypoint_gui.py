@@ -81,7 +81,7 @@ class WaypointGUI:
         self.x_min = float(rospy.get_param("~canvas_x_min", -8.0))
         self.x_max = float(rospy.get_param("~canvas_x_max", 8.0))
         self.y_min = float(rospy.get_param("~canvas_y_min", -2.0))
-        self.y_max = float(rospy.get_param("~canvas_y_max", 18.0))
+        self.y_max = float(rospy.get_param("~canvas_y_max", 25.0))
         if self.x_max <= self.x_min or self.y_max <= self.y_min:
             raise ValueError("Invalid canvas bounds")
         self.pool_width = self.x_max - self.x_min
