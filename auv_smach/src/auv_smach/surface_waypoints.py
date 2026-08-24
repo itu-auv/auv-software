@@ -146,7 +146,7 @@ class VisitSurfaceWaypointState(smach.StateMachine):
                 )
             smach.StateMachine.add(
                 "DIVE_FOR_NEXT_WAYPOINT",
-                SetDepthState(depth=-0.5),
+                SetDepthState(depth=-0.4),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -173,7 +173,7 @@ class NavigateToSurfaceWaypointsState(smach.State):
             self.service_preempt()
             return "preempted"
 
-        self.active_state = SetDepthState(depth=-0.5)
+        self.active_state = SetDepthState(depth=-0.4)
         initial_depth_outcome = self.active_state.execute(None)
         self.active_state = None
         if initial_depth_outcome != "succeeded":
