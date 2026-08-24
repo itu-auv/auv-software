@@ -16,6 +16,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.surface_waypoints import NavigateToSurfaceWaypointsState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
@@ -431,6 +432,10 @@ class MainStateMachineNode:
                     "gps_target_frame": self.gps_target_frame,
                 },
             ),
+            "SURFACE_WAYPOINT_MISSION": (
+                NavigateToSurfaceWaypointsState,
+                {},
+            ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
                 {
@@ -502,7 +507,11 @@ class MainStateMachineNode:
                     transitions={
                         "succeeded": next_state,
                         "preempted": "preempted",
-                        "aborted": next_state,
+                        "aborted": (
+                            "aborted"
+                            if state_name == "SURFACE_WAYPOINT_MISSION"
+                            else next_state
+                        ),
                     },
                 )
 

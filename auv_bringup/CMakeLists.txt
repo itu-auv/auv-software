@@ -4,6 +4,7 @@ project(auv_bringup)
 find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   rospy
+  std_srvs
 )
 
 generate_dynamic_reconfigure_options(
@@ -11,7 +12,7 @@ generate_dynamic_reconfigure_options(
 )
 
 catkin_package(
-  CATKIN_DEPENDS dynamic_reconfigure rospy
+  CATKIN_DEPENDS dynamic_reconfigure rospy std_srvs
 )
 
 catkin_install_python(PROGRAMS

@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <group ns="$(arg namespace)">
+    <node
+      name="surface_waypoint_gui"
+      pkg="auv_mapping"
+      type="surface_waypoint_gui.py"
+      output="screen" />
+  </group>
+</launch>

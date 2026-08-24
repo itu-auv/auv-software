@@ -9,6 +9,7 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>dynamic_reconfigure</depend>
   <depend>rospy</depend>
+  <depend>std_srvs</depend>
   <exec_depend>auv_control</exec_depend>
   <exec_depend>auv_localization</exec_depend>
   <exec_depend>auv_mapping</exec_depend>

@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<launch>
+    <!--
+      Start auv_bringup first. Its navigation launch provides control, localization,
+      path planning, and the surface_waypoint_publisher backend.
+    -->
+    <arg name="namespace" default="taluy" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_bringup" type="image_saver.py" name="image_saver" output="screen">
+            <param name="namespace" value="$(arg namespace)" />
+            <param name="camera" value="front" />
+            <param name="base_dir" value="$(env HOME)/Desktop" />
+            <param name="folder_name" value="teknofest_stars_mission_1" />
+            <param name="continuous" value="false" />
+        </node>
+    </group>
+
+    <!-- <include file="$(find auv_mapping)/launch/start_surface_waypoint_gui.launch">
+        <arg name="namespace" value="$(arg namespace)" />
+    </include> -->
+
+    <include file="$(find auv_smach)/launch/start.launch">
+        <arg name="namespace" value="$(arg namespace)" />
+        <arg name="test_mode" value="true" />
+        <arg name="test_states" value="[init,surface]" />
+    </include>
+</launch>
