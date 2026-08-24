@@ -241,7 +241,7 @@ class PingerGateTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_ALTITUDE",
-                SetAltitudeState(altitude=1.3),
+                SetAltitudeState(altitude=1.0),
                 transitions={
                     "succeeded": "GENERAL_ENABLE_VİTPOSE_NODE",
                     "preempted": "preempted",
