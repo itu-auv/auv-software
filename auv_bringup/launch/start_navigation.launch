@@ -2,7 +2,8 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
-  <arg name="sim" default="false" />
+  <arg name="localization_disabled_at_startup" default="true" />
+  <arg name="plane_fitter_sync_queue_size" default="30" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
@@ -14,7 +15,7 @@
   <include file="$(find auv_bringup)/launch/robot_localization.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="sim" value="$(arg sim)" />
+    <arg name="localization_disabled_at_startup" value="$(arg localization_disabled_at_startup)" />
   </include>
 
   <include file="$(find auv_control)/launch/start.launch">
@@ -28,7 +29,7 @@
   <include file="$(find auv_mapping)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="sim" value="$(arg sim)" />
+    <arg name="plane_fitter_sync_queue_size" value="$(arg plane_fitter_sync_queue_size)" />
   </include>
 
   <include file="$(find auv_navigation)/launch/start.launch">

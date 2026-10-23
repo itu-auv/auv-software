@@ -2,7 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
-  <arg name="sim" default="false" />
+  <arg name="plane_fitter_sync_queue_size" default="30" />
   <arg name="enable_realsense_nodes" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_shark_link" />
@@ -21,7 +21,7 @@
 
   <include file="$(find auv_mapping)/launch/object_plane_fitter.launch">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="sim" value="$(arg sim)" />
+    <arg name="sync_queue_size" value="$(arg plane_fitter_sync_queue_size)" />
   </include>
 
   <group ns="$(arg namespace)">

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <arg name="namespace" default="taluy"/>
-  <arg name="sim" default="0"/>
   <arg name="use_gui" default="false"/>
   <arg name="yolo_model" default="hole.engine"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
