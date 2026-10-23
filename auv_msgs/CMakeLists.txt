@@ -19,7 +19,6 @@ add_action_files(
 
 add_message_files(
   FILES
-  EulerOrientation.msg
   ObjectPose.msg
   Keypoint.msg
   KeypointResult.msg

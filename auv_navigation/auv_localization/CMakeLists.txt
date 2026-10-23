@@ -31,7 +31,6 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/euler_orientation_publisher.py
   scripts/imu_odometry_node.py
   scripts/pressure_odometry_node.py
   scripts/dvl_odometry_node.py
