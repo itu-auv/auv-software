@@ -13,7 +13,6 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
-from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
@@ -129,10 +128,6 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -0.6
-
-        # GPS parameters
-        self.gps_depth = -1.0
-        self.gps_target_frame = "gps_target"
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -391,13 +386,6 @@ class MainStateMachineNode:
                 {
                     "torpedo_params": torpedo_task_params,
                     "octagon_params": octagon_task_params,
-                },
-            ),
-            "NAVIGATE_TO_GPS_TARGET": (
-                NavigateToGpsTargetState,
-                {
-                    "gps_depth": self.gps_depth,
-                    "gps_target_frame": self.gps_target_frame,
                 },
             ),
             "ACOUSTIC_TRANSMITTER": (

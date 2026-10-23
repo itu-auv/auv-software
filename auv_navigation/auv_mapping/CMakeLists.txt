@@ -55,7 +55,6 @@ generate_dynamic_reconfigure_options(
   cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
-  cfg/GpsTargetFrame.cfg
 )
 
 catkin_package(
@@ -87,7 +86,6 @@ catkin_install_python(PROGRAMS
   scripts/torpedo_frame_publisher.py
   scripts/slalom_heatmap_mapper.py
   scripts/octagon_trajectory_publisher.py
-  scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
   scripts/waypoint_gui.py
