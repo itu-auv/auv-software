@@ -37,7 +37,6 @@ add_service_files(
   SetDepth.srv
   SetObjectTransform.srv
   SetPremap.srv
-  VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv
