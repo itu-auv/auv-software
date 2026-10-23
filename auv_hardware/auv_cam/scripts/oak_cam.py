@@ -41,6 +41,11 @@ class OakCameraNode:
             dai.CameraControl.AutoFocusMode.CONTINUOUS_VIDEO
         )
 
+        self.camRgb.initialControl.setAutoWhiteBalanceMode(
+            dai.CameraControl.AutoWhiteBalanceMode.OFF
+        )
+        self.camRgb.initialControl.setManualWhiteBalance(12000)
+
         self.videoOut = self.camRgb.requestOutput(
             (self.width, self.height), type=dai.ImgFrame.Type.BGR888p
         )
