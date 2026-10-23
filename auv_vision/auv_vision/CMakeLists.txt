@@ -32,7 +32,6 @@ catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
-    scripts/yolo_to_mask_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
   DESTINATION
