@@ -13,7 +13,6 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
-from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
@@ -130,8 +129,6 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -0.6
-
-        self.pipeline_depth = -0.75
 
         # GPS parameters
         self.gps_depth = -1.0
@@ -425,10 +422,6 @@ class MainStateMachineNode:
                     "station_frame": self.return_home_station,
                     "gate_search_frame": self.gate_look_at_frame,
                 },
-            ),
-            "NAVIGATE_THROUGH_PIPELINE": (
-                NavigateThroughPipelineState,
-                {"pipeline_depth": self.pipeline_depth},
             ),
         }
 
