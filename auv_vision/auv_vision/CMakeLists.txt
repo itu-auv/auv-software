@@ -33,7 +33,6 @@ catkin_install_python(
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
     scripts/yolo_to_mask_node.py
-    scripts/principal_point_overlay_node.py
     scripts/sim_bbox_node.py
     scripts/sim_tracker_node.py
     scripts/sim_keypoint_node.py
