@@ -59,7 +59,7 @@ class ROSServiceCaller:
     def calibrate_imu(self, duration):
         try:
             rospy.wait_for_service("calibrate_imu", timeout=1)
-            from auv_localization.srv import CalibrateIMU, CalibrateIMURequest
+            from auv_msgs.srv import CalibrateIMU, CalibrateIMURequest
 
             calibrate_service = rospy.ServiceProxy("calibrate_imu", CalibrateIMU)
             request = CalibrateIMURequest()

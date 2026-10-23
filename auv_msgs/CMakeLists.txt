@@ -31,6 +31,7 @@ add_message_files(
 add_service_files(
   FILES
   AlignFrameController.srv
+  CalibrateIMU.srv
   PlanPath.srv
   SendAcoustic.srv
   SetDepth.srv

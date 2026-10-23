@@ -5,25 +5,14 @@ find_package(catkin REQUIRED COMPONENTS
   angles
   auv_msgs
   geometry_msgs
-  message_generation
   nav_msgs
   rospy
   std_msgs
   tf
 )
 
-add_service_files(
-  FILES
-  CalibrateIMU.srv
-)
-
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
-
 catkin_package(
-  CATKIN_DEPENDS angles auv_msgs geometry_msgs message_runtime nav_msgs std_msgs tf
+  CATKIN_DEPENDS angles auv_msgs geometry_msgs nav_msgs std_msgs tf
 )
 
 include_directories(
