@@ -33,11 +33,7 @@ catkin_install_python(
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
     scripts/yolo_to_mask_node.py
-    scripts/sim_bbox_node.py
-    scripts/sim_tracker_node.py
-    scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
-    scripts/depth_anything_sim_bridge_node.py
     scripts/depth_anything_zmq_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}

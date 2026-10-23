@@ -914,7 +914,7 @@ class SimBboxNode:
 
         ns = rospy.get_param("~namespace", "taluy")
         default_config = os.path.join(
-            rospkg.RosPack().get_path("auv_vision"), "config", "sim_bbox_objects.yaml"
+            rospkg.RosPack().get_path("auv_sim_vision"), "config", "bbox_objects.yaml"
         )
         config_path = rospy.get_param("~config", default_config)
 
@@ -956,10 +956,3 @@ class SimBboxNode:
     def run(self):
         rospy.spin()
 
-
-if __name__ == "__main__":
-    try:
-        node = SimBboxNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass

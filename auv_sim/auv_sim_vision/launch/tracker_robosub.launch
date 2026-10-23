@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy"/>
-  <arg name="config" default="$(find auv_vision)/config/sim_bbox_objects.yaml"/>
+  <arg name="config" default="$(find auv_sim_vision)/config/bbox_objects.yaml"/>
 
-  <node name="tracker_node_front" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_front" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="front"/>
@@ -12,7 +12,7 @@
     <param name="result_image_topic" value="/yolo_image_front/compressed"/>
   </node>
 
-  <node name="tracker_node_bottom" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_bottom" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="bottom"/>
@@ -21,7 +21,7 @@
     <param name="result_image_topic" value="/yolo_image_bottom/compressed"/>
   </node>
 
-  <node name="tracker_node_realsense" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_realsense" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="realsense"/>
@@ -30,7 +30,7 @@
     <param name="result_image_topic" value="/yolo_image_realsense/compressed"/>
   </node>
 
-  <node name="tracker_node_torpedo" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_torpedo" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="torpedo"/>
@@ -39,7 +39,7 @@
     <param name="result_image_topic" value="/yolo_image_torpedo/compressed"/>
   </node>
 
-  <node name="tracker_node_segment" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_segment" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="bottom_seg"/>
@@ -47,7 +47,7 @@
     <param name="result_topic" value="/yolo_result_seg"/>
     <param name="result_image_topic" value="/yolo_image_seg/compressed"/>
   </node>
-  <!-- <node name="tracker_node_slalom" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <!-- <node name="tracker_node_slalom" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="slalom"/>
@@ -56,7 +56,7 @@
     <param name="result_image_topic" value="/yolo_image_slalom/compressed"/>
   </node> -->
 
-  <node name="tracker_node_torpedo_front" pkg="auv_vision" type="sim_tracker_node.py" output="screen">
+  <node name="tracker_node_torpedo_front" pkg="auv_sim_vision" type="tracker_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
     <param name="config" value="$(arg config)"/>
     <param name="camera" value="torpedo_front"/>
@@ -65,7 +65,7 @@
     <param name="result_image_topic" value="/yolo_image_torpedo_front/compressed"/>
   </node>
 
-  <include file="$(find auv_detection)/launch/depth_anything_trt_sim.launch">
+  <include file="$(find auv_sim_vision)/launch/depth_anything_bridge.launch">
     <arg name="namespace" value="$(arg namespace)"/>
   </include>
 

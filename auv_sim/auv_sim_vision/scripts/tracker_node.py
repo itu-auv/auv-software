@@ -3,7 +3,6 @@
 """Simulation-only tracker with the same ROS interface as tracker_node.py."""
 
 import os
-import sys
 
 import rospy
 import rospkg
@@ -11,11 +10,7 @@ import tf2_ros
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolResponse
 
-scripts_dir = os.path.join(rospkg.RosPack().get_path("auv_vision"), "scripts")
-if scripts_dir not in sys.path:
-    sys.path.insert(0, scripts_dir)
-
-from sim_bbox_node import GazeboInterface, SimCamera, load_config
+from auv_sim_vision.bbox import GazeboInterface, SimCamera, load_config
 
 
 class SimTrackerNode:
@@ -25,9 +20,9 @@ class SimTrackerNode:
         namespace = rospy.get_param("~namespace", "taluy")
         camera = rospy.get_param("~camera")
         default_config = os.path.join(
-            rospkg.RosPack().get_path("auv_vision"),
+            rospkg.RosPack().get_path("auv_sim_vision"),
             "config",
-            "sim_bbox_objects.yaml",
+            "bbox_objects.yaml",
         )
         config_path = rospy.get_param("~config", default_config)
         self.enabled = rospy.get_param("~enabled", True)

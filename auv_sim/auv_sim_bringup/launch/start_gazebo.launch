@@ -170,7 +170,7 @@
     </node>
 
     <!-- Simulation ground truth bbox tracker -->
-    <!-- <include file="$(find auv_detection)/launch/tracker_sim.launch">
+    <!-- <include file="$(find auv_sim_vision)/launch/bbox.launch">
         <arg name="namespace" value="$(arg namespace)" />
     </include> -->
 
