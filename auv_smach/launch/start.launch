@@ -11,7 +11,6 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
-        slalom:NAVIGATE_THROUGH_SLALOM,
         pinger:RANDOM_PINGER_TASK,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
@@ -38,7 +37,6 @@
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
-        'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
@@ -80,7 +78,6 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
-            <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
