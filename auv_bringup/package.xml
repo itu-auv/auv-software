@@ -17,8 +17,6 @@
   <exec_depend>auv_vision</exec_depend>
   <exec_depend>auv_wayfinder_dvl</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
-  <exec_depend>move_base</exec_depend>
-  <exec_depend>ping360_sonar</exec_depend>
   <exec_depend>python3-matplotlib</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-pandas</exec_depend>

@@ -7,10 +7,6 @@
   <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')" />
   <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
-  <arg name="enable_xsens" default="$(eval arg('namespace') == 'taluy')" />
-  <arg name="enable_dvl" default="$(eval arg('namespace') == 'taluy')" />
-  <arg name="enable_vectornav" default="$(eval arg('namespace') == 'taluy_mini')" />
-  <arg name="enable_hydrophone" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -33,46 +29,11 @@
     <arg name="rviz_config" value="$(arg rviz_config)" />
   </include>
 
-  <!-- launch xsens driver -->
-  <group if="$(arg enable_xsens)">
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="control_rate" value="$(arg control_rate)" />
-      <arg name="port" value="/dev/auv_imu" />
-    </include>
-  </group>
-
-  <!-- launch vectornav driver -->
-  <group if="$(arg enable_vectornav)">
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_vectornav.launch">
-      <arg name="namespace" value="$(arg namespace)" />
-    </include>
-  </group>
-
-  <group if="$(arg enable_hydrophone)">
-    <include file="$(find auv_hydrophone)/launch/start_hydrophone_tdoa_to_angle.launch">
-      <arg name="namespace" value="$(arg namespace)" />
-    </include>
-  </group>
-
-  <!-- launch ping360 driver -->
-  <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
+  <!-- launch vehicle sensors -->
+  <include file="$(find auv_bringup)/launch/inc/sensors/start_sensors_$(arg namespace).launch">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="device_ip" value="192.168.7.151" />
-    <arg name="device_port" value="12345" />
-  </include> -->
-
-  <!-- launch dvl driver -->
-  <group if="$(arg enable_dvl)">
-    <include file="$(find auv_wayfinder_dvl)/launch/start_wayfinder_dvl.launch">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="port" value="$(arg dvl_virtual_port)" />
-    </include>
-  </group>
-
-  <!-- launch cameras -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras_$(arg namespace).launch">
-      <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
   </include>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">

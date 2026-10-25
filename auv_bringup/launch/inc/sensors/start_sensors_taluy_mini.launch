@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy_mini" />
+
+  <!-- launch vectornav driver -->
+  <include file="$(find auv_bringup)/launch/inc/sensors/start_vectornav.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- launch cameras -->
+  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras_taluy_mini.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+</launch>
