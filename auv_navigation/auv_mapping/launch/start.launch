@@ -2,7 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
-  <arg name="sim" default="false" />
+  <arg name="plane_fitter_sync_queue_size" default="30" />
   <arg name="enable_realsense_nodes" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_shark_link" />
@@ -21,7 +21,7 @@
 
   <include file="$(find auv_mapping)/launch/object_plane_fitter.launch">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="sim" value="$(arg sim)" />
+    <arg name="sync_queue_size" value="$(arg plane_fitter_sync_queue_size)" />
   </include>
 
   <group ns="$(arg namespace)">
@@ -81,11 +81,6 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="slalom_heatmap_mapper.py" name="slalom_heatmap_mapper" output="screen">
-      <param name="base_link_frame" value="$(arg namespace)/base_link" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="/yolo_result_front" to="/yolo_result_front" />
-    </node>
     <node pkg="auv_mapping" type="kde_object_mapper.py" name="kde_object_mapper" output="screen">
       <param name="bandwidth" value="1" />
       <param name="static_frame" value="$(arg static_frame)" />
@@ -102,11 +97,6 @@
       </rosparam>
       <remap from="set_object_transform" to="map/set_object_transform" />
       <remap from="kde_map/clear" to="map/kde_map/clear" />
-    </node>
-
-    <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">
-      <param name="robot_frame" value="$(arg namespace)/base_link" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
     <node pkg="auv_mapping" type="waypoint_publisher.py" name="waypoint_publisher" output="screen">
@@ -140,12 +130,6 @@
     <node pkg="auv_mapping" type="octagon_trajectory_publisher.py" name="octagon_trajectory_publisher">
       <param name="robot_frame" value="$(arg namespace)/base_link" />
       <remap from="set_transform_octagon_frame" to="set_transform_octagon_frame" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-    </node>
-
-    <node pkg="auv_mapping" type="pipeline_trajectory_publisher.py" name="pipeline_trajectory_publisher">
-      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
-      <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 

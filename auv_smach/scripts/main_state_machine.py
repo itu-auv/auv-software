@@ -6,7 +6,6 @@ import auv_smach
 import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
-from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -14,8 +13,6 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
-from auv_smach.pipeline import NavigateThroughPipelineState
-from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
@@ -68,14 +65,11 @@ class MainStateMachineNode:
         self.selected_role = DEFAULT_SELECTED_ROLE
         self.torpedo_map = DEFAULT_TORPEDO_MAP
         self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
-        self.slalom_mode = "close"
-        self.slalom_direction = "left"
         self.octagon_start_from_table = False
         self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
-        self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
 
@@ -92,18 +86,13 @@ class MainStateMachineNode:
                 self.torpedo_priority = current_config.get(
                     "torpedo_priority", DEFAULT_TORPEDO_PRIORITY
                 )
-                self.slalom_mode = current_config.get("slalom_mode", "close")
-                self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
-                self.slalom_exit_angle_deg = current_config.get(
-                    "slalom_exit_angle", 0.0
-                )
                 self.bin_exit_angle_deg = current_config.get("bin_exit_angle", 0.0)
                 self.torpedo_exit_angle_deg = current_config.get(
                     "torpedo_exit_angle", 0.0
                 )
                 rospy.loginfo(
-                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, angles=({self.gate_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -122,15 +111,11 @@ class MainStateMachineNode:
             self.bin_search_frame = "bin_basket_front_link"
             self.octagon_search_frame = "octagon_link"
             self.red_buoy_search_frame = "red_buoy_link"
-            self.slalom_search_frame = "slalom_red_pipe_link"
         else:
             self.torpedo_search_frame = "torpedo_map_link_kde"
             self.bin_search_frame = "bin_basket_front_link_kde"
             self.octagon_search_frame = "octagon_link_kde"
             self.red_buoy_search_frame = "red_buoy_link_kde"
-            self.slalom_search_frame = "slalom_red_pipe_link_kde"
-
-        self.slalom_depth = -1.1
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -143,12 +128,6 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -0.6
-
-        self.pipeline_depth = -0.75
-
-        # GPS parameters
-        self.gps_depth = -1.0
-        self.gps_target_frame = "gps_target"
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -201,14 +180,11 @@ class MainStateMachineNode:
 
         selected_role = config.selected_role
         rospy.loginfo(
-            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, gate_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
             selected_role,
             config.torpedo_map,
             config.torpedo_priority,
-            config.slalom_mode,
-            config.slalom_direction,
             config.gate_exit_angle,
-            config.slalom_exit_angle,
             config.bin_exit_angle,
             config.torpedo_exit_angle,
         )
@@ -217,10 +193,7 @@ class MainStateMachineNode:
         self.selected_role = selected_role
         self.torpedo_map = config.torpedo_map
         self.torpedo_priority = config.torpedo_priority
-        self.slalom_mode = config.slalom_mode
-        self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
-        self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
@@ -341,12 +314,11 @@ class MainStateMachineNode:
     def execute_state_machine(self):
         # Convert degrees to radians
         gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
-        slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
         bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
         torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
 
         rospy.loginfo(
-            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
+            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
         bin_target_frames = self.get_bin_target_frames()
@@ -358,7 +330,7 @@ class MainStateMachineNode:
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
         rospy.loginfo(f"Octagon target role frame: {octagon_target_role_frame}")
         rospy.loginfo(
-            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
+            f"Exit angles (radians): gate={gate_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
         )
 
         torpedo_task_params = {
@@ -391,14 +363,6 @@ class MainStateMachineNode:
                     "gate_look_at_frame": self.gate_look_at_frame,
                 },
             ),
-            "NAVIGATE_THROUGH_SLALOM": (
-                NavigateThroughSlalomState,
-                {
-                    "slalom_depth": self.slalom_depth,
-                    "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_direction": self.slalom_direction,
-                },
-            ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 torpedo_task_params,
@@ -424,13 +388,6 @@ class MainStateMachineNode:
                     "octagon_params": octagon_task_params,
                 },
             ),
-            "NAVIGATE_TO_GPS_TARGET": (
-                NavigateToGpsTargetState,
-                {
-                    "gps_depth": self.gps_depth,
-                    "gps_target_frame": self.gps_target_frame,
-                },
-            ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
                 {
@@ -453,10 +410,6 @@ class MainStateMachineNode:
                     "station_frame": self.return_home_station,
                     "gate_search_frame": self.gate_look_at_frame,
                 },
-            ),
-            "NAVIGATE_THROUGH_PIPELINE": (
-                NavigateThroughPipelineState,
-                {"pipeline_depth": self.pipeline_depth},
             ),
         }
 

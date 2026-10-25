@@ -8,7 +8,7 @@ import yaml
 from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
-from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
+from auv_msgs.srv import CalibrateIMU, CalibrateIMUResponse
 
 HIGH_COVARIANCE = 1e6
 

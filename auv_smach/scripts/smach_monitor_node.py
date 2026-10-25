@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 import rosnode
@@ -20,7 +20,6 @@ class SmachMonitor:
         # Camera detection disabling service names
         self.disable_segment_service_name = "vision/enable_segment_camera_detections"
         self.disable_bottom_service_name = "vision/enable_bottom_camera_detections"
-        self.disable_slalom_service_name = "vision/enable_slalom_camera_detections"
 
         self.align_frame_service = rospy.ServiceProxy(
             self.align_frame_service_name, Trigger
@@ -35,9 +34,6 @@ class SmachMonitor:
         )
         self.disable_bottom_service = rospy.ServiceProxy(
             self.disable_bottom_service_name, SetBool
-        )
-        self.disable_slalom_service = rospy.ServiceProxy(
-            self.disable_slalom_service_name, SetBool
         )
 
         self.smach_is_active = False
@@ -105,11 +101,10 @@ class SmachMonitor:
         ) as e:
             rospy.logerr("Service call to set detection focus failed: %s" % e)
 
-        # 3. Disable other camera detections (segment, bottom, slalom)
+        # 3. Disable other camera detections (segment, bottom)
         for service_name, service_proxy in [
             (self.disable_segment_service_name, self.disable_segment_service),
             (self.disable_bottom_service_name, self.disable_bottom_service),
-            (self.disable_slalom_service_name, self.disable_slalom_service),
         ]:
             try:
                 rospy.wait_for_service(service_name, timeout=2.0)

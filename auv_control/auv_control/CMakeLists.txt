@@ -26,7 +26,6 @@ find_package(catkin REQUIRED COMPONENTS
 # Generate dynamic reconfigure options
 generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
-  cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
 )
 
@@ -54,7 +53,6 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
-  scripts/visual_servoing_controller.py
   scripts/damping_tester.py
   scripts/gravity_compensation_estimator.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

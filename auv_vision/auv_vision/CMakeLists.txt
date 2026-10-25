@@ -32,15 +32,7 @@ catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
-    scripts/yolo_to_mask_node.py
-    scripts/opencv_pipe_detector.py
-    scripts/pipe_follower.py
-    scripts/principal_point_overlay_node.py
-    scripts/sim_bbox_node.py
-    scripts/sim_tracker_node.py
-    scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
-    scripts/depth_anything_sim_bridge_node.py
     scripts/depth_anything_zmq_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}

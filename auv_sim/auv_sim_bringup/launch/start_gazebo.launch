@@ -5,7 +5,7 @@
         value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"
     />
 
-    <param name="use_sim_time" value="true" />
+    <param name="/use_sim_time" value="true" type="bool" />
 
     <arg name="namespace" default="taluy" />
     <arg name="control_rate" default="20.0" />
@@ -25,13 +25,14 @@
     <arg name="log_filename" default="" />
     <arg name="start_bridge" default="true" />
     <arg name="pointcloud_filter" default="true" />
-    <arg name="sim" default="true" />
+    <arg name="localization_disabled_at_startup" default="false" />
+    <arg name="plane_fitter_sync_queue_size" default="90" />
     <arg name="use_taluy_gui" default="true" />
-    <arg name="use_rviz" default="false" />
+    <arg name="use_rviz" default="true" />
     <arg name="use_models" default="false" />
     <arg name="pinger_mode" default="torpedo" />
     <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
-    <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
+    <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/araba.rviz')" />
     <arg name="first_pool_torpedo" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'torpedo')" />
     <arg name="first_pool_octagon" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon')" />
     <arg name="first_pool_octagon_table" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon_table')" />
@@ -133,7 +134,8 @@
         <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="control_rate" value="$(arg control_rate)" />
-            <arg name="sim" value="$(arg sim)" />
+            <arg name="localization_disabled_at_startup" value="$(arg localization_disabled_at_startup)" />
+            <arg name="plane_fitter_sync_queue_size" value="$(arg plane_fitter_sync_queue_size)" />
             <arg name="use_gui" value="$(arg use_gui)" />
             <arg name="pinger_mode" value="$(arg pinger_mode)" />
             <arg name="world" value="$(arg world)" />
@@ -170,7 +172,7 @@
     </node>
 
     <!-- Simulation ground truth bbox tracker -->
-    <!-- <include file="$(find auv_detection)/launch/tracker_sim.launch">
+    <!-- <include file="$(find auv_sim_vision)/launch/bbox.launch">
         <arg name="namespace" value="$(arg namespace)" />
     </include> -->
 

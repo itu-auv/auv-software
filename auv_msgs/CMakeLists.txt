@@ -19,7 +19,6 @@ add_action_files(
 
 add_message_files(
   FILES
-  EulerOrientation.msg
   ObjectPose.msg
   Keypoint.msg
   KeypointResult.msg
@@ -32,12 +31,12 @@ add_message_files(
 add_service_files(
   FILES
   AlignFrameController.srv
+  CalibrateIMU.srv
   PlanPath.srv
   SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv
   SetPremap.srv
-  VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv

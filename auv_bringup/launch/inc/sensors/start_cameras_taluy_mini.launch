@@ -18,12 +18,12 @@
     <arg name="camera_namespace" value="$(arg namespace)/cameras/cam_front" />
   </include>
 
-  <include file="$(find auv_cam)/launch/start_gst_camera.launch">
+  <!-- <include file="$(find auv_cam)/launch/start_gst_camera.launch">
     <arg name="namespace" value="$(arg namespace)"/>
     <arg name="compressed" value="$(arg compressed)"/>
     <arg name="verbose" value="$(arg verbose)"/>
     <arg name="name" value="cam_bottom"/>
     <arg name="pub_camera_info" value="$(arg pub_camera_info)"/>
-  </include>
+  </include> -->
 
 </launch>
