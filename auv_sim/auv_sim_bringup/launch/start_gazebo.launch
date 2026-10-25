@@ -28,11 +28,11 @@
     <arg name="localization_disabled_at_startup" default="false" />
     <arg name="plane_fitter_sync_queue_size" default="90" />
     <arg name="use_taluy_gui" default="true" />
-    <arg name="use_rviz" default="false" />
+    <arg name="use_rviz" default="true" />
     <arg name="use_models" default="false" />
     <arg name="pinger_mode" default="torpedo" />
     <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
-    <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
+    <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/araba.rviz')" />
     <arg name="first_pool_torpedo" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'torpedo')" />
     <arg name="first_pool_octagon" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon')" />
     <arg name="first_pool_octagon_table" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon_table')" />

@@ -5,7 +5,7 @@
   <arg name="localization_disabled_at_startup" default="true" />
   <arg name="plane_fitter_sync_queue_size" default="30" />
   <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')" />
-  <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')" />
+  <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/araba.rviz')" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
