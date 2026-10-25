@@ -94,7 +94,9 @@ class DvlToOdom:
         rospy.loginfo(f"\tlinear x covariance: {self.linear_x_covariance}")
         rospy.loginfo(f"\tlinear y covariance: {self.linear_y_covariance}")
         rospy.loginfo(f"\tlinear z covariance: {self.linear_z_covariance}")
-        rospy.loginfo(f"\tmodel covariance multiplier: {self.model_covariance_multiplier}")
+        rospy.loginfo(
+            f"\tmodel covariance multiplier: {self.model_covariance_multiplier}"
+        )
 
         # Fallback variables
         self.desired_velocity_twist = Twist()

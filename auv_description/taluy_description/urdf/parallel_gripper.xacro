@@ -231,6 +231,5 @@
       <!-- Ucu daha fazla içe doğru: Z ekseninde +0.15 rad (~+8.6°) rotasyon ekleyerek uç içe bakar -->
       <origin rpy="0 0 0.15" xyz="0.06431 0 0"/>
     </joint>
-
   </xacro:macro>
 </robot>

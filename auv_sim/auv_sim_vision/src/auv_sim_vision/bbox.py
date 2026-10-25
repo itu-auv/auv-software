@@ -955,4 +955,3 @@ class SimBboxNode:
 
     def run(self):
         rospy.spin()
-

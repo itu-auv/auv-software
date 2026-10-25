@@ -65,9 +65,7 @@ class ControlEnableHandler:
         self.enable = False
         self.timeout_duration = rospy.Duration(timeout_duration)
         self.last_enable_time = rospy.Time.now()
-        rospy.Subscriber(
-            "enable", Bool, self._enable_callback, tcp_nodelay=True
-        )
+        rospy.Subscriber("enable", Bool, self._enable_callback, tcp_nodelay=True)
 
     def _enable_callback(self, msg):
         self.enable = msg.data
