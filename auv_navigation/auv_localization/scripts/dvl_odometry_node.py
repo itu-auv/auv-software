@@ -12,7 +12,6 @@ import message_filters
 import time
 import tf
 import tf.transformations
-from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 
 class DvlToOdom:
@@ -90,22 +89,12 @@ class DvlToOdom:
         self.update_twist_covariance(False)
 
         # Logging
-        DVL_odometry_colored = TerminalColors.color_text(
-            "DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE
-        )
-        rospy.loginfo(f"{DVL_odometry_colored} : cmdvel_tau: {self.cmdvel_tau}")
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : model covariance multiplier: {self.model_covariance_multiplier}"
-        )
+        rospy.loginfo("\033[38;5;110mDVL Odometry Calibration data loaded\033[0m:")
+        rospy.loginfo(f"\tcmdvel_tau: {self.cmdvel_tau}")
+        rospy.loginfo(f"\tlinear x covariance: {self.linear_x_covariance}")
+        rospy.loginfo(f"\tlinear y covariance: {self.linear_y_covariance}")
+        rospy.loginfo(f"\tlinear z covariance: {self.linear_z_covariance}")
+        rospy.loginfo(f"\tmodel covariance multiplier: {self.model_covariance_multiplier}")
 
         # Fallback variables
         self.desired_velocity_twist = Twist()
@@ -137,19 +126,13 @@ class DvlToOdom:
 
             self.dynamic_model_available = True
 
-            model_loaded_colored = TerminalColors.color_text(
-                "Dynamic model loaded successfully", TerminalColors.PASTEL_GREEN
-            )
-            rospy.loginfo(model_loaded_colored)
+            rospy.loginfo("\033[38;5;157mDynamic model loaded successfully\033[0m")
             rospy.loginfo(f"Mass matrix diagonal: {np.diag(self.M)}")
             rospy.loginfo(f"Linear damping diagonal: {np.diag(self.D_linear)}")
             rospy.loginfo(f"Quadratic damping diagonal: {np.diag(self.D_quadratic)}")
 
         except Exception as e:
-            model_error_colored = TerminalColors.color_text(
-                f"Failed to load dynamic model: {e}", TerminalColors.PASTEL_RED
-            )
-            rospy.logerr(model_error_colored)
+            rospy.logerr(f"\033[38;5;203mFailed to load dynamic model: {e}\033[0m")
             rospy.logwarn("Using identity/zero matrices as fallback")
             # Fallback to safe defaults
             self.M = np.eye(6)

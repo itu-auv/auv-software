@@ -8,7 +8,6 @@ import numpy as np
 import std_msgs.msg
 import geometry_msgs.msg
 import std_srvs.srv
-import auv_common_lib.spatial.velocity_transform
 import sensor_msgs.msg
 
 
@@ -42,10 +41,8 @@ class WayfinderNode:
 
         tf_prefix = rospy.get_param("~tf_prefix")
         frame_id = rospy.get_param("~frame_id")
-        base_frame_id = rospy.get_param("~frame_id")
 
         self.frame_id = tf_prefix + "/" + frame_id
-        self.base_frame_id = tf_prefix + "/" + base_frame_id
 
         self.velocity_covariance = rospy.get_param("~velocity_covariance")
         self.position_covariance = rospy.get_param("~position_covariance")
@@ -58,11 +55,6 @@ class WayfinderNode:
         self._initialize_dvl(port, baudrate, timeout)
 
         self.rate = rospy.Rate(rate)
-        self.imu_spacial_transformer = (
-            auv_common_lib.spatial.velocity_transform.IMUSpatialTransformer(
-                self.base_frame_id
-            )
-        )
 
         self.pub_is_valid = rospy.Publisher("is_valid", std_msgs.msg.Bool, queue_size=1)
         self.pub_velocity_raw = rospy.Publisher(

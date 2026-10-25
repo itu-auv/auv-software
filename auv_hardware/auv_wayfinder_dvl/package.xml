@@ -7,7 +7,6 @@
   <maintainer email="melihbykr00@gmail.com">Melih Baykara</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <exec_depend>auv_common_lib</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>rospy</exec_depend>

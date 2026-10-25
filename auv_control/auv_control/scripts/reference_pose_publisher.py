@@ -33,7 +33,6 @@ from angles import normalize_angle, shortest_angular_distance
 import numpy as np
 
 import dynamic_reconfigure.client
-from auv_common_lib.control.enable_state import ControlEnableHandler
 from auv_common_lib.transform import is_transform_fresh
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point, do_transform_vector3
@@ -59,6 +58,29 @@ def closest_half_turn_yaw(source_yaw: float, reference_yaw: float) -> float:
         (normalize_angle(source_yaw + offset) for offset in (0.0, np.pi)),
         key=lambda yaw: abs(shortest_angular_distance(yaw, reference_yaw)),
     )
+
+
+class ControlEnableHandler:
+    def __init__(self, timeout_duration):
+        self.enable = False
+        self.timeout_duration = rospy.Duration(timeout_duration)
+        self.last_enable_time = rospy.Time.now()
+        rospy.Subscriber(
+            "enable", Bool, self._enable_callback, tcp_nodelay=True
+        )
+
+    def _enable_callback(self, msg):
+        self.enable = msg.data
+        if self.enable:
+            self.last_enable_time = rospy.Time.now()
+
+    def is_enabled(self) -> bool:
+        current_time = rospy.Time.now()
+        is_timeouted = (
+            current_time - self.last_enable_time
+        ).to_sec() >= self.timeout_duration.to_sec()
+
+        return self.enable and not is_timeouted
 
 
 class ReferencePosePublisherNode:
