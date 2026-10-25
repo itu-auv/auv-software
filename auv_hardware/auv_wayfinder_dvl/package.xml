@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_wayfinder_dvl</name>
+  <version>0.1.0</version>
+  <description>ROS driver for the Wayfinder DVL</description>
+  <author email="melihbykr00@gmail.com">Melih Baykara</author>
+  <maintainer email="melihbykr00@gmail.com">Melih Baykara</maintainer>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>auv_common_lib</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <export/>
+</package>

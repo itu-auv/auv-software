@@ -50,7 +50,7 @@
   </group>
 
   <group if="$(arg enable_hydrophone)">
-    <include file="$(find auv_hardware_bridge)/launch/start_hydrophone_tdoa_to_angle.launch">
+    <include file="$(find auv_hydrophone)/launch/start_hydrophone_tdoa_to_angle.launch">
       <arg name="namespace" value="$(arg namespace)" />
     </include>
   </group>
@@ -62,17 +62,9 @@
     <arg name="device_port" value="12345" />
   </include> -->
 
-  <!-- launch expansion bridge -->
-  <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="baudrate" value="921600" />
-    <arg name="port" value="/dev/auv_expansion_board" />
-    <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
-  </include> -->
-
   <!-- launch dvl driver -->
   <group if="$(arg enable_dvl)">
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_wayfinder_dvl_driver.launch.xml">
+    <include file="$(find auv_wayfinder_dvl)/launch/start_wayfinder_dvl.launch">
       <arg name="namespace" value="$(arg namespace)" />
       <arg name="port" value="$(arg dvl_virtual_port)" />
     </include>

@@ -9,7 +9,7 @@
   <arg name="yaw_offset_deg" default="90.0" />
 
   <group ns="$(arg namespace)">
-    <node name="hydrophone_tdoa_to_angle_node" pkg="auv_hardware_bridge" type="hydrophone_tdoa_to_angle_node.py" output="screen">
+    <node name="hydrophone_tdoa_to_angle_node" pkg="auv_hydrophone" type="hydrophone_tdoa_to_angle_node.py" output="screen">
       <param name="base_link" value="$(arg base_link)" />
       <param name="marker_length" value="$(arg marker_length)" />
       <param name="yaw_offset_deg" value="$(arg yaw_offset_deg)" />

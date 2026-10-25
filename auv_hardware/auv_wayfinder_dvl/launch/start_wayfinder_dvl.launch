@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy"/>
-  <arg name="port" default="auv_wayfinder_dvl"/>
+  <arg name="port" default="/dev/auv_wayfinder_dvl"/>
   <arg name="baudrate" default="115200"/>
   <group ns="$(arg namespace)">
-    <node pkg="auv_hardware_bridge" type="wayfinder_dvl_node.py" name="wayfinder_dvl_node" output="screen" respawn="true">
+    <node pkg="auv_wayfinder_dvl" type="wayfinder_dvl_node.py" name="wayfinder_dvl_node" output="screen" respawn="true">
       <param name="port" value="$(arg port)"/>
       <param name="baudrate" value="$(arg baudrate)"/>
       <param name="timeout" value="5"/>
