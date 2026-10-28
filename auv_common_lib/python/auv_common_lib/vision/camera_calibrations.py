@@ -1,18 +1,19 @@
-import rospy
+from rclpy.wait_for_message import wait_for_message
 from sensor_msgs.msg import CameraInfo
 import threading
 import copy
 
 
 class CameraCalibrationFetcher:
-    def __init__(self, camera_namespace: str, wait_for_camera_info: bool = True):
+    def __init__(self, node, camera_namespace: str, wait_for_camera_info: bool = True):
+        self.node = node
         self.camera_info_topic = f"{camera_namespace}/camera_info"
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
-        rospy.Subscriber(self.camera_info_topic, CameraInfo, self.camera_info_callback)
+        self.subscription = node.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, 10)
 
         if wait_for_camera_info:
-            rospy.wait_for_message(self.camera_info_topic, CameraInfo)
+            wait_for_message(CameraInfo, node, self.camera_info_topic)
 
     def camera_info_callback(self, data):
         with self.camera_info_lock:
@@ -23,7 +24,7 @@ class CameraCalibrationFetcher:
 
     def get_camera_info(self):
         if not self.is_received():
-            rospy.logwarn(f"Camera info not received on {self.camera_info_topic}")
+            self.node.get_logger().warning(f"Camera info not received on {self.camera_info_topic}")
             return None
 
         with self.camera_info_lock:

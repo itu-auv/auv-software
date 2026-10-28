@@ -1,69 +1,38 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_msgs)
 
-find_package(catkin REQUIRED COMPONENTS
-  actionlib
-  actionlib_msgs
-  geometry_msgs
-  message_generation
-  nav_msgs
-  std_msgs
-)
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 ## Declare action files
-add_action_files(
-  DIRECTORY action
-  FILES
-  FollowPath.action
-)
-
-add_message_files(
-  FILES
-  ObjectPose.msg
-  Keypoint.msg
-  KeypointResult.msg
-  PropsYaw.msg
-  SegmentMeasurement.msg
-  TDOA.msg
-  WaypointPath.msg
-)
-
-add_service_files(
-  FILES
-  AlignFrameController.srv
-  CalibrateIMU.srv
-  PlanPath.srv
-  SendAcoustic.srv
-  SetDepth.srv
-  SetObjectTransform.srv
-  SetPremap.srv
-  SetDetectionFocus.srv
-  SpawnDebugCube.srv
-  SetDampingTarget.srv
-  SetWaypoint.srv
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/FollowPath.action"
+  "msg/ObjectPose.msg"
+  "msg/Keypoint.msg"
+  "msg/KeypointResult.msg"
+  "msg/PropsYaw.msg"
+  "msg/SegmentMeasurement.msg"
+  "msg/TDOA.msg"
+  "msg/WaypointPath.msg"
+  "srv/AlignFrameController.srv"
+  "srv/CalibrateIMU.srv"
+  "srv/PlanPath.srv"
+  "srv/SendAcoustic.srv"
+  "srv/SetDepth.srv"
+  "srv/SetObjectTransform.srv"
+  "srv/SetPremap.srv"
+  "srv/SetDetectionFocus.srv"
+  "srv/SpawnDebugCube.srv"
+  "srv/SetDampingTarget.srv"
+  "srv/SetWaypoint.srv"
+  DEPENDENCIES geometry_msgs nav_msgs std_msgs
 )
 
 # # Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  actionlib_msgs
-  geometry_msgs
-  nav_msgs
-  std_msgs
-)
+ament_export_dependencies(rosidl_default_runtime)
 
 ## Declare catkin package
-catkin_package(
-  CATKIN_DEPENDS
-  actionlib
-  actionlib_msgs
-  geometry_msgs
-  message_generation
-  message_runtime
-  nav_msgs
-  std_msgs
-)
-
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
+ament_package()

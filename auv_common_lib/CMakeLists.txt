@@ -5,52 +5,39 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-std=c++17)
 
-find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  nav_msgs
-  roscpp
-)
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(tf2 REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 
-catkin_python_setup()
-
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS
-    geometry_msgs
-    nav_msgs
-    roscpp
-)
-
-include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIR}
-)
+ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR python/${PROJECT_NAME})
 
 add_library(${PROJECT_NAME}
   src/ros/conversions.cpp
   src/ros/rosparam_matrix.cpp
 )
 
-add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
+ament_target_dependencies(${PROJECT_NAME} geometry_msgs nav_msgs rclcpp tf2)
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE ROS_ASSERT_ENABLED)
-
-target_link_libraries(${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-)
-
-install(TARGETS ${PROJECT_NAME}
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  DESTINATION include/${PROJECT_NAME}
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
 )
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(Eigen3 geometry_msgs nav_msgs rclcpp tf2)
+ament_package()
