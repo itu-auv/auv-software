@@ -4,10 +4,11 @@
 #include <vector>
 
 #include "auv_control/thruster_allocation.h"
-#include "ros/ros.h"
-#include "sensor_msgs/BatteryState.h"
-#include "std_msgs/UInt16MultiArray.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp/create_timer.hpp"
+#include "sensor_msgs/msg/battery_state.hpp"
+#include "std_msgs/msg/u_int16_multi_array.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
@@ -21,70 +22,58 @@ class ThrusterManagerROS {
   using WrenchVector = ThrusterAllocator::WrenchVector;
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
-  ThrusterManagerROS(const ros::NodeHandle &nh)
+  ThrusterManagerROS(const rclcpp::Node::SharedPtr &nh)
       : nh_{nh},
-        allocator_{ros::NodeHandle{"~"}},
-        tf_buffer_{},
+        allocator_{nh},
+        tf_buffer_{nh->get_clock()},
         tf_listener_{tf_buffer_} {
-    ROS_INFO("ThrusterManagerROS initialized");
+    RCLCPP_INFO(nh_->get_logger(), "ThrusterManagerROS initialized");
 
-    ros::NodeHandle nh_private("~");
-    nh_private.getParam("coeffs_ccw", coeffs_ccw_);
-    nh_private.getParam("coeffs_cw", coeffs_cw_);
-    nh_private.getParam("mapping", mapping_);
-    nh_private.getParam("max_thrust", max_wrench_);
-    nh_private.getParam("min_thrust", min_wrench_);
-    nh_private.param<double>("minimum_voltage_threshold", voltage_threshold_,
-                             13.5);
-    nh_private.param<double>("low_voltage_duration", low_voltage_duration_,
-                             3.0);
+    coeffs_ccw_ = nh_->declare_parameter<std::vector<double>>("coeffs_ccw", std::vector<double>{});
+    coeffs_cw_ = nh_->declare_parameter<std::vector<double>>("coeffs_cw", std::vector<double>{});
+    mapping_ = nh_->declare_parameter<std::vector<int64_t>>("mapping", std::vector<int64_t>{});
+    max_wrench_ = nh_->declare_parameter<double>("max_thrust", 0.0);
+    min_wrench_ = nh_->declare_parameter<double>("min_thrust", 0.0);
+    voltage_threshold_ = nh_->declare_parameter<double>("minimum_voltage_threshold", 13.5);
+    low_voltage_duration_ = nh_->declare_parameter<double>("low_voltage_duration", 3.0);
 
     // Load per-thruster direction: 1 = normal, -1 = reversed (CCW)
-    if (!nh_private.getParam("directions", directions_)) {
-      directions_.assign(kThrusterCount, 1);
-    }
-    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
-    nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
+    directions_ = nh_->declare_parameter<std::vector<int64_t>>("directions", std::vector<int64_t>(kThrusterCount, 1));
+    body_frame_ = nh_->declare_parameter<std::string>("body_frame", "taluy/base_link");
+    transform_timeout_ = nh_->declare_parameter<double>("transform_timeout", 1.0);
 
     for (size_t i = 0; i < kThrusterCount; ++i) {
-      thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
+      thruster_wrench_pubs_[i] = nh_->create_publisher<geometry_msgs::msg::WrenchStamped>(
           "thrusters/thruster_" + std::to_string(i) + "/wrench", 1);
     }
+    wrench_sub_ = nh_->create_subscription<geometry_msgs::msg::WrenchStamped>(
+        "wrench", 1, std::bind(&ThrusterManagerROS::wrench_callback, this, std::placeholders::_1));
+    power_sub_ = nh_->create_subscription<sensor_msgs::msg::BatteryState>(
+        "power", 1, std::bind(&ThrusterManagerROS::power_callback, this, std::placeholders::_1));
+    drive_pub_ = nh_->create_publisher<std_msgs::msg::UInt16MultiArray>("board/drive_pulse", 1);
 
-    const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
-
-    wrench_sub_ =
-        nh_.subscribe("wrench", 1, &ThrusterManagerROS::wrench_callback, this,
-                      transport_hints);
-
-    power_sub_ =
-        nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
-
-    drive_pub_ =
-        nh_.advertise<std_msgs::UInt16MultiArray>("board/drive_pulse", 1);
   }
 
   void spin() {
-    ros::Rate rate(10);
-    while (ros::ok()) {
+    auto timer = rclcpp::create_timer(nh_, nh_->get_clock(),
+        rclcpp::Duration::from_seconds(0.1), [this]() {
       if (!latest_power_) {
-        ros::spinOnce();
-        rate.sleep();
-        continue;
+        return;
       }
 
       const auto voltage = latest_power_->voltage;
       if (voltage < voltage_threshold_) {
         if (!low_voltage_start_) {
-          low_voltage_start_ = ros::Time::now();
+          low_voltage_start_ = nh_->now();
         }
 
-        if ((ros::Time::now() - low_voltage_start_.value()).toSec() >=
+        if ((nh_->now() - low_voltage_start_.value()).seconds() >=
             low_voltage_duration_) {
-          ROS_ERROR_STREAM("Battery voltage stayed below "
+          RCLCPP_ERROR_STREAM(nh_->get_logger(), "Battery voltage stayed below "
                            << voltage_threshold_ << " V for "
                            << low_voltage_duration_
                            << " seconds. Stopping thruster manager.");
+          rclcpp::shutdown();
           return;
         }
       } else {
@@ -92,35 +81,31 @@ class ThrusterManagerROS {
       }
 
       if (!latest_wrench_) {
-        ros::spinOnce();
-        rate.sleep();
-        continue;
+        return;
       }
 
       const auto wrench_msg = latest_wrench_.value();
 
       // Transform wrench if frame_id is provided
-      geometry_msgs::WrenchStamped transformed_wrench = wrench_msg;
+      geometry_msgs::msg::WrenchStamped transformed_wrench = wrench_msg;
       if (!wrench_msg.header.frame_id.empty() &&
           wrench_msg.header.frame_id != body_frame_) {
         try {
           // Check if transform is available
           tf_buffer_.canTransform(body_frame_, wrench_msg.header.frame_id,
-                                  ros::Time(0),
-                                  ros::Duration(transform_timeout_));
+                                  tf2::TimePointZero,
+                                  tf2::durationFromSec(transform_timeout_));
 
           // Transform the wrench
           tf2::doTransform(
               wrench_msg, transformed_wrench,
               tf_buffer_.lookupTransform(
-                  body_frame_, wrench_msg.header.frame_id, ros::Time(0)));
+                  body_frame_, wrench_msg.header.frame_id, tf2::TimePointZero));
         } catch (const tf2::TransformException &ex) {
-          ROS_WARN_STREAM("Could not transform wrench from "
+          RCLCPP_WARN_STREAM(nh_->get_logger(), "Could not transform wrench from "
                           << wrench_msg.header.frame_id << " to " << body_frame_
                           << ": " << ex.what());
-          ros::spinOnce();
-          rate.sleep();
-          continue;
+          return;
         }
       }
 
@@ -135,10 +120,10 @@ class ThrusterManagerROS {
       }
 
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        thruster_wrench_pubs_[i].publish(thruster_wrench_msgs_.at(i));
+        thruster_wrench_pubs_[i]->publish(thruster_wrench_msgs_.at(i));
       }
 
-      std_msgs::UInt16MultiArray motor_command_msg;
+      std_msgs::msg::UInt16MultiArray motor_command_msg;
       motor_command_msg.data.resize(kThrusterCount);
       for (size_t i = 0; i < kThrusterCount; ++i) {
         const int dir = (i < directions_.size()) ? directions_[i] : 1;
@@ -147,15 +132,13 @@ class ThrusterManagerROS {
             pwm, static_cast<uint16_t>(1100U), static_cast<uint16_t>(1900U));
       }
 
-      drive_pub_.publish(motor_command_msg);
-
-      ros::spinOnce();
-      rate.sleep();
-    }
+      drive_pub_->publish(motor_command_msg);
+    });
+    rclcpp::spin(nh_);
   }
 
  private:
-  WrenchVector to_vector(const geometry_msgs::Wrench &wrench) {
+  WrenchVector to_vector(const geometry_msgs::msg::Wrench &wrench) {
     WrenchVector vector;
     vector << wrench.force.x, wrench.force.y, wrench.force.z, wrench.torque.x,
         wrench.torque.y, wrench.torque.z;
@@ -163,16 +146,16 @@ class ThrusterManagerROS {
   }
 
   bool is_timeouted() const {
-    return (ros::Time::now() - latest_wrench_time_).toSec() > 1.0;
+    return (nh_->now() - latest_wrench_time_).seconds() > 1.0;
   }
 
-  void wrench_callback(const geometry_msgs::WrenchStamped &msg) {
-    latest_wrench_ = msg;
-    latest_wrench_time_ = ros::Time::now();
+  void wrench_callback(const geometry_msgs::msg::WrenchStamped::ConstSharedPtr msg) {
+    latest_wrench_ = *msg;
+    latest_wrench_time_ = nh_->now();
   }
 
-  void power_callback(const sensor_msgs::BatteryState &msg) {
-    latest_power_ = msg;
+  void power_callback(const sensor_msgs::msg::BatteryState::ConstSharedPtr msg) {
+    latest_power_ = *msg;
   }
 
   uint16_t wrench_to_drive(double wrench, double voltage) {
@@ -201,17 +184,17 @@ class ThrusterManagerROS {
     return static_cast<uint16_t>(drive_value);
   }
 
-  ros::NodeHandle nh_;
+  rclcpp::Node::SharedPtr nh_;
   ThrusterAllocator allocator_;
-  std::optional<geometry_msgs::WrenchStamped> latest_wrench_;
-  std::optional<sensor_msgs::BatteryState> latest_power_;
-  ros::Time latest_wrench_time_{ros::Time(0)};
-  std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
-  std::array<geometry_msgs::WrenchStamped, kThrusterCount>
+  std::optional<geometry_msgs::msg::WrenchStamped> latest_wrench_;
+  std::optional<sensor_msgs::msg::BatteryState> latest_power_;
+  rclcpp::Time latest_wrench_time_{0, 0, RCL_ROS_TIME};
+  std::array<rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr, kThrusterCount> thruster_wrench_pubs_;
+  std::array<geometry_msgs::msg::WrenchStamped, kThrusterCount>
       thruster_wrench_msgs_;
-  ros::Subscriber wrench_sub_;
-  ros::Subscriber power_sub_;
-  ros::Publisher drive_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr wrench_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr power_sub_;
+  rclcpp::Publisher<std_msgs::msg::UInt16MultiArray>::SharedPtr drive_pub_;
 
   // TF related members
   tf2_ros::Buffer tf_buffer_;
@@ -220,12 +203,12 @@ class ThrusterManagerROS {
   double transform_timeout_;
   double voltage_threshold_{14.0};
   double low_voltage_duration_{5.0};
-  std::optional<ros::Time> low_voltage_start_;
+  std::optional<rclcpp::Time> low_voltage_start_;
 
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;
-  std::vector<int> mapping_;
-  std::vector<int> directions_;
+  std::vector<int64_t> mapping_;
+  std::vector<int64_t> directions_;
   double max_wrench_{0.0};
   double min_wrench_{0.0};
 };

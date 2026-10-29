@@ -1,41 +1,50 @@
 #!/usr/bin/env python3
 
-import rospy
-import tf
-import tf.transformations
+import rclpy
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+import tf2_ros
+import tf_transformations
 import numpy as np
 import yaml
 from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
-from auv_msgs.srv import CalibrateIMU, CalibrateIMUResponse
+from auv_msgs.srv import CalibrateIMU
 
 HIGH_COVARIANCE = 1e6
 
 
-class ImuToOdom:
+class ImuToOdom(Node):
     def __init__(self):
-        rospy.init_node("imu_to_odom_node", anonymous=True)
+        super().__init__("imu_to_odom_node")
+        self.callback_group = ReentrantCallbackGroup()
 
-        self.namespace = rospy.get_param("~namespace", "taluy")
-        self.imu_calibration_data_path = rospy.get_param(
-            "~imu_calibration_path", "config/imu_calibration_data.yaml"
-        )
+        self.namespace = self.declare_parameter("namespace", "taluy").value
+        self.imu_calibration_data_path = self.declare_parameter(
+            "imu_calibration_path", "config/imu_calibration_data.yaml"
+        ).value
 
-        self.base_frame = rospy.get_param("~base_frame", f"{self.namespace}/base_link")
-        self.imu_frame = rospy.get_param(
-            "~imu_frame", f"{self.namespace}/base_link/imu"
-        )
+        self.base_frame = self.declare_parameter("base_frame", f"{self.namespace}/base_link").value
+        self.imu_frame = self.declare_parameter(
+            "imu_frame", f"{self.namespace}/base_link/imu"
+        ).value
 
-        self.tf_listener = tf.TransformListener()
+        self.tf_node = Node("imu_tf_listener", use_global_arguments=False)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
 
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
 
         # Subscribers and Publishers
-        self.imu_subscriber = rospy.Subscriber(
-            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
+        self.imu_subscriber = self.create_subscription(
+            Imu, "imu/data", self.imu_callback, 10, callback_group=self.callback_group
         )
-        self.odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
+        self.odom_publisher = self.create_publisher(Odometry, "odom_imu", 10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
@@ -62,23 +71,22 @@ class ImuToOdom:
         self.load_calibration_data()
 
         # Service for IMU calibration
-        self.calibration_service = rospy.Service(
-            "calibrate_imu", CalibrateIMU, self.calibrate_imu
+        self.calibration_service = self.create_service(
+            CalibrateIMU, "calibrate_imu", self.calibrate_imu, callback_group=self.callback_group
         )
 
     def get_frame_rotation(self, frame_id):
-        rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {frame_id}")
+        self.get_logger().info(f"Waiting for TF: {self.base_frame} <- {frame_id}")
         try:
-            self.tf_listener.waitForTransform(
-                self.base_frame, frame_id, rospy.Time(0), rospy.Duration(10.0)
+            transform = self.tf_buffer.lookup_transform(
+                self.base_frame, frame_id, Time(), timeout=Duration(seconds=10.0)
             )
-            (trans, rot) = self.tf_listener.lookupTransform(
-                self.base_frame, frame_id, rospy.Time(0)
-            )
-            rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rot}")
+            q = transform.transform.rotation
+            rot = (q.x, q.y, q.z, q.w)
+            self.get_logger().info(f"Loaded {frame_id} rotation from TF: {rot}")
             return np.array(rot)
         except Exception as e:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Could not get TF for {frame_id} relative to {self.base_frame}: {e}. No frame rotation will be applied."
             )
             return None
@@ -134,14 +142,14 @@ class ImuToOdom:
 
         if self.imu_to_base_q is not None:
             # q_base^odom = q_imu^odom * q_base^imu = q_imu^odom * inv(q_imu^base)
-            imu_to_base_q_inv = tf.transformations.quaternion_inverse(
+            imu_to_base_q_inv = tf_transformations.quaternion_inverse(
                 self.imu_to_base_q
             )
             orientation_q = self.quaternion_multiply(orientation_q, imu_to_base_q_inv)
 
             # For angular velocity: omega_base = R_imu^base * omega_imu
             # Get rotation matrix from quaternion
-            rotation_matrix = tf.transformations.quaternion_matrix(self.imu_to_base_q)[
+            rotation_matrix = tf_transformations.quaternion_matrix(self.imu_to_base_q)[
                 :3, :3
             ]
             corrected_angular_velocity = np.dot(
@@ -174,49 +182,66 @@ class ImuToOdom:
 
         self.odom_publisher.publish(self.odom_msg)
 
-    def calibrate_imu(self, req):
+    def calibrate_imu(self, req, response):
         duration = req.duration
-        rospy.loginfo(f"IMU Calibration started for {duration} seconds...")
+        self.get_logger().info(f"IMU Calibration started for {duration} seconds...")
         self.calibrating = True
         self.calibration_data = []
-        rospy.sleep(duration)
+        self.get_clock().sleep_for(Duration(seconds=duration))
         self.calibrating = False
 
         if len(self.calibration_data) > 0:
             self.drift = np.mean(self.calibration_data, axis=0)
             self.save_calibration_data()
-            rospy.loginfo(f"IMU Calibration completed. Drift: {self.drift}")
-            return CalibrateIMUResponse(
-                success=True, message="IMU Calibration successful"
-            )
+            self.get_logger().info(f"IMU Calibration completed. Drift: {self.drift}")
+            response.success = True
+            response.message = "IMU Calibration successful"
+            return response
         else:
-            return CalibrateIMUResponse(success=False, message="IMU Calibration failed")
+            response.success = False
+            response.message = "IMU Calibration failed"
+            return response
 
     def save_calibration_data(self):
         calibration_data = {"drift": self.drift.tolist()}
         try:
             with open(self.imu_calibration_data_path, "w") as f:
                 yaml.dump(calibration_data, f)
-            rospy.loginfo("Calibration data saved.")
+            self.get_logger().info("Calibration data saved.")
         except Exception as e:
-            rospy.logerr(f"Failed to save calibration data: {e}")
+            self.get_logger().error(f"Failed to save calibration data: {e}")
 
     def load_calibration_data(self):
         try:
             with open(self.imu_calibration_data_path, "r") as f:
                 calibration_data = yaml.safe_load(f)
                 self.drift = np.array(calibration_data["drift"])
-            rospy.loginfo(f"IMU Calibration data loaded. Drift: {self.drift}")
+            self.get_logger().info(f"IMU Calibration data loaded. Drift: {self.drift}")
         except FileNotFoundError:
-            rospy.logwarn("No calibration data found.")
+            self.get_logger().warning("No calibration data found.")
 
     def run(self):
-        rospy.spin()
+        executor = MultiThreadedExecutor()
+        executor.add_node(self)
+        try:
+            executor.spin()
+        finally:
+            executor.shutdown()
+
+
+def main():
+    rclpy.init()
+    imu_to_odom = ImuToOdom()
+    try:
+        imu_to_odom.run()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        imu_to_odom.tf_listener.unregister()
+        imu_to_odom.tf_node.destroy_node()
+        imu_to_odom.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
-    try:
-        imu_to_odom = ImuToOdom()
-        imu_to_odom.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

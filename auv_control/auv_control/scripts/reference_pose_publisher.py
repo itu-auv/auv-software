@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from rclpy.node import Node
+from rclpy.time import Time
+from rclpy.duration import Duration
+from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
+from auv_control.control_clients import ControlClients, ControllerParameters, log, log_throttle, parameter, init_ros
 import tf2_ros
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import (
@@ -10,19 +15,21 @@ from geometry_msgs.msg import (
     PointStamped,
     TransformStamped,
 )
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger
+TriggerResponse = Trigger.Response
 from std_msgs.msg import Bool
 from auv_msgs.srv import (
     SetDepth,
-    SetDepthRequest,
-    SetDepthResponse,
     AlignFrameController,
-    AlignFrameControllerResponse,
     SetObjectTransform,
-    SetObjectTransformRequest,
 )
-from robot_localization.srv import SetPose, SetPoseRequest
-from tf.transformations import (
+from robot_localization.srv import SetPose
+SetDepthRequest = SetDepth.Request
+SetDepthResponse = SetDepth.Response
+AlignFrameControllerResponse = AlignFrameController.Response
+SetObjectTransformRequest = SetObjectTransform.Request
+SetPoseRequest = SetPose.Request
+from tf_transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
     quaternion_multiply,
@@ -32,7 +39,6 @@ from tf.transformations import (
 from angles import normalize_angle, shortest_angular_distance
 import numpy as np
 
-import dynamic_reconfigure.client
 from auv_common_lib.transform import is_transform_fresh
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point, do_transform_vector3
@@ -61,69 +67,76 @@ def closest_half_turn_yaw(source_yaw: float, reference_yaw: float) -> float:
 
 
 class ControlEnableHandler:
-    def __init__(self, timeout_duration):
+    def __init__(self, node, timeout_duration):
+        self.node = node
         self.enable = False
-        self.timeout_duration = rospy.Duration(timeout_duration)
-        self.last_enable_time = rospy.Time.now()
-        rospy.Subscriber("enable", Bool, self._enable_callback, tcp_nodelay=True)
+        self.timeout_duration = Duration(seconds=timeout_duration)
+        self.last_enable_time = self.node.get_clock().now()
+        self.subscription = node.create_subscription(Bool, "enable", self._enable_callback, 10)
 
     def _enable_callback(self, msg):
         self.enable = msg.data
         if self.enable:
-            self.last_enable_time = rospy.Time.now()
+            self.last_enable_time = self.node.get_clock().now()
 
     def is_enabled(self) -> bool:
-        current_time = rospy.Time.now()
+        current_time = self.node.get_clock().now()
         is_timeouted = (
             current_time - self.last_enable_time
-        ).to_sec() >= self.timeout_duration.to_sec()
+        ).nanoseconds / 1e9 >= self.timeout_duration.nanoseconds / 1e9
 
         return self.enable and not is_timeouted
 
 
-class ReferencePosePublisherNode:
+class ReferencePosePublisherNode(Node):
     def __init__(self):
+        super().__init__("reference_pose_publisher_node")
+        self._control_clients = ControlClients(self.get_namespace())
+        for name, value in (("linear_kp", 1.0), ("linear_kd", 0.7),
+                            ("angular_kp", 0.8), ("angular_kd", 0.3)):
+            descriptor = ParameterDescriptor(floating_point_range=[
+                FloatingPointRange(from_value=0.0, to_value=10.0, step=0.0)])
+            self.declare_parameter(name, value, descriptor)
+        self.tf_node = Node("reference_tf_listener", use_global_arguments=False)
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
 
         # subscribers
-        self.odometry_sub = rospy.Subscriber(
-            "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
+        self.odometry_sub = self.create_subscription(
+            Odometry, "odometry", self.odometry_callback, 10
         )
-        self.set_depth_service = rospy.Service(
-            "set_depth", SetDepth, self.target_depth_handler
+        self.set_depth_service = self.create_service(
+            SetDepth, "set_depth", lambda req, res: self.target_depth_handler(req)
         )
-        self.cmd_vel_sub = rospy.Subscriber(
-            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        self.cmd_vel_sub = self.create_subscription(
+            Twist, "cmd_vel", self.cmd_vel_callback, 10
         )
 
         # services
-        self.reset_odometry_service = rospy.Service(
-            "reset_odometry", Trigger, self.reset_odometry_handler
+        self.reset_odometry_service = self.create_service(
+            Trigger, "reset_odometry", lambda req, res: self.reset_odometry_handler(req)
         )
-        self.align_frame_service = rospy.Service(
-            "align_frame/start", AlignFrameController, self.handle_align_request
+        self.align_frame_service = self.create_service(
+            AlignFrameController, "align_frame/start", lambda req, res: self.handle_align_request(req)
         )
-        self.cancel_control_service = rospy.Service(
-            "align_frame/cancel", Trigger, self.handle_cancel_request
+        self.cancel_control_service = self.create_service(
+            Trigger, "align_frame/cancel", lambda req, res: self.handle_cancel_request(req)
         )
-        self.reset_orientation_service = rospy.Service(
-            "reset_command_orientation", Trigger, self.handle_reset_orientation_request
+        self.reset_orientation_service = self.create_service(
+            Trigger, "reset_command_orientation", lambda req, res: self.handle_reset_orientation_request(req)
         )
-        self.sync_cmd_pose_service = rospy.Service(
-            "sync_cmd_pose", Trigger, self.handle_sync_cmd_pose_request
+        self.sync_cmd_pose_service = self.create_service(
+            Trigger, "sync_cmd_pose", lambda req, res: self.handle_sync_cmd_pose_request(req)
         )
-        self.control_enable_handler = ControlEnableHandler(1.0)
-        self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
+        self.control_enable_handler = ControlEnableHandler(self, 1.0)
+        self.set_pose_client = lambda req: self._control_clients.service(SetPose, self.resolve_service_name("set_pose"), req)
 
         # Service to broadcast cmd_pose as a frame
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
-        )
+        self.set_object_transform_service = lambda req: self._control_clients.service(SetObjectTransform, self.resolve_service_name("set_object_transform"), req)
 
         # publishers
-        self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+        self.cmd_pose_pub = self.create_publisher(PoseStamped, "cmd_pose", 10)
+        self.enable_pub = self.create_publisher(Bool, "enable", 1)
 
         # target state
         self.target_frame_id = "odom"
@@ -140,68 +153,59 @@ class ReferencePosePublisherNode:
 
         self.set_depth_velocity = None  # Track Z velocity set by set_depth
 
-        self.last_cmd_time = rospy.Time.now()
+        self.last_cmd_time = self.get_clock().now()
         self.state_lock = Lock()
         self.latest_odometry = Odometry()
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
-        self.set_pose_req.pose.header.stamp = rospy.Time.now()
+        self.set_pose_req.pose.header.stamp = self.get_clock().now().to_msg()
         self.set_pose_req.pose.header.frame_id = "odom"
         self.is_resetting = False
 
         # parameters
-        self.namespace = rospy.get_param("~namespace", "taluy")
+        self.namespace = parameter(self, "~namespace", "taluy")
         self.base_frame = self.namespace + "/base_link"
-        self.update_rate = rospy.get_param("~update_rate", 10)
-        self.command_timeout = rospy.get_param("~command_timeout", 0.1)
-        self.max_xy_offset = rospy.get_param("~max_xy_offset", 1.0)
-        self.max_z_offset = rospy.get_param("~max_z_offset", 0.2)
-        self.max_z = rospy.get_param("~max_z", 0.0)
-        self.min_z = rospy.get_param("~min_z", -2.0)
-        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
-        self.tf_lookup_timeout = rospy.Duration(
-            rospy.get_param("~tf_lookup_timeout", 0.2)
+        self.update_rate = parameter(self, "~update_rate", 10.0)
+        self.command_timeout = parameter(self, "~command_timeout", 0.1)
+        self.max_xy_offset = parameter(self, "~max_xy_offset", 1.0)
+        self.max_z_offset = parameter(self, "~max_z_offset", 0.2)
+        self.max_z = parameter(self, "~max_z", 0.0)
+        self.min_z = parameter(self, "~min_z", -2.0)
+        self.max_yaw_offset = parameter(self, "~max_yaw_offset", np.pi / 18.0)
+        self.tf_lookup_timeout = Duration(seconds=
+            parameter(self, "~tf_lookup_timeout", 0.2)
         )
-        self.tf_freshness_threshold = rospy.Duration(
-            rospy.get_param("~tf_freshness_threshold", 0.4)
+        self.tf_freshness_threshold = Duration(seconds=
+            parameter(self, "~tf_freshness_threshold", 0.4)
         )
 
-        self.killswitch_sub = rospy.Subscriber(
-            "propulsion_board/status", Bool, self.killswitch_callback
+        self.killswitch_sub = self.create_subscription(
+            Bool, "propulsion_board/status", self.killswitch_callback, 10
         )
 
         try:
             # Prefer a configurable server name; resolve relative names via ROS
-            server_param = rospy.get_param(
+            server_param = parameter(self,
                 "~controller_reconfigure_server", "auv_control_node"
             )
-            target_server = rospy.resolve_name(server_param)
-            self.reconfigure_client = dynamic_reconfigure.client.Client(
-                target_server, timeout=5
+            target_server = self.resolve_topic_name(server_param)
+            self.reconfigure_client = ControllerParameters(
+                self._control_clients, target_server, timeout=5
             )
-            rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
+            log(self, 'info', f"Connected to controller parameter services: {target_server}")
 
             # Capture current max velocity configuration as defaults to restore later
             current_cfg = self._read_controller_cfg()
             if current_cfg is not None:
-                self.default_max_velocity = [
-                    current_cfg.get("max_velocity_0", 1.0),
-                    current_cfg.get("max_velocity_1", 1.0),
-                    current_cfg.get("max_velocity_2", 1.0),
-                    current_cfg.get("max_velocity_3", 1.0),
-                    current_cfg.get("max_velocity_4", 1.0),
-                    current_cfg.get("max_velocity_5", 1.0),
-                ]
+                self.default_max_velocity = list(current_cfg["max_velocity"])
             else:
-                rospy.logwarn(
+                log(self, 'warning',
                     "Failed to read initial controller configuration; using params/fallback"
                 )
-                self.default_max_velocity = rospy.get_param(
-                    f"{target_server}/max_velocity", [1.0] * 6
-                )
+                self.default_max_velocity = self.reconfigure_client.get_parameter("max_velocity") or [1.0] * 6
         except Exception as e:
-            rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
+            log(self, 'warning', f"Failed to connect to controller parameter services: {e}")
             self.reconfigure_client = None
             self.default_max_velocity = [1.0] * 6
 
@@ -210,7 +214,7 @@ class ReferencePosePublisherNode:
             with self.state_lock:
                 if self.align_frame_active:
                     self.cancel_align_controller()
-                    rospy.loginfo_throttle(
+                    log_throttle(self, 'info',
                         1.0, "Killswitch inactive; alignment deactivated"
                     )
 
@@ -241,19 +245,17 @@ class ReferencePosePublisherNode:
             # Update max velocity for Z axis
             if self.reconfigure_client:
                 try:
+                    max_velocity = list(self.reconfigure_client.get_parameter("max_velocity"))
                     if req.max_velocity > 0:
                         self.set_depth_velocity = req.max_velocity
-                        self.reconfigure_client.update_configuration(
-                            {"max_velocity_2": req.max_velocity}
-                        )
+                        max_velocity[2] = req.max_velocity
                     else:
                         # Restore default Z velocity
                         self.set_depth_velocity = None
-                        self.reconfigure_client.update_configuration(
-                            {"max_velocity_2": self.default_max_velocity[2]}
-                        )
+                        max_velocity[2] = self.default_max_velocity[2]
+                    self.reconfigure_client.update_configuration({"max_velocity": max_velocity})
                 except Exception as e:
-                    rospy.logwarn(f"Failed to update max velocity: {e}")
+                    log(self, 'warning', f"Failed to update max velocity: {e}")
 
             return SetDepthResponse(
                 success=True,
@@ -272,7 +274,7 @@ class ReferencePosePublisherNode:
             t = self.tf_lookup(
                 req.source_frame,
                 self.base_frame,
-                rospy.Time(0),
+                Time(),
                 self.tf_lookup_timeout,
             )
 
@@ -295,7 +297,7 @@ class ReferencePosePublisherNode:
                 source_in_target = self.tf_lookup(
                     req.target_frame,
                     req.source_frame,
-                    rospy.Time(0),
+                    Time(),
                     self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
@@ -355,8 +357,8 @@ class ReferencePosePublisherNode:
                     t_base = self.tf_lookup(
                         req.target_frame,
                         self.base_frame,
-                        rospy.Time(0),
-                        rospy.Duration(1.0),
+                        Time(),
+                        Duration(seconds=1.0),
                     )
                     if t_base is not None:
                         _, _, base_yaw_in_target = euler_from_quaternion(
@@ -399,8 +401,8 @@ class ReferencePosePublisherNode:
                     t_base = self.tf_lookup(
                         req.target_frame,
                         self.base_frame,
-                        rospy.Time(0),
-                        rospy.Duration(1.0),
+                        Time(),
+                        Duration(seconds=1.0),
                     )
                     if t_base is not None:
                         _, _, base_yaw_in_target = euler_from_quaternion(
@@ -449,7 +451,7 @@ class ReferencePosePublisherNode:
                 )
                 self._update_controller_cfg(linear_vel, angular_vel, req.use_depth)
 
-        rospy.loginfo(
+        log(self, 'info',
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
         )
         return AlignFrameControllerResponse(success=True, message="Alignment started")
@@ -463,7 +465,7 @@ class ReferencePosePublisherNode:
 
             self.cancel_align_controller()
 
-        rospy.loginfo("Align frame control canceled")
+        log(self, 'info', "Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
 
     def handle_reset_orientation_request(self, req) -> TriggerResponse:
@@ -477,14 +479,14 @@ class ReferencePosePublisherNode:
             self.target_roll = 0.0
             self.target_pitch = 0.0
 
-        rospy.loginfo("Roll and pitch reset to zero")
+        log(self, 'info', "Roll and pitch reset to zero")
         return TriggerResponse(success=True, message="Orientation reset successfully")
 
     def handle_sync_cmd_pose_request(self, req) -> TriggerResponse:
         """Sync cmd_pose to current robot position (odometry)."""
         with self.state_lock:
             self.set_target_to_odometry()
-        rospy.loginfo("cmd_pose synced to current odometry")
+        log(self, 'info', "cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
 
     def cancel_align_controller(self):
@@ -503,7 +505,7 @@ class ReferencePosePublisherNode:
         try:
             return self.reconfigure_client.get_configuration()
         except Exception as e:
-            rospy.logwarn(f"Failed to read controller configuration: {e}")
+            log(self, 'warning', f"Failed to read controller configuration: {e}")
             return None
 
     def _update_controller_cfg(
@@ -520,16 +522,12 @@ class ReferencePosePublisherNode:
 
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity_0": linear_vel,
-                    "max_velocity_1": linear_vel,
-                    "max_velocity_2": z_vel,
-                    "max_velocity_3": angular_vel,
-                    "max_velocity_4": angular_vel,
-                    "max_velocity_5": angular_vel,
+                    "max_velocity": [linear_vel, linear_vel, z_vel,
+                                     angular_vel, angular_vel, angular_vel],
                 }
             )
         except Exception as e:
-            rospy.logwarn(f"Failed to update controller configuration: {e}")
+            log(self, 'warning', f"Failed to update controller configuration: {e}")
 
     def _restore_controller_cfg(self):
         try:
@@ -541,16 +539,12 @@ class ReferencePosePublisherNode:
             )
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity_0": self.default_max_velocity[0],
-                    "max_velocity_1": self.default_max_velocity[1],
-                    "max_velocity_2": z_vel,
-                    "max_velocity_3": self.default_max_velocity[3],
-                    "max_velocity_4": self.default_max_velocity[4],
-                    "max_velocity_5": self.default_max_velocity[5],
+                    "max_velocity": [*self.default_max_velocity[:2], z_vel,
+                                     *self.default_max_velocity[3:]],
                 }
             )
         except Exception as e:
-            rospy.logwarn(f"Failed to reset controller configuration: {e}")
+            log(self, 'warning', f"Failed to reset controller configuration: {e}")
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -559,21 +553,21 @@ class ReferencePosePublisherNode:
             )
 
         self.is_resetting = True
-        rospy.logdebug("Starting odometry reset.")
+        log(self, 'debug', "Starting odometry reset.")
 
         try:
             self.set_pose_client(self.set_pose_req)
-            rospy.logdebug("Called set_pose service.")
-        except (rospy.ServiceException, rospy.ROSException) as e:
-            rospy.logerr(f"Service call failed: {e}")
+            log(self, 'debug', "Called set_pose service.")
+        except Exception as e:
+            log(self, 'error', f"Service call failed: {e}")
             self.is_resetting = False
             return TriggerResponse(success=False, message=f"Service call failed: {e}")
 
-        rospy.logdebug("Waiting for heading to settle.")
-        rospy.sleep(2.0)
+        log(self, 'debug', "Waiting for heading to settle.")
+        self.get_clock().sleep_for(Duration(seconds=2.0))
 
         self.is_resetting = False
-        rospy.logdebug("Odometry reset finished.")
+        log(self, 'debug', "Odometry reset finished.")
         return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
@@ -620,10 +614,10 @@ class ReferencePosePublisherNode:
         target_frame: str,
         source_frame: str,
         target_depth: float,
-        lookup_time: rospy.Time = None,
+        lookup_time: Time = None,
     ):
         if lookup_time is None:
-            lookup_time = rospy.Time(0)
+            lookup_time = Time()
 
         source_to_odom = self.tf_lookup(
             "odom", source_frame, lookup_time, self.tf_lookup_timeout
@@ -648,10 +642,10 @@ class ReferencePosePublisherNode:
         roll: float,
         pitch: float,
         yaw: float,
-        lookup_time: rospy.Time = None,
+        lookup_time: Time = None,
     ):
         if lookup_time is None:
-            lookup_time = rospy.Time(0)
+            lookup_time = Time()
 
         transform = self.tf_lookup(
             target_frame,
@@ -686,8 +680,8 @@ class ReferencePosePublisherNode:
             return
 
         with self.state_lock:
-            now = rospy.Time.now()
-            dt = (now - self.last_cmd_time).to_sec()
+            now = self.get_clock().now()
+            dt = (now - self.last_cmd_time).nanoseconds / 1e9
             dt = min(dt, self.command_timeout)
 
             q_current = quaternion_from_euler(
@@ -761,8 +755,8 @@ class ReferencePosePublisherNode:
         self,
         target_frame: str,
         source_frame: str,
-        time: rospy.Time,
-        timeout: rospy.Duration,
+        time: Time,
+        timeout: Duration,
     ):
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -771,14 +765,14 @@ class ReferencePosePublisherNode:
                 time,
                 timeout,
             )
-            if time == rospy.Time(0) and not is_transform_fresh(
-                transform, self.tf_freshness_threshold
+            if time.nanoseconds == 0 and not is_transform_fresh(
+                transform, self, self.tf_freshness_threshold
             ):
-                age = abs((rospy.Time.now() - transform.header.stamp).to_sec())
-                rospy.logwarn_throttle(
+                age = abs((self.get_clock().now() - Time.from_msg(transform.header.stamp)).nanoseconds / 1e9)
+                log_throttle(self, 'warning',
                     1.0,
                     f"TF lookup from {source_frame} to {target_frame} returned stale data "
-                    f"({age:.3f}s > {self.tf_freshness_threshold.to_sec():.3f}s)",
+                    f"({age:.3f}s > {self.tf_freshness_threshold.nanoseconds / 1e9:.3f}s)",
                 )
                 return None
             return transform
@@ -787,7 +781,7 @@ class ReferencePosePublisherNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(
+            log_throttle(self, 'warning',
                 1.0, f"TF lookup failed from {source_frame} to {target_frame}: {e}"
             )
             return None
@@ -806,7 +800,7 @@ class ReferencePosePublisherNode:
             req.transform = transform
             self.set_object_transform_service(req)
         except Exception as e:
-            rospy.logwarn_throttle(5.0, f"Failed to publish cmd_pose frame: {e}")
+            log_throttle(self, 'warning', 5.0, f"Failed to publish cmd_pose frame: {e}")
 
     def control_loop(self):
         with self.state_lock:
@@ -826,22 +820,22 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped = PoseStamped()
         cmd_pose_stamped.header.frame_id = frame_id
 
-        cmd_pose_stamp = rospy.Time.now()
+        cmd_pose_stamp = self.get_clock().now()
         if frame_id != "odom":
             target_to_odom = self.tf_lookup(
                 "odom",
                 frame_id,
-                rospy.Time(0),
+                Time(),
                 self.tf_lookup_timeout,
             )
             if target_to_odom is None:
-                rospy.logwarn_throttle(
+                log_throttle(self, 'warning',
                     1.0, f"Failed to lookup target frame '{frame_id}'"
                 )
                 return
-            cmd_pose_stamp = target_to_odom.header.stamp
+            cmd_pose_stamp = Time.from_msg(target_to_odom.header.stamp)
 
-        cmd_pose_stamped.header.stamp = cmd_pose_stamp
+        cmd_pose_stamped.header.stamp = cmd_pose_stamp.to_msg()
 
         cmd_pose_stamped.pose.position.x = tx
         cmd_pose_stamped.pose.position.y = ty
@@ -854,7 +848,7 @@ class ReferencePosePublisherNode:
                 cmd_pose_stamp,
             )
             if transformed_depth is None:
-                rospy.logerr_throttle(1.0, "Failed to transform target depth")
+                log_throttle(self, 'error', 1.0, "Failed to transform target depth")
                 return
             cmd_pose_stamped.pose.position.z = transformed_depth
         else:
@@ -870,7 +864,7 @@ class ReferencePosePublisherNode:
                 cmd_pose_stamp,
             )
             if transformed_rpy is None:
-                rospy.logerr_throttle(1.0, "Failed to transform target orientation")
+                log_throttle(self, 'error', 1.0, "Failed to transform target orientation")
                 return
             roll, pitch, yaw = transformed_rpy
         else:
@@ -893,17 +887,24 @@ class ReferencePosePublisherNode:
             self.enable_pub.publish(Bool(data=True))
 
     def run(self):
-        rate = rospy.Rate(self.update_rate)
+        self.timer = self.create_timer(1.0 / self.update_rate, self.control_loop)
+        rclpy.spin(self)
 
-        while not rospy.is_shutdown():
-            self.control_loop()
-            rate.sleep()
+
+def main():
+    init_ros()
+    node = ReferencePosePublisherNode()
+    try:
+        node.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.tf_listener.unregister()
+        node.tf_node.destroy_node()
+        node._control_clients.shutdown()
+        node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
-    try:
-        rospy.init_node("reference_pose_publisher_node")
-        node = ReferencePosePublisherNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

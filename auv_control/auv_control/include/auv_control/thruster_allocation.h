@@ -3,8 +3,8 @@
 #include <optional>
 
 #include "fmt/format.h"
-#include "geometry_msgs/WrenchStamped.h"
-#include "ros/ros.h"
+#include "geometry_msgs/msg/wrench_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
@@ -23,13 +23,12 @@ class ThrusterAllocator {
   using WrenchVector = Eigen::Matrix<double, kDOF, 1>;
   using ThrusterEffortVector = Eigen::Matrix<double, kThrusterCount, 1>;
   using WrenchStampedVector =
-      std::array<geometry_msgs::WrenchStamped, kThrusterCount>;
+      std::array<geometry_msgs::msg::WrenchStamped, kThrusterCount>;
 
-  ThrusterAllocator(const ros::NodeHandle &nh) : nh_{nh} {
-    nh_.param<std::string>("frame_prefix", frame_prefix_, "taluy");
-    nh_.param<std::string>("base_frame", base_frame_, "base_link");
-    nh_.param<std::string>("thruster_frame", thruster_frame_,
-                           "thruster_{}_link");
+  ThrusterAllocator(const rclcpp::Node::SharedPtr &nh) : nh_{nh}, tf_buffer_{nh->get_clock()}, tf_listener_{tf_buffer_} {
+    frame_prefix_ = nh_->declare_parameter<std::string>("frame_prefix", "taluy");
+    base_frame_ = nh_->declare_parameter<std::string>("base_frame", "base_link");
+    thruster_frame_ = nh_->declare_parameter<std::string>("thruster_frame", "thruster_{}_link");
 
     if (!frame_prefix_.empty()) {
       base_frame_ = frame_prefix_ + "/" + base_frame_;
@@ -39,19 +38,19 @@ class ThrusterAllocator {
     const auto allocation_matrix = calculate_tam();
 
     if (!allocation_matrix) {
-      ROS_ERROR("Failed to calculate TAM");
+      RCLCPP_ERROR(nh_->get_logger(), "Failed to calculate TAM");
       return;
     }
 
     inverted_allocation_matrix_ = pseudo_inverse(allocation_matrix.value());
-    ROS_INFO("ThrusterAllocator initialized");
-    ROS_INFO_STREAM("Inverted allocation matrix:\n"
+    RCLCPP_INFO(nh_->get_logger(), "ThrusterAllocator initialized");
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "Inverted allocation matrix:\n"
                     << inverted_allocation_matrix_.value());
   }
 
   std::optional<ThrusterEffortVector> allocate(const WrenchVector &wrench) {
     if (!inverted_allocation_matrix_) {
-      ROS_ERROR("Failed to allocate thruster forces");
+      RCLCPP_ERROR(nh_->get_logger(), "Failed to allocate thruster forces");
       return std::nullopt;
     }
     return inverted_allocation_matrix_.value() * wrench;
@@ -61,7 +60,7 @@ class ThrusterAllocator {
                                  WrenchStampedVector &wrench_stamped_vector) {
     for (size_t i = 0; i < kThrusterCount; ++i) {
       auto &wrench_stamped = wrench_stamped_vector.at(i);
-      wrench_stamped.header.stamp = ros::Time::now();
+      wrench_stamped.header.stamp = nh_->now();
       wrench_stamped.header.frame_id = fmt::format(thruster_frame_, i);
       wrench_stamped.wrench.force.x = 0;
       wrench_stamped.wrench.force.y = 0;
@@ -77,7 +76,7 @@ class ThrusterAllocator {
                                          const std::string &target_frame) {
     try {
       const auto transform = tf_buffer_.lookupTransform(
-          target_frame, source_frame, ros::Time(0), ros::Duration(1.0));
+          target_frame, source_frame, tf2::TimePointZero, tf2::durationFromSec(1.0));
 
       const auto translation = Eigen::Vector3d{
           transform.transform.translation.x, transform.transform.translation.y,
@@ -88,7 +87,7 @@ class ThrusterAllocator {
 
       return std::make_pair(translation, quaternion);
     } catch (const tf2::TransformException &ex) {
-      ROS_ERROR("Failed to get transform: %s", ex.what());
+      RCLCPP_ERROR(nh_->get_logger(), "Failed to get transform: %s", ex.what());
       return std::nullopt;
     }
   }
@@ -136,9 +135,9 @@ class ThrusterAllocator {
            svd.matrixU().adjoint();
   }
 
-  ros::NodeHandle nh_;
-  tf2_ros::Buffer tf_buffer_{};
-  tf2_ros::TransformListener tf_listener_{tf_buffer_};
+  rclcpp::Node::SharedPtr nh_;
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
 
   std::optional<TransposedAllocationMatrix> inverted_allocation_matrix_;
 

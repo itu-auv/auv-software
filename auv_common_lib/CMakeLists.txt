@@ -14,12 +14,14 @@ find_package(tf2 REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 
-ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR python/${PROJECT_NAME})
+ament_python_install_package(${PROJECT_NAME})
 
 add_library(${PROJECT_NAME}
   src/ros/conversions.cpp
   src/ros/rosparam_matrix.cpp
 )
+
+set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
