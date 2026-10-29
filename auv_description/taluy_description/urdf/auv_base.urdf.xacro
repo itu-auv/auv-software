@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy">
   <!-- create xacro property -->
   <xacro:property name="namespace" value="taluy"/>
-  <xacro:macro name="taluy_base" params="use_models">
+  <xacro:macro name="taluy_base" params="use_models **base_link_extra">
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
@@ -28,6 +28,7 @@
           <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/>
         </geometry>
       </collision>
+      <xacro:insert_block name="base_link_extra"/>
     </link>
 
     <!-- Thrusters -->

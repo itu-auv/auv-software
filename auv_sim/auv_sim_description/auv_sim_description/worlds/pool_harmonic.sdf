@@ -1,0 +1,724 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.9">
+  <!--Bin: box collision proxy for malformed Classic mesh normals; visual geometry preserved.-->
+  <world name="pool">
+    <scene>
+      <ambient>0.2 0.2 0.2 1</ambient>
+      <background>0.0 0.2 0.25 1</background>
+      <grid>false</grid>
+    </scene>
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics" />
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu" />
+    <plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <graded_buoyancy>
+        <default_density>1028</default_density>
+        <density_change>
+          <above_depth>0</above_depth>
+          <density>1</density>
+        </density_change>
+      </graded_buoyancy>
+      <enable>taluy::taluy/base_link</enable>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster" />
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands" />
+    <plugin filename="gz-sim-dvl-system" name="gz::sim::systems::DopplerVelocityLogSystem" />
+    <gravity>0 0 -9.81</gravity>
+    <light name="sun" type="directional">
+      <cast_shadows>0</cast_shadows>
+      <pose>0 0 10 0 -0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <light name="user_point_light_0" type="point">
+      <cast_shadows>0</cast_shadows>
+      <pose>4 1 1 0 -0 0</pose>
+      <diffuse>0.5 0.5 0.5 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation>
+        <range>20</range>
+        <constant>0.5</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>0 0 -1</direction>
+    </light>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <latitude_deg>0</latitude_deg>
+      <longitude_deg>0</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+    <model name="singapore_pool">
+      <static>1</static>
+      <pose>2.00285 -2.94333 -2 0 -0 0</pose>
+      <link name="singapore_pool">
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name="singapore_pool_col">
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://pool/meshes/pool.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode />
+            </contact>
+            <bounce />
+            <friction>
+              <torsional>
+                <ode />
+              </torsional>
+              <ode />
+            </friction>
+          </surface>
+        </collision>
+        <visual name="singapore_pool_vis">
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://pool/meshes/pool.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+    <model name="pool_camera">
+      <static>true</static>
+      <pose>4.75 -2 20 0 1.5708 0</pose>
+      <link name="pool_camera_link">
+        <pose>0 0 0 0 0 0</pose>
+        <visual name="camera_visual">
+          <geometry>
+            <box>
+              <size>0.1 0.1 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.1 0.1 1</ambient>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+        <sensor name="camera_sensor" type="camera">
+          <update_rate>10.0</update_rate>
+          <camera name="pool_camera">
+            <horizontal_fov>1.36136</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip>
+              <near>0.02</near>
+              <far>300</far>
+            </clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+          </camera>
+          <topic>/world/pool/pool_camera/image</topic>
+        </sensor>
+      </link>
+    </model>
+    <model name="robosub_gate">
+      <static>true</static>
+      <pose>-2.0 -13.7 -1.50 0 0 3.42</pose>
+      <link name="robosub_gate">
+        <pose>0 0 0 0 0 0</pose>
+        <collision name="robosub_gate_col">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_gate/meshes/gate.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name="robosub_gate_vis">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_gate/meshes/gate.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name="robosub_torpedo">
+      <static>true</static>
+      <pose>5.25 -1.4 -2 1.57 0 -2.5</pose>
+      <link name="robosub_torpedo">
+        <pose>0 0 0 0 0 0</pose>
+        <collision name="robosub_torpedo_col">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_torpedo/meshes/torpedo.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name="robosub_torpedo_vis">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_torpedo/meshes/torpedo.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name="robosub_bin">
+      <static>true</static>
+      <pose>9.8 -12.6 -1.5 0 0 0</pose>
+      <link name="robosub_bin">
+        <pose>0 0 0 0 0 0</pose>
+        <collision name="robosub_bin_col">
+          <pose>-0.55 0.9 -0.1 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.5 2 0.5</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="robosub_bin_vis">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_bin/meshes/bin.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+      <link name="basket_1_link">
+        <pose>-0.7432 0.2978 -0.1486 0 0 0</pose>
+      </link>
+      <link name="basket_2_link">
+        <pose>-0.4462 1.5502 0.3349 0 0 0</pose>
+      </link>
+      <link name="basket_3_link">
+        <pose>-0.0937 0.6191 -0.0805 0 0 0</pose>
+      </link>
+      <link name="basket_4_link">
+        <pose>-1.0420 1.2816 0.0919 0 0 0</pose>
+      </link>
+      <link name="bin_fire_1_link">
+        <pose>-0.7480 0.2883 -0.2803 0 0 0</pose>
+      </link>
+      <link name="bin_fire_2_link">
+        <pose>-0.4330 1.5468 0.2042 0 0 0</pose>
+      </link>
+      <link name="bin_blood_1_link">
+        <pose>-0.0880 0.6145 -0.2168 0 0 0</pose>
+      </link>
+      <link name="bin_blood_2_link">
+        <pose>-1.0381 1.2940 -0.0540 0 0 0</pose>
+      </link>
+    </model>
+    <model name="robosub_slalom_1">
+      <static>true</static>
+      <link name="left_white_pipe">
+        <pose>-1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="red_pipe">
+        <pose>0 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="right_white_pipe">
+        <pose>1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <pose>6.5 -13.7 -1.35 0 0 1.57</pose>
+    </model>
+    <model name="robosub_slalom_2">
+      <static>true</static>
+      <link name="left_white_pipe">
+        <pose>-1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="red_pipe">
+        <pose>0 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="right_white_pipe">
+        <pose>1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <pose>4.7 -12.18 -1.35 0 0 1.57</pose>
+    </model>
+    <model name="robosub_slalom_3">
+      <static>true</static>
+      <link name="left_white_pipe">
+        <pose>-1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="red_pipe">
+        <pose>0 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <link name="right_white_pipe">
+        <pose>1.5 0 0.45 0 0 0</pose>
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+      <pose>2.9 -13.3 -1.35 0 0 1.57</pose>
+    </model>
+    <model name="robosub_octagon">
+      <static>true</static>
+      <pose>13.0 -4.25 -2 0 0 0</pose>
+      <link name="robosub_octagon">
+        <pose>0 0 0 0 0 0</pose>
+        <collision name="octagon_walls_col">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+            </mesh>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>100.0</mu>
+                <mu2>100.0</mu2>
+                <slip1>0.0</slip1>
+                <slip2>0.0</slip2>
+              </ode>
+            </friction>
+            <bounce>
+              <restitution_coefficient>0.0</restitution_coefficient>
+              <threshold>100000.0</threshold>
+            </bounce>
+            <contact>
+              <ode>
+                <kp>10000000</kp>
+                <kd>1000</kd>
+                <max_vel>0.1</max_vel>
+                <min_depth>0.001</min_depth>
+              </ode>
+            </contact>
+          </surface>
+          <max_contacts>100</max_contacts>
+        </collision>
+        <collision name="octagon_base_col">
+          <pose>0 0 -0.5 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3.0 3.0 1.0</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>100.0</mu>
+                <mu2>100.0</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="robosub_octagon_vis">
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <inertial>
+          <mass>1000.0</mass>
+          <inertia>
+            <ixx>1000.0</ixx>
+            <iyy>1000.0</iyy>
+            <izz>1000.0</izz>
+            <ixy>0.0</ixy>
+            <ixz>0.0</ixz>
+            <iyz>0.0</iyz>
+          </inertia>
+        </inertial>
+      </link>
+      <link name="basket_redcross_link">
+        <visual name="redcross_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.25 0.25</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon/materials/scripts</uri>
+              <uri>model://robosub_octagon/materials/textures</uri>
+              <name>OctagonRedCrossMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0 0 0 0</pose>
+        </visual>
+        <pose>-0.02144 -0.431928 0.56 0 0 0</pose>
+      </link>
+      <link name="basket_warning_link">
+        <visual name="warning_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>0.25 0.25</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon/materials/scripts</uri>
+              <uri>model://robosub_octagon/materials/textures</uri>
+              <name>OctagonWarningMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0 0 0 0</pose>
+        </visual>
+        <pose>-0.02144 0.431928 0.56 0 0 0</pose>
+      </link>
+      <link name="octagon_table_link">
+        <pose>0 0 0.6245 0 0 0</pose>
+      </link>
+    </model>
+    <model name="robosub_octagon_animals">
+      <static>true</static>
+      <link name="octagon_repair_link">
+        <visual name="visual1_front">
+          <geometry>
+            <plane>
+              <normal>1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <uri>model://robosub_octagon_animals/materials/textures</uri>
+              <name>Task5RepairMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 1.5708</pose>
+        </visual>
+        <visual name="visual1_back">
+          <geometry>
+            <plane>
+              <normal>-1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>Task5BackMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 1.5708</pose>
+        </visual>
+        <pose>0 0 0.4 0 0 0</pose>
+      </link>
+      <link name="octagon_rescue_link">
+        <visual name="visual2_front">
+          <geometry>
+            <plane>
+              <normal>-1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <uri>model://robosub_octagon_animals/materials/textures</uri>
+              <name>Task5RescueMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
+        </visual>
+        <visual name="visual2_back">
+          <geometry>
+            <plane>
+              <normal>1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>Task5BackMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
+        </visual>
+        <pose>2.7 0 0.4 0 0 0</pose>
+      </link>
+      <link name="octagon_search_link">
+        <visual name="visual3_front">
+          <geometry>
+            <plane>
+              <normal>0 -1 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <uri>model://robosub_octagon_animals/materials/textures</uri>
+              <name>Task5SearchMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 0</pose>
+        </visual>
+        <visual name="visual3_back">
+          <geometry>
+            <plane>
+              <normal>0 1 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>Task5BackMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 0</pose>
+        </visual>
+        <pose>1.35 1.35 0.4 0 0 0</pose>
+      </link>
+      <link name="octagon_survey_link">
+        <visual name="visual4_front">
+          <geometry>
+            <plane>
+              <normal>0 1 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <uri>model://robosub_octagon_animals/materials/textures</uri>
+              <name>Task5SurveyMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+        </visual>
+        <visual name="visual4_back">
+          <geometry>
+            <plane>
+              <normal>0 -1 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>Task5BackMaterial</name>
+            </script>
+          </material>
+          <cast_shadows>false</cast_shadows>
+          <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+        </visual>
+        <pose>1.35 -1.35 0.4 0 0 0</pose>
+      </link>
+      <pose>11.65 -4.25 -0.65 0 0 0</pose>
+    </model>
+  </world>
+</sdf>

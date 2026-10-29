@@ -1,5 +1,1 @@
-repositories:
-  ../third_party/sim/uuv_simulator:
-    type: git
-    url: https://github.com/field-robotics-lab/uuv_simulator
-    version: master
+repositories: {}

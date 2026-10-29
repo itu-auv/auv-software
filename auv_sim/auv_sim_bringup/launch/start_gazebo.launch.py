@@ -1,0 +1,79 @@
+"""Jazzy/Harmonic simulation entry point; pool is the legacy default world."""
+from pathlib import Path
+import tempfile
+import yaml
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler
+from launch.event_handlers import OnShutdown
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def start(context):
+    namespace = LaunchConfiguration('namespace').perform(context)
+    world = LaunchConfiguration('world').perform(context)
+    if namespace not in ('taluy', 'taluy_mini') or world not in ('pool', 'taluy_harmonic'):
+        raise ValueError('supported namespaces: taluy, taluy_mini; worlds: pool, taluy_harmonic')
+    temporary = tempfile.TemporaryDirectory(prefix='auv-sim-chain-')
+    root = Path(temporary.name)
+    bridge_share = Path(get_package_share_directory('auv_sim_bridge'))
+    config = yaml.safe_load((bridge_share / 'config' / namespace / 'control_config.yaml').read_text())
+    # Explicit neutral-buoyancy simulation assumption.
+    # PID gains, limits, allocation and control/model mathematics are preserved.
+    config['/**/auv_control_node']['ros__parameters']['gravity_compensation_z'] = 0.0
+    (root / 'control.yaml').write_text(yaml.safe_dump(config))
+    (root / 'imu.yaml').write_text('drift: [0.0, 0.0, 0.0]\n')
+    ekf = (Path(get_package_share_directory('auv_sim_bringup')) / 'config' / f'ekf_{namespace}.yaml').read_text()
+    ekf = yaml.safe_load(ekf.replace('$(arg control_rate)', '20.0').replace('$(var namespace)', namespace))
+    ekf['/**/auv_localization_node']['ros__parameters'].update(use_sim_time=True, disabled_at_startup=False)
+    (root / 'ekf.yaml').write_text(yaml.safe_dump(ekf))
+
+    def include(package, filename, arguments):
+        path = Path(get_package_share_directory(package)) / 'launch' / filename
+        return IncludeLaunchDescription(PythonLaunchDescriptionSource(str(path)), launch_arguments=arguments.items())
+
+    camera_nodes = []
+    for camera in (['front', 'bottom', 'torpedo'] if namespace == 'taluy' else ['front', 'bottom']):
+        camera_namespace = f'/{namespace}/cameras/cam_{camera}'
+        camera_nodes.extend([
+            Node(package='ros_gz_bridge', executable='parameter_bridge', name=f'{camera}_application_camera_bridge',
+                 arguments=[f'/model/{namespace}/{camera}_camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
+                            f'/model/{namespace}/{camera}_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'],
+                 remappings=[(f'/model/{namespace}/{camera}_camera/image', camera_namespace+'/image_raw'),
+                             (f'/model/{namespace}/{camera}_camera/camera_info', camera_namespace+'/camera_info')]),
+            Node(package='image_proc', executable='rectify_node', namespace=camera_namespace,
+                 parameters=[{'use_sim_time': True}], remappings=[('image', 'image_raw'), ('image_rect', 'image_rect_color')]),
+        ])
+    return camera_nodes + [
+        include('auv_sim_bringup', 'start_harmonic.launch.py',
+                {'namespace': namespace, 'world': world, 'gui': LaunchConfiguration('gui'),
+                 'initial_z': LaunchConfiguration('initial_z')}),
+        Node(package='ros_gz_bridge', executable='parameter_bridge', name='simulation_spawn_bridge',
+             arguments=[f'/world/{world}/create@ros_gz_interfaces/srv/SpawnEntity',
+                        f'/world/{world}/set_pose@ros_gz_interfaces/srv/SetEntityPose']),
+        Node(package='auv_sim_bridge', executable='sim_hardware_mocks.py', namespace=namespace,
+             parameters=[{'world': world, 'use_sim_time': True, 'pinger_mode': LaunchConfiguration('pinger_mode')}], output='screen'),
+        include('auv_localization', 'start.launch.py',
+                {'namespace': namespace, 'use_sim_time': 'true', 'control_config_file': str(root / 'control.yaml'),
+                 'depth_offset': '0.0', 'pool_depth': '20.0', 'imu_calibration_path': str(root / 'imu.yaml'),
+                 'dvl_velocity_topic': 'sensors/dvl/velocity_raw', 'dvl_is_valid_topic': 'sensors/dvl/is_valid'}),
+        Node(package='robot_localization', executable='ekf_node', name='auv_localization_node', namespace=namespace,
+             parameters=[str(root / 'ekf.yaml')], remappings=[('odometry/filtered', 'odometry'), ('accel/filtered', 'acceleration')], output='screen'),
+        include('auv_control', 'start.launch.py',
+                {'namespace': namespace, 'use_sim_time': 'true', 'config_file': str(root / 'control.yaml')}),
+        RegisterEventHandler(OnShutdown(on_shutdown=[OpaqueFunction(function=lambda context: temporary.cleanup())])),
+    ]
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        DeclareLaunchArgument('namespace', default_value='taluy'),
+        DeclareLaunchArgument('world', default_value='pool'),
+        DeclareLaunchArgument('gui', default_value='false'),
+        DeclareLaunchArgument('initial_z', default_value='-0.5'),
+        DeclareLaunchArgument('pinger_mode', default_value='torpedo'),
+        OpaqueFunction(function=start),
+    ])

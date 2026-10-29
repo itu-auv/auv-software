@@ -1,13 +1,5 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.8)
 project(taluy_description)
-
-find_package(catkin REQUIRED)
-
-catkin_package()
-
-install(DIRECTORY
-  meshes
-  rviz
-  urdf
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY meshes rviz urdf DESTINATION share/${PROJECT_NAME})
+ament_package()

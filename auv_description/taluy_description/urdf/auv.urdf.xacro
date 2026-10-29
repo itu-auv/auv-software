@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy">
   <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro"/>
-  <xacro:taluy_base use_models="false"/>
+  <xacro:taluy_base use_models="false">
+    <base_link_extra/>
+  </xacro:taluy_base>
 </robot>
