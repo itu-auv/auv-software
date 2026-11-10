@@ -1,11 +1,13 @@
 import smach
 import smach_ros
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest
-from std_srvs.srv import Empty, EmptyRequest
-from std_srvs.srv import Trigger, TriggerRequest
-from robot_localization.srv import SetPose, SetPoseRequest
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+import rclpy
+from auv_common_lib.ros import get_node, Rate
+from rclpy.duration import Duration
+from std_srvs.srv import SetBool
+from std_srvs.srv import Empty
+from std_srvs.srv import Trigger
+from robot_localization.srv import SetPose
+from auv_msgs.srv import SetObjectTransform
 from std_msgs.msg import Bool
 from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
@@ -22,9 +24,10 @@ class ResetOdometryState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "reset_odometry",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
         )
 
 
@@ -32,16 +35,16 @@ class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.enabled = False
-        self.killswitch_subscriber = rospy.Subscriber(
-            "propulsion_board/status", Bool, self.killswitch_callback
+        self.killswitch_subscriber = get_node().create_subscription(
+            Bool, "propulsion_board/status", self.killswitch_callback, 10
         )
 
     def killswitch_callback(self, msg):
         self.enabled = msg.data
 
     def execute(self, userdata):
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
+        rate = Rate(get_node(), 10)
+        while rclpy.ok():
             if self.enabled:
                 return "succeeded"
             rate.sleep()
@@ -52,9 +55,10 @@ class DVLEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "dvl/enable",
             SetBool,
-            request=SetBoolRequest(data=True),
+            request=SetBool.Request(data=True),
         )
 
 
@@ -62,9 +66,10 @@ class DisableDA3PipelineState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "enable_da3_publisher",
             SetBool,
-            request=SetBoolRequest(data=False),
+            request=SetBool.Request(data=False),
         )
 
 
@@ -74,7 +79,7 @@ class DelayState(smach.State):
         self.delay_time = delay_time
 
     def execute(self, userdata):
-        rospy.sleep(self.delay_time)
+        get_node().get_clock().sleep_for(Duration(seconds=self.delay_time))
         return "succeeded"
 
 
@@ -82,19 +87,21 @@ class OdometryEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "localization_enable",
             Empty,
-            request=EmptyRequest(),
+            request=Empty.Request(),
         )
 
 
 class ResetOdometryPoseState(smach_ros.ServiceState):
     def __init__(self):
-        initial_pose_request = SetPoseRequest()
+        initial_pose_request = SetPose.Request()
         initial_pose_request.pose.pose.pose.orientation.w = 1.0
 
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_pose",
             SetPose,
             request=initial_pose_request,
@@ -103,13 +110,14 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
 class SetStartFrameState(smach_ros.ServiceState):
     def __init__(self, frame_name: str):
-        transform_request = SetObjectTransformRequest()
+        transform_request = SetObjectTransform.Request()
         transform_request.transform.header.frame_id = get_base_link()
         transform_request.transform.child_frame_id = frame_name
         transform_request.transform.transform.rotation.w = 1.0
 
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_object_transform",
             SetObjectTransform,
             request=transform_request,

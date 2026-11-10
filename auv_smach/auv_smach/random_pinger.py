@@ -3,7 +3,9 @@
 import math
 import threading
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node, Rate
+from rclpy.duration import Duration
 import smach
 import tf2_ros
 from nav_msgs.msg import Odometry
@@ -99,24 +101,19 @@ class RandomPingerSelectorState(smach.State):
         self._samples_lock = threading.Lock()
         self._latest_depth = None
         self._latest_depth_lock = threading.Lock()
-        self._subscriber = rospy.Subscriber(
-            self.angle_topic,
-            Float32,
-            self._angle_callback,
-            queue_size=10,
+        self._subscriber = get_node().create_subscription(
+            Float32, self.angle_topic, self._angle_callback, 10
         )
-        self._odometry_subscriber = rospy.Subscriber(
-            "odometry",
-            Odometry,
-            self._odometry_callback,
-            queue_size=10,
+        self._odometry_subscriber = get_node().create_subscription(
+            Odometry, "odometry", self._odometry_callback, 10
         )
 
     def _angle_callback(self, msg):
         angle = msg.data
         if not math.isfinite(angle):
-            rospy.logwarn_throttle(
-                5.0, f"[RandomPingerSelector] Ignoring non-finite angle: {angle}"
+            get_node().get_logger().warning(
+                f"[RandomPingerSelector] Ignoring non-finite angle: {angle}",
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -154,11 +151,10 @@ class RandomPingerSelectorState(smach.State):
 
     def _handle_depth_recovery(self, samples, current_depth, activation_depth):
         if self.depth_recovery_policy not in ("fallback", "locked_samples"):
-            rospy.logerr(
+            get_node().get_logger().error(
                 "[RandomPingerSelector] Invalid depth_recovery_policy='%s'. "
-                "Expected one of %s.",
-                self.depth_recovery_policy,
-                ["fallback", "locked_samples"],
+                "Expected one of %s."
+                % (self.depth_recovery_policy, ["fallback", "locked_samples"])
             )
             return None, "aborted", None
 
@@ -166,10 +162,9 @@ class RandomPingerSelectorState(smach.State):
             "Depth recovery triggered at "
             f"{current_depth:.3f}m (activation depth {activation_depth:.3f}m)"
         )
-        rospy.logwarn(
+        get_node().get_logger().warning(
             "[RandomPingerSelector] %s. Routing through SetDepthState before "
-            "continuing.",
-            reason,
+            "continuing." % (reason,)
         )
 
         if self.depth_recovery_policy == "fallback":
@@ -183,11 +178,9 @@ class RandomPingerSelectorState(smach.State):
                 "locked pinger sample(s) available",
             )
 
-        rospy.logwarn(
+        get_node().get_logger().warning(
             "[RandomPingerSelector] %s. Locking %d pinger sample(s) collected "
-            "before depth recovery.",
-            reason,
-            len(samples),
+            "before depth recovery." % (reason, len(samples))
         )
         return samples, None, None
 
@@ -201,57 +194,57 @@ class RandomPingerSelectorState(smach.State):
         )
 
         if len(cluster) < min_cluster_size:
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 "[RandomPingerSelector] No stable pinger angle cluster: best "
-                "%d/%d sample(s) within %.3f rad, need %d.",
-                len(cluster),
-                len(samples),
-                self.outlier_rejection_threshold,
-                min_cluster_size,
+                "%d/%d sample(s) within %.3f rad, need %d."
+                % (
+                    len(cluster),
+                    len(samples),
+                    self.outlier_rejection_threshold,
+                    min_cluster_size,
+                )
             )
             return []
 
         rejected_count = len(samples) - len(cluster)
         if rejected_count > 0:
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 "[RandomPingerSelector] Rejected %d/%d pinger outlier sample(s). "
-                "Using %d-sample consensus cluster.",
-                rejected_count,
-                len(samples),
-                len(cluster),
+                "Using %d-sample consensus cluster."
+                % (rejected_count, len(samples), len(cluster))
             )
 
         return cluster
 
     def _fallback_outcome(self, reason):
         if self.fallback_first == "torpedo":
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 f"[RandomPingerSelector] {reason}. Falling back to torpedo first."
             )
             return "torpedo_first"
         if self.fallback_first == "octagon":
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 f"[RandomPingerSelector] {reason}. Falling back to octagon first."
             )
             return "octagon_first"
 
-        rospy.logerr(
+        get_node().get_logger().error(
             f"[RandomPingerSelector] Invalid fallback_first='{self.fallback_first}'."
         )
         return "aborted"
 
     def _wait_for_samples(self):
         self._clear_samples()
-        start_time = rospy.Time.now()
-        timeout_duration = rospy.Duration(self.timeout)
-        rate = rospy.Rate(20)
+        start_time = get_node().get_clock().now()
+        timeout_duration = Duration(seconds=self.timeout)
+        rate = Rate(get_node(), 20)
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             f"[RandomPingerSelector] Collecting {self.sample_count} fresh pinger "
             f"sample(s) from '{self.angle_topic}' for up to {self.timeout:.1f}s."
         )
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if self.preempt_requested():
                 self.service_preempt()
                 return None, "preempted", None
@@ -267,9 +260,9 @@ class RandomPingerSelectorState(smach.State):
             if len(samples) >= self.sample_count:
                 return samples[-self.sample_count :], None, None
 
-            if rospy.Time.now() - start_time >= timeout_duration:
+            if get_node().get_clock().now() - start_time >= timeout_duration:
                 if samples:
-                    rospy.logwarn(
+                    get_node().get_logger().warning(
                         f"[RandomPingerSelector] Timed out after collecting "
                         f"{len(samples)}/{self.sample_count} pinger samples; using "
                         "available samples."
@@ -316,19 +309,21 @@ class RandomPingerSelectorState(smach.State):
         torpedo_error = angular_distance(pinger_angle, torpedo_angle)
         octagon_error = angular_distance(pinger_angle, octagon_angle)
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             "[RandomPingerSelector] pinger=%.3f rad using %d/%d sample(s), "
             "torpedo(%s)=%.3f rad error=%.3f rad, octagon(%s)=%.3f rad "
-            "error=%.3f rad",
-            pinger_angle,
-            len(filtered_samples),
-            len(samples),
-            self.torpedo_frame,
-            torpedo_angle,
-            torpedo_error,
-            self.octagon_frame,
-            octagon_angle,
-            octagon_error,
+            "error=%.3f rad"
+            % (
+                pinger_angle,
+                len(filtered_samples),
+                len(samples),
+                self.torpedo_frame,
+                torpedo_angle,
+                torpedo_error,
+                self.octagon_frame,
+                octagon_angle,
+                octagon_error,
+            )
         )
 
         if abs(torpedo_error - octagon_error) <= self.tie_threshold:
@@ -337,10 +332,14 @@ class RandomPingerSelectorState(smach.State):
             )
 
         if torpedo_error < octagon_error:
-            rospy.loginfo("[RandomPingerSelector] Selected order: torpedo -> octagon")
+            get_node().get_logger().info(
+                "[RandomPingerSelector] Selected order: torpedo -> octagon"
+            )
             return "torpedo_first"
 
-        rospy.loginfo("[RandomPingerSelector] Selected order: octagon -> torpedo")
+        get_node().get_logger().info(
+            "[RandomPingerSelector] Selected order: octagon -> torpedo"
+        )
         return "octagon_first"
 
 
@@ -629,7 +628,7 @@ class RandomPingerTaskState(smach.State):
                 )
 
     def execute(self, userdata):
-        rospy.loginfo("Starting Random Pinger SMACH Task")
+        get_node().get_logger().info("Starting Random Pinger SMACH Task")
         outcome = self.state_machine.execute()
 
         if outcome is None:

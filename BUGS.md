@@ -77,3 +77,12 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   none of them.
 - `realsense_camera.launch` forwarded about seventy arguments to the driver at their
   default values. The ROS 2 file keeps only the ones the vehicle changes.
+
+## Missions (auv_smach)
+
+- `bin.py`, second `__init__` using `bin_search_frame` (around line 436): the name
+  is not a parameter of that constructor, so building that state machine raises
+  `NameError`.
+- `smach_monitor_node` used `rosnode kill joystick_node`. ROS 2 cannot kill a node
+  by name, so the monitor now calls the `joystick_node/shutdown` service that the
+  joystick node offers (see "Behaviour that changed").

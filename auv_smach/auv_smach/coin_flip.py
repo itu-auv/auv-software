@@ -1,6 +1,7 @@
 import smach
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest
+import rclpy
+from auv_common_lib.ros import get_node
+from std_srvs.srv import SetBool
 from .initialize import *
 import smach_ros
 from auv_smach.tf_utils import get_base_link
@@ -14,9 +15,10 @@ class RescueCoinFlipServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "toggle_coin_flip_rescuer",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 

@@ -1,3 +1,6 @@
+from auv_common_lib.ros import get_param, get_node, Rate
+from rclpy.duration import Duration
+from rclpy.time import Time
 from .initialize import *
 import smach
 import smach_ros
@@ -21,7 +24,7 @@ from auv_smach.common import (
 )
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from std_srvs.srv import Trigger, SetBool
 from std_msgs.msg import String, UInt16
 import tf2_ros
 
@@ -36,7 +39,9 @@ class GripperAngleOpenState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
+        self.pub = get_node().create_publisher(
+            UInt16, "actuators/gripper1/set_angle", 1
+        )
         self.angle_value = 2300
 
     def execute(self, userdata) -> str:
@@ -45,13 +50,13 @@ class GripperAngleOpenState(smach.State):
             msg.data = self.angle_value
             for _ in range(3):
                 self.pub.publish(msg)
-                rospy.sleep(0.1)
-            rospy.loginfo(
+                get_node().get_clock().sleep_for(Duration(seconds=0.1))
+            get_node().get_logger().info(
                 f"[GripperAngleOpenState] Published angle: {self.angle_value}"
             )
             return "succeeded"
         except Exception as e:
-            rospy.logerr(f"[GripperAngleOpenState] Error: {e}")
+            get_node().get_logger().error(f"[GripperAngleOpenState] Error: {e}")
             return "aborted"
 
 
@@ -65,7 +70,9 @@ class GripperAngleCloseState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
+        self.pub = get_node().create_publisher(
+            UInt16, "actuators/gripper1/set_angle", 1
+        )
         self.angle_value = 1050
 
     def execute(self, userdata) -> str:
@@ -74,13 +81,13 @@ class GripperAngleCloseState(smach.State):
             msg.data = self.angle_value
             for _ in range(3):
                 self.pub.publish(msg)
-                rospy.sleep(0.1)
-            rospy.loginfo(
+                get_node().get_clock().sleep_for(Duration(seconds=0.1))
+            get_node().get_logger().info(
                 f"[GripperAngleCloseState] Published angle: {self.angle_value}"
             )
             return "succeeded"
         except Exception as e:
-            rospy.logerr(f"[GripperAngleCloseState] Error: {e}")
+            get_node().get_logger().error(f"[GripperAngleCloseState] Error: {e}")
             return "aborted"
 
 
@@ -102,28 +109,29 @@ class CheckBottleLinkState(smach.State):
         )
         self.source_frame = source_frame
         self.target_frame = target_frame
-        self.timeout = rospy.Duration(timeout)
+        self.timeout = Duration(seconds=timeout)
         self.tf_buffer = get_tf_buffer()
 
     def execute(self, userdata) -> str:
-        import rospy
+        start_time = get_node().get_clock().now()
+        rate = Rate(get_node(), 10)
 
-        start_time = rospy.Time.now()
-        rate = rospy.Rate(10)
-
-        while (rospy.Time.now() - start_time) < self.timeout:
+        while (get_node().get_clock().now() - start_time) < self.timeout:
             if self.preempt_requested():
                 return "preempted"
 
             try:
                 lookup_fresh_transform(
                     self.tf_buffer,
+                    get_node(),
                     self.source_frame,
                     self.target_frame,
-                    rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                    Duration(seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)),
+                    Duration(
+                        seconds=get_param(get_node(), "~tf_freshness_threshold", 0.4)
+                    ),
                 )
-                rospy.loginfo(
+                get_node().get_logger().info(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
                 )
                 return "succeeded"
@@ -136,34 +144,36 @@ class CheckBottleLinkState(smach.State):
 
             rate.sleep()
 
-        rospy.logwarn(
-            f"[CheckBottleLinkState] Timeout: '{self.target_frame}' transform not found after {self.timeout.to_sec()} seconds."
+        get_node().get_logger().warning(
+            f"[CheckBottleLinkState] Timeout: '{self.target_frame}' transform not found after {self.timeout.nanoseconds / 1e9} seconds."
         )
         return "aborted"
 
 
 class MoveGripperServiceState(smach_ros.ServiceState):
     def __init__(self):
-        from std_srvs.srv import Trigger, TriggerRequest
+        from std_srvs.srv import Trigger
 
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "actuators/gripper/close",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
             response_slots=[],
         )
 
 
 class OpenGripperServiceState(smach_ros.ServiceState):
     def __init__(self):
-        from std_srvs.srv import Trigger, TriggerRequest
+        from std_srvs.srv import Trigger
 
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "actuators/gripper/open",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
             response_slots=[],
         )
 
@@ -172,9 +182,10 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_transform_octagon_frame",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -186,10 +197,9 @@ class PickAndDropSequence(smach.StateMachine):
         )
         base_link = get_base_link()
         keep_object_orientation = target_object in {"pill_link", "nutbolt_link"}
-        rospy.loginfo(
-            "[PickAndDropSequence] target_object=%s, target_basket=%s",
-            target_object,
-            target_basket,
+        get_node().get_logger().info(
+            "[PickAndDropSequence] target_object=%s, target_basket=%s"
+            % (target_object, target_basket)
         )
 
         with self:
@@ -457,16 +467,16 @@ class PickRemainingOctagonTargetsState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.target_baskets = target_baskets
-        self.wait_timeout = rospy.Duration(wait_timeout)
+        self.wait_timeout = Duration(seconds=wait_timeout)
         self.max_attempts = max(0, max_attempts)
         self.total_targets = len(target_baskets)
         self.set_role_search_rotation_count = set_role_search_rotation_count
         self.latest_objects = []
         self.latest_remaining_count = 1
-        self.last_update_time = rospy.Time(0)
+        self.last_update_time = Time()
         self.active_sequence = None
-        self.object_list_sub = rospy.Subscriber(
-            object_list_topic, String, self._object_list_cb, queue_size=1
+        self.object_list_sub = get_node().create_subscription(
+            String, object_list_topic, self._object_list_cb, 1
         )
 
     def _object_list_cb(self, msg):
@@ -485,7 +495,7 @@ class PickRemainingOctagonTargetsState(smach.State):
 
         self.latest_objects = selected_objects
         self.latest_remaining_count = len(selected_objects)
-        self.last_update_time = rospy.Time.now()
+        self.last_update_time = get_node().get_clock().now()
 
     def request_preempt(self):
         smach.State.request_preempt(self)
@@ -493,10 +503,10 @@ class PickRemainingOctagonTargetsState(smach.State):
             self.active_sequence.request_preempt()
 
     def _wait_for_fresh_targets(self):
-        start_time = rospy.Time.now()
-        rate = rospy.Rate(10)
+        start_time = get_node().get_clock().now()
+        rate = Rate(get_node(), 10)
 
-        while rospy.Time.now() - start_time < self.wait_timeout:
+        while get_node().get_clock().now() - start_time < self.wait_timeout:
             if self.preempt_requested():
                 return None
 
@@ -546,11 +556,9 @@ class PickRemainingOctagonTargetsState(smach.State):
                 target = targets[target_index]
 
             target_object, target_basket = target
-            rospy.loginfo(
-                "[PickRemainingOctagonTargetsState] attempt=%d/%d, target=%s",
-                attempt + 1,
-                self.max_attempts,
-                target_object,
+            get_node().get_logger().info(
+                "[PickRemainingOctagonTargetsState] attempt=%d/%d, target=%s"
+                % (attempt + 1, self.max_attempts, target_object)
             )
             previous_target_object = target_object
             attempted_objects.add(target_object)
@@ -567,10 +575,9 @@ class PickRemainingOctagonTargetsState(smach.State):
         rotation_count = max(0, self.total_targets - self.latest_remaining_count)
         if self.set_role_search_rotation_count is not None:
             self.set_role_search_rotation_count(rotation_count)
-        rospy.loginfo(
-            "[PickRemainingOctagonTargetsState] remaining=%d, role_search_rotations=%d",
-            self.latest_remaining_count,
-            rotation_count,
+        get_node().get_logger().info(
+            "[PickRemainingOctagonTargetsState] remaining=%d, role_search_rotations=%d"
+            % (self.latest_remaining_count, rotation_count)
         )
         return "succeeded"
 

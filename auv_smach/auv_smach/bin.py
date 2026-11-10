@@ -2,8 +2,10 @@ from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
+import rclpy
+from auv_common_lib.ros import get_param, service_client, get_node, Rate
+from rclpy.duration import Duration
+from std_srvs.srv import SetBool
 import tf2_ros
 from auv_common_lib.transform import lookup_fresh_transform
 
@@ -38,8 +40,8 @@ class BallDropperSetAngleState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher(
-            "/taluy/actuators/ball_dropper/set_angle", Float32, queue_size=1
+        self.pub = get_node().create_publisher(
+            Float32, "/taluy/actuators/ball_dropper/set_angle", 1
         )
         self.angle_value = angle_value
 
@@ -49,13 +51,13 @@ class BallDropperSetAngleState(smach.State):
             msg.data = float(self.angle_value)
             for _ in range(3):
                 self.pub.publish(msg)
-                rospy.sleep(0.1)
-            rospy.loginfo(
+                get_node().get_clock().sleep_for(Duration(seconds=0.1))
+            get_node().get_logger().info(
                 f"[BallDropperSetAngleState] Published angle: {self.angle_value}"
             )
             return "succeeded"
         except Exception as e:
-            rospy.logerr(f"[BallDropperSetAngleState] Error: {e}")
+            get_node().get_logger().error(f"[BallDropperSetAngleState] Error: {e}")
             return "aborted"
 
 
@@ -63,9 +65,10 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "toggle_bin_trajectory",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -86,17 +89,19 @@ class CheckForDropAreaState(smach.State):
             output_keys=["found_frame"],
         )
         self.source_frame = source_frame
-        self.timeout = rospy.Duration(timeout)
+        self.timeout = Duration(seconds=timeout)
         self.tf_buffer = get_tf_buffer()
         self.target_frames = target_frames or ["bin_shark_link", "bin_sawfish_link"]
 
-        rospy.loginfo(f"[CheckForDropAreaState] Frame priority: {self.target_frames}")
+        get_node().get_logger().info(
+            f"[CheckForDropAreaState] Frame priority: {self.target_frames}"
+        )
 
     def execute(self, userdata) -> str:
-        start_time = rospy.Time.now()
-        rate = rospy.Rate(10)
+        start_time = get_node().get_clock().now()
+        rate = Rate(get_node(), 10)
 
-        while (rospy.Time.now() - start_time) < self.timeout:
+        while (get_node().get_clock().now() - start_time) < self.timeout:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
@@ -105,12 +110,19 @@ class CheckForDropAreaState(smach.State):
                 try:
                     lookup_fresh_transform(
                         self.tf_buffer,
+                        get_node(),
                         self.source_frame,
                         frame,
-                        rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                        Duration(
+                            seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)
+                        ),
+                        Duration(
+                            seconds=get_param(
+                                get_node(), "~tf_freshness_threshold", 0.4
+                            )
+                        ),
                     )
-                    rospy.loginfo(
+                    get_node().get_logger().info(
                         f"[CheckForDropAreaState] Transform from '{self.source_frame}' to '{frame}' found."
                     )
                     userdata.found_frame = frame
@@ -124,8 +136,8 @@ class CheckForDropAreaState(smach.State):
 
             rate.sleep()
 
-        rospy.logwarn(
-            f"[CheckForDropAreaState] Timeout: No drop area transforms found after {self.timeout.to_sec()} seconds."
+        get_node().get_logger().warning(
+            f"[CheckForDropAreaState] Timeout: No drop area transforms found after {self.timeout.nanoseconds / 1e9} seconds."
         )
         return "aborted"
 
@@ -149,12 +161,12 @@ class CheckTargetFrameAvailable(smach.State):
 
         found = userdata.found_frame
         if found == self.target_frame:
-            rospy.loginfo(
+            get_node().get_logger().info(
                 f"[CheckTargetFrameAvailable] Primary target '{self.target_frame}' found."
             )
             return "target_found"
         else:
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 f"[CheckTargetFrameAvailable] Found '{found}' but need '{self.target_frame}'. Searching..."
             )
             return "need_search"
@@ -164,9 +176,10 @@ class BottomSearchServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "toggle_bottom_search",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -187,12 +200,16 @@ class DisableSearchAndSetFoundState(smach.State):
         userdata.found_frame = self.target_frame
 
         try:
-            service_client = rospy.ServiceProxy("toggle_bottom_search", SetBool)
-            service_client.wait_for_service(timeout=1.0)
-            service_client.call(SetBoolRequest(data=False))
+            toggle_bottom_search = service_client(
+                get_node(), SetBool, "toggle_bottom_search"
+            )
+            toggle_bottom_search.wait_for_service(timeout=1.0)
+            toggle_bottom_search.call(SetBool.Request(data=False))
             return "succeeded"
         except Exception as e:
-            rospy.logwarn(f"[DisableSearchAndSetFoundState] Service call failed: {e}")
+            get_node().get_logger().warning(
+                f"[DisableSearchAndSetFoundState] Service call failed: {e}"
+            )
             return "succeeded"
 
 
@@ -374,11 +391,15 @@ class SetAlignToFoundState(smach.State):
             return "preempted"
 
         if "found_frame" not in userdata or not userdata.found_frame:
-            rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
+            get_node().get_logger().error(
+                "[SetAlignToFoundState] No found_frame in userdata"
+            )
             return "aborted"
 
         target_frame = userdata.found_frame
-        rospy.loginfo(f"[SetAlignToFoundState] Aligning to '{target_frame}'")
+        get_node().get_logger().info(
+            f"[SetAlignToFoundState] Aligning to '{target_frame}'"
+        )
 
         align_state = AlignFrame(
             source_frame=self.source_frame,

@@ -1,7 +1,7 @@
 repositories:
   ../third_party/xsens_mti_driver:
     type: git
-    version: master
+    version: ros2
     url: https://github.com/nobleo/xsens_mti_driver.git
   ../third_party/ultralytics_ros:
     type: git
@@ -9,5 +9,5 @@ repositories:
     url: https://github.com/itu-auv/ultralytics_ros.git
   ../third_party/vectornav:
     type: git
-    version: master
-    url: https://github.com/itu-auv/vectornav.git
+    version: ros2
+    url: https://github.com/dawonn/vectornav.git

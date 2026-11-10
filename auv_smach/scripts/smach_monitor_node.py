@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
-import rospy
-import rosnode
-import os
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusRequest
+import rclpy
+from auv_common_lib.ros import service_client, ROSException, Rate
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.exceptions import ROSInterruptException
+from std_srvs.srv import Trigger, SetBool
+from auv_msgs.srv import SetDetectionFocus
 
 
-class SmachMonitor:
+class SmachMonitor(Node):
     def __init__(self):
-        rospy.init_node("smach_monitor_node", anonymous=True)
+        super().__init__("smach_monitor_node")
 
         self.main_sm_node_name = "main_state_machine"
         self.teleop_node_name = "joystick_node"
@@ -21,85 +23,90 @@ class SmachMonitor:
         self.disable_segment_service_name = "vision/enable_segment_camera_detections"
         self.disable_bottom_service_name = "vision/enable_bottom_camera_detections"
 
-        self.align_frame_service = rospy.ServiceProxy(
-            self.align_frame_service_name, Trigger
+        self.align_frame_service = service_client(
+            self, Trigger, self.align_frame_service_name
         )
-        self.detection_focus_service = rospy.ServiceProxy(
-            self.detection_focus_service_name, SetDetectionFocus
+        self.detection_focus_service = service_client(
+            self, SetDetectionFocus, self.detection_focus_service_name
         )
 
         # Service proxies for disabling detections
-        self.disable_segment_service = rospy.ServiceProxy(
-            self.disable_segment_service_name, SetBool
+        self.disable_segment_service = service_client(
+            self, SetBool, self.disable_segment_service_name
         )
-        self.disable_bottom_service = rospy.ServiceProxy(
-            self.disable_bottom_service_name, SetBool
+        self.disable_bottom_service = service_client(
+            self, SetBool, self.disable_bottom_service_name
+        )
+
+        self.teleop_shutdown_service = service_client(
+            self, Trigger, self.teleop_node_name + "/shutdown"
         )
 
         self.smach_is_active = False
-        self.rate = rospy.Rate(1)  # 1hz
+        self.rate = Rate(self, 1)  # 1hz
 
     def run(self):
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if self.is_node_active(self.main_sm_node_name):
                 if not self.smach_is_active:
-                    rospy.loginfo("Main state machine has started.")
+                    self.get_logger().info("Main state machine has started.")
                     self.smach_is_active = True
                     if self.is_node_active(self.teleop_node_name):
-                        rospy.loginfo("Teleop node is running. Killing it.")
-                        os.system("rosnode kill " + self.teleop_node_name)
+                        self.get_logger().info("Teleop node is running. Killing it.")
+                        # ROS 2 cannot kill a node by name; the node offers a service.
+                        try:
+                            self.teleop_shutdown_service(Trigger.Request())
+                        except Exception as e:
+                            self.get_logger().error(
+                                "Could not shut the teleop node down: %s" % e
+                            )
             else:
                 if self.smach_is_active:
-                    rospy.loginfo("Main state machine has died.")
+                    self.get_logger().info("Main state machine has died.")
                     self.smach_is_active = False
                     self.on_smach_death()
 
             self.rate.sleep()
 
     def is_node_active(self, node_name):
-        try:
-            nodes = rosnode.get_node_names()
-        except rosnode.ROSNodeIOException:
-            # ROS master is not available (shutting down)
-            return False
-
-        for node in nodes:
+        # ROS 2 has no node ping; a node counts as active while it is in the graph.
+        for node in self.get_node_names():
             if node.endswith(node_name):
-                try:
-                    rosnode.rosnode_ping(node, max_count=1)
-                    return True
-                except rosnode.ROSNodeUnreachable:
-                    continue
+                return True
         return False
 
     def on_smach_death(self):
-        rospy.loginfo("Executing recovery actions.")
+        self.get_logger().info("Executing recovery actions.")
 
         # 1. Cancel align frame controller
         try:
-            rospy.wait_for_service(self.align_frame_service_name, timeout=2.0)
-            req = TriggerRequest()
+            self.align_frame_service.wait_for_service(timeout=2.0)
+            req = Trigger.Request()
             self.align_frame_service(req)
-            rospy.loginfo("Cancelled align frame controller.")
+            self.get_logger().info("Cancelled align frame controller.")
         except (
-            rospy.ServiceException,
-            rospy.ROSException,
-            rospy.ROSInterruptException,
+            Exception,
+            ROSException,
+            ROSInterruptException,
         ) as e:
-            rospy.logerr("Service call to cancel align frame controller failed: %s" % e)
+            self.get_logger().error(
+                "Service call to cancel align frame controller failed: %s" % e
+            )
 
         # 2. Set DetectionFocus to none
         try:
-            rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
-            req = SetDetectionFocusRequest(focus_object="none")
+            self.detection_focus_service.wait_for_service(timeout=2.0)
+            req = SetDetectionFocus.Request(focus_object="none")
             self.detection_focus_service(req)
-            rospy.loginfo("Set DetectionFocus to 'none'.")
+            self.get_logger().info("Set DetectionFocus to 'none'.")
         except (
-            rospy.ServiceException,
-            rospy.ROSException,
-            rospy.ROSInterruptException,
+            Exception,
+            ROSException,
+            ROSInterruptException,
         ) as e:
-            rospy.logerr("Service call to set detection focus failed: %s" % e)
+            self.get_logger().error(
+                "Service call to set detection focus failed: %s" % e
+            )
 
         # 3. Disable other camera detections (segment, bottom)
         for service_name, service_proxy in [
@@ -107,21 +114,27 @@ class SmachMonitor:
             (self.disable_bottom_service_name, self.disable_bottom_service),
         ]:
             try:
-                rospy.wait_for_service(service_name, timeout=2.0)
-                req = SetBoolRequest(data=False)
+                service_proxy.wait_for_service(timeout=2.0)
+                req = SetBool.Request(data=False)
                 service_proxy(req)
-                rospy.loginfo("Disabled detections for service: %s" % service_name)
+                self.get_logger().info(
+                    "Disabled detections for service: %s" % service_name
+                )
             except (
-                rospy.ServiceException,
-                rospy.ROSException,
-                rospy.ROSInterruptException,
+                Exception,
+                ROSException,
+                ROSInterruptException,
             ) as e:
-                rospy.logerr("Service call to %s failed: %s" % (service_name, e))
+                self.get_logger().error(
+                    "Service call to %s failed: %s" % (service_name, e)
+                )
+
+
+def main():
+    ros.init()
+    node = SmachMonitor()
+    ros.spin(node, node.run)
 
 
 if __name__ == "__main__":
-    try:
-        monitor = SmachMonitor()
-        monitor.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

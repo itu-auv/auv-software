@@ -1,5 +1,6 @@
 import smach
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node
 
 from auv_smach.common import (
     AlignFrame,
@@ -158,7 +159,7 @@ class FollowWaypointsState(smach.StateMachine):
         param_name: str,
         **kwargs,
     ) -> "FollowWaypointsState":
-        frames = rospy.get_param(param_name)
+        frames = get_param(get_node(), param_name)
         if not isinstance(frames, (list, tuple)) or not frames:
             raise ValueError(
                 f"ROS param '{param_name}' must be a non-empty list of frame names"

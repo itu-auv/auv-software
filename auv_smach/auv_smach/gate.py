@@ -2,9 +2,10 @@ from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node
 import tf2_ros
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from std_srvs.srv import Trigger, SetBool
 from auv_navigation.path_planning.path_planners import PathPlanners
 from auv_smach.common import (
     CancelAlignControllerState,
@@ -16,7 +17,7 @@ from auv_smach.common import (
     LookAroundState,
 )
 
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool
 from auv_smach.roll import TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
 from auv_smach.acoustic import AcousticTransmitter
@@ -26,16 +27,17 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "toggle_gate_trajectory",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
 class PublishGateAngleState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
-            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+            self, get_node(), "publish_gate_angle", Trigger, request=Trigger.Request()
         )
 
 
@@ -53,11 +55,13 @@ class PlanGatePathsState(smach.State):
     def execute(self, userdata) -> str:
         try:
             if self.preempt_requested():
-                rospy.logwarn("[PlanGatePathsState] Preempt requested")
+                get_node().get_logger().warning(
+                    "[PlanGatePathsState] Preempt requested"
+                )
                 return "preempted"
 
             path_planners = PathPlanners(
-                self.tf_buffer
+                get_node(), self.tf_buffer
             )  # instance of PathPlanners with tf_buffer
             paths = path_planners.path_for_gate()
             if paths is None:
@@ -66,7 +70,7 @@ class PlanGatePathsState(smach.State):
             userdata.planned_paths = paths
             return "succeeded"
         except Exception as e:
-            rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
+            get_node().get_logger().error("[PlanGatePathsState] Error: %s" % (str(e),))
             return "aborted"
 
 
@@ -74,16 +78,17 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "toggle_gate_trajectory",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
 class PublishGateAngleState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
-            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+            self, get_node(), "publish_gate_angle", Trigger, request=Trigger.Request()
         )
 
 
@@ -100,9 +105,9 @@ class NavigateThroughGateState(smach.State):
 
         self.tf_buffer = get_tf_buffer()
         self.base_link = get_base_link()
-        self.roll = rospy.get_param("~roll", True)
-        self.yaw = rospy.get_param("~yaw", False)
-        self.coin_flip = rospy.get_param("~coin_flip", False)
+        self.roll = get_param(get_node(), "~roll", True)
+        self.yaw = get_param(get_node(), "~yaw", False)
+        self.coin_flip = get_param(get_node(), "~coin_flip", False)
         self.gate_look_at_frame = gate_look_at_frame
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
@@ -345,7 +350,9 @@ class NavigateThroughGateState(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
+        get_node().get_logger().debug(
+            "[NavigateThroughGateState] Starting state machine execution."
+        )
 
         outcome = self.state_machine.execute()
 

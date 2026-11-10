@@ -2,7 +2,8 @@ from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node
 import tf2_ros
 from auv_navigation.path_planning.path_planners import PathPlanners
 from geometry_msgs.msg import PoseStamped
@@ -36,7 +37,7 @@ class NavigateReturnThroughGateState(smach.State):
             #     "SET_RETURN_DEPTH",
             #     SetDepthState(
             #         depth=-1.2,
-            #         sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
+            #         sleep_duration=get_param(get_node(), "~set_depth_sleep_duration", 3.0),
             #     ),
             #     transitions={
             #         "succeeded": "LOOK_AT_GATE",
@@ -110,7 +111,7 @@ class NavigateReturnThroughGateState(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.logdebug(
+        get_node().get_logger().debug(
             "[NavigateReturnThroughGateState] Starting state machine execution."
         )
 

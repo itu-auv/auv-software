@@ -1,4 +1,6 @@
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, has_param, get_node
+from rclpy.duration import Duration
 import tf2_ros
 
 _tf_buffer = None
@@ -15,12 +17,14 @@ class _TfBufferHandle:
         if cache_time is not None:
             self._cache_time = cache_time
 
+        if self._listener is not None:
+            self._listener.unregister()
         self._buffer = tf2_ros.Buffer(cache_time=self._cache_time)
-        self._listener = tf2_ros.TransformListener(self._buffer)
+        self._listener = tf2_ros.TransformListener(self._buffer, get_node())
         action = "initialized" if initialized else "reset"
-        rospy.loginfo(
+        get_node().get_logger().info(
             "Global TF Buffer and Listener {} with cache_time={}s".format(
-                action, self._cache_time.to_sec()
+                action, self._cache_time.nanoseconds / 1e9
             )
         )
 
@@ -36,7 +40,7 @@ def get_tf_buffer(cache_time=None):
 
     if _tf_buffer is None:
         if cache_time is None:
-            cache_time = rospy.Duration(15.0)
+            cache_time = Duration(seconds=15.0)
 
         _tf_buffer = _TfBufferHandle(cache_time)
 
@@ -67,11 +71,13 @@ def get_base_link():
     global _base_link_cache
 
     if _base_link_cache is None:
-        if not rospy.has_param("~base_link"):
-            rospy.logwarn(
+        if not has_param(get_node(), "~base_link"):
+            get_node().get_logger().warning(
                 "~base_link param not set, falling back to default frame 'taluy/base_link'"
             )
-        _base_link_cache = rospy.get_param("~base_link", "taluy/base_link")
-        rospy.loginfo("Base link frame set to: {}".format(_base_link_cache))
+        _base_link_cache = get_param(get_node(), "~base_link", "taluy/base_link")
+        get_node().get_logger().info(
+            "Base link frame set to: {}".format(_base_link_cache)
+        )
 
     return _base_link_cache

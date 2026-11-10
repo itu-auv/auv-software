@@ -1,46 +1,43 @@
 import smach
 import smach_ros
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client, get_node, ROSException, Rate
+from rclpy.duration import Duration
+from rclpy.time import Time
 import threading
 import numpy as np
 import tf2_ros
-import tf.transformations as transformations
+import tf_transformations as transformations
 import math
 import angles
 from auv_smach.tf_utils import get_tf_buffer, get_base_link, reset_tf_buffer
 from auv_common_lib.transform import lookup_fresh_transform
-import actionlib
 
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
+from std_srvs.srv import Trigger, SetBool
+from auv_msgs.srv import AlignFrameController
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped, PoseStamped
-from auv_msgs.msg import FollowPathAction, FollowPathGoal
+from auv_msgs.action import FollowPath
 
 from auv_msgs.srv import (
     PlanPath,
-    PlanPathRequest,
     SetDepth,
-    SetDepthRequest,
     SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
     SetDetectionFocus,
-    SetDetectionFocusRequest,
 )
 
 from geometry_msgs.msg import TransformStamped
-from auv_msgs.srv import SetDepth, SetDepthRequest
+from auv_msgs.srv import SetDepth
 
 from auv_navigation.follow_path_action import follow_path_client
-from auv_msgs.srv import PlanPath, PlanPathRequest
+from auv_msgs.srv import PlanPath
 from auv_navigation.path_planning.path_planners import PathPlanners
 
-from auv_msgs.srv import PlanPath, PlanPathRequest
+from auv_msgs.srv import PlanPath
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
-from tf.transformations import (
+from tf_transformations import (
     quaternion_matrix,
     quaternion_from_matrix,
     translation_matrix,
@@ -139,24 +136,24 @@ class SetDepthState(smach.State):
         self.max_velocity = max_velocity
 
         self._stop_publishing = threading.Event()
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+        self.enable_pub = get_node().create_publisher(Bool, "enable", 1)
 
         self.tf_buffer = get_tf_buffer()
 
         self.base_frame = get_base_link()
 
     def _publish_enable_loop(self):
-        publish_rate = rospy.get_param("~enable_rate", 20)
-        rate = rospy.Rate(publish_rate)
-        while not rospy.is_shutdown() and not self._stop_publishing.is_set():
-            self.enable_pub.publish(Bool(True))
+        publish_rate = get_param(get_node(), "~enable_rate", 20)
+        rate = Rate(get_node(), publish_rate)
+        while rclpy.ok() and not self._stop_publishing.is_set():
+            self.enable_pub.publish(Bool(data=True))
             rate.sleep()
 
     def _get_current_depth(self):
         """Get current robot depth by looking up base_link in frame_id."""
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.frame_id, self.base_frame, rospy.Time(0), rospy.Duration(4.0)
+                self.frame_id, self.base_frame, Time(), Duration(seconds=4.0)
             )
             return transform.transform.translation.z
         except (
@@ -164,29 +161,35 @@ class SetDepthState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(5.0, f"[SetDepthState] TF lookup failed: {e}")
+            get_node().get_logger().warning(
+                f"[SetDepthState] TF lookup failed: {e}", throttle_duration_sec=5.0
+            )
             return None
 
     def execute(self, userdata):
         if self.preempt_requested():
-            rospy.logwarn("[SetDepthState] Preempt requested before execution.")
+            get_node().get_logger().warning(
+                "[SetDepthState] Preempt requested before execution."
+            )
             self.service_preempt()
             return "preempted"
 
         try:
-            rospy.wait_for_service("set_depth", timeout=5.0)
-            set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
-            request = SetDepthRequest()
+            set_depth_service = service_client(get_node(), SetDepth, "set_depth")
+            set_depth_service.wait_for_service(timeout=5.0)
+            request = SetDepth.Request()
             request.target_depth = self.target_depth
             request.frame_id = self.frame_id
             request.max_velocity = self.max_velocity
             response = set_depth_service(request)
 
             if not response.success:
-                rospy.logerr(f"[SetDepthState] Service call failed: {response.message}")
+                get_node().get_logger().error(
+                    f"[SetDepthState] Service call failed: {response.message}"
+                )
                 return "aborted"
-        except (rospy.ServiceException, rospy.ROSException) as e:
-            rospy.logerr(f"[SetDepthState] Service call failed: {e}")
+        except (Exception, ROSException) as e:
+            get_node().get_logger().error(f"[SetDepthState] Service call failed: {e}")
             return "aborted"
 
         # Start publishing enable in background
@@ -195,28 +198,30 @@ class SetDepthState(smach.State):
         pub_thread.start()
 
         # Wait for depth to be reached
-        start_time = rospy.Time.now()
+        start_time = get_node().get_clock().now()
         confirm_start_time = None
-        rate = rospy.Rate(20)
+        rate = Rate(get_node(), 20)
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             f"[SetDepthState] Waiting for depth {self.target_depth}m in {self.frame_id} "
             f"(threshold={self.depth_threshold}m, timeout={self.timeout}s)"
         )
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             # Check for preempt
             if self.preempt_requested():
-                rospy.logwarn("[SetDepthState] Preempt requested during execution.")
+                get_node().get_logger().warning(
+                    "[SetDepthState] Preempt requested during execution."
+                )
                 self._stop_publishing.set()
                 pub_thread.join()
                 self.service_preempt()
                 return "preempted"
 
             # Check for timeout
-            elapsed = (rospy.Time.now() - start_time).to_sec()
+            elapsed = (get_node().get_clock().now() - start_time).nanoseconds / 1e9
             if elapsed > self.timeout:
-                rospy.logwarn(
+                get_node().get_logger().warning(
                     f"[SetDepthState] Timeout after {self.timeout}s. Continuing anyway."
                 )
                 self._stop_publishing.set()
@@ -229,22 +234,24 @@ class SetDepthState(smach.State):
             if current_depth is not None:
                 depth_error = abs(current_depth - self.target_depth)
 
-                rospy.loginfo_throttle(
-                    1.0,
+                get_node().get_logger().info(
                     f"[SetDepthState] current={current_depth:.3f}m, "
                     f"target={self.target_depth:.3f}m, error={depth_error:.3f}m",
+                    throttle_duration_sec=1.0,
                 )
 
                 if depth_error <= self.depth_threshold:
                     if confirm_start_time is None:
-                        confirm_start_time = rospy.Time.now()
-                        rospy.loginfo(
+                        confirm_start_time = get_node().get_clock().now()
+                        get_node().get_logger().info(
                             f"[SetDepthState] Depth within threshold, confirming..."
                         )
 
-                    confirm_elapsed = (rospy.Time.now() - confirm_start_time).to_sec()
+                    confirm_elapsed = (
+                        get_node().get_clock().now() - confirm_start_time
+                    ).nanoseconds / 1e9
                     if confirm_elapsed >= self.confirm_duration:
-                        rospy.loginfo(
+                        get_node().get_logger().info(
                             f"[SetDepthState] Depth confirmed at {current_depth:.3f}m"
                         )
                         self._stop_publishing.set()
@@ -252,7 +259,7 @@ class SetDepthState(smach.State):
                         return "succeeded"
                 else:
                     if confirm_start_time is not None:
-                        rospy.loginfo(
+                        get_node().get_logger().info(
                             f"[SetDepthState] Drifted out of threshold, resetting confirm timer"
                         )
                     confirm_start_time = None
@@ -268,9 +275,10 @@ class DropBallState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "ball_dropper/drop",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
         )
 
 
@@ -278,9 +286,10 @@ class CancelAlignControllerState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "align_frame/cancel",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
         )
 
 
@@ -299,7 +308,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
     ):
         if closest_yaw and closest_yaw_180:
             raise ValueError("closest_yaw and closest_yaw_180 cannot both be enabled")
-        align_request = AlignFrameControllerRequest()
+        align_request = AlignFrameController.Request()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
@@ -314,6 +323,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "align_frame/start",
             AlignFrameController,
             request=align_request,
@@ -323,7 +333,9 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
     @staticmethod
     def response_cb(userdata, response):
         if not response.success:
-            rospy.logwarn("SetAlignControllerTargetState failed: %s", response.message)
+            get_node().get_logger().warning(
+                "SetAlignControllerTargetState failed: %s" % (response.message,)
+            )
             return "aborted"
 
         return "succeeded"
@@ -337,20 +349,20 @@ class NavigateToFrameState(smach.State):
         self.target_frame = target_frame
         self.n_turns = n_turns
         self.tf_buffer = get_tf_buffer()
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.rate = rospy.Rate(10)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(get_node())
+        self.rate = Rate(get_node(), 10)
 
-        self.linear_velocity = rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = get_param(get_node(), "/smach/max_linear_velocity")
+        self.angular_velocity = get_param(get_node(), "/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:
             odom_to_start_transform = self.tf_buffer.lookup_transform(
-                "odom", self.start_frame, rospy.Time(0), rospy.Duration(1000.0)
+                "odom", self.start_frame, Time(), Duration(seconds=1000.0)
             )
             # Lookup the initial transform from start_frame to end_frame
             start_transform = self.tf_buffer.lookup_transform(
-                self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(1000.0)
+                self.start_frame, self.end_frame, Time(), Duration(seconds=1000.0)
             )
 
             start_pos = np.array(
@@ -409,7 +421,7 @@ class NavigateToFrameState(smach.State):
 
                 # Broadcast the new transform
                 t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
+                t.header.stamp = get_node().get_clock().now().to_msg()
                 t.header.frame_id = self.start_frame
                 t.child_frame_id = self.target_frame
                 t.transform.translation.x = interp_pos[0]
@@ -421,7 +433,7 @@ class NavigateToFrameState(smach.State):
                 t.transform.rotation.w = quaternion[3]
 
                 combined_transform = concatenate_transforms(odom_to_start_transform, t)
-                combined_transform.header.stamp = rospy.Time.now()
+                combined_transform.header.stamp = get_node().get_clock().now().to_msg()
                 combined_transform.header.frame_id = "odom"
                 combined_transform.child_frame_id = self.target_frame
 
@@ -435,7 +447,7 @@ class NavigateToFrameState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup exception: {e}")
+            get_node().get_logger().warning(f"TF lookup exception: {e}")
             return "aborted"
 
 
@@ -459,7 +471,7 @@ class RotationState(smach.State):
         self.yaw = None
         self.yaw_prev = None
         self.total_yaw = 0.0
-        self.rate = rospy.Rate(rate_hz)
+        self.rate = Rate(get_node(), rate_hz)
         self.active = True
 
         self.source_frame = source_frame
@@ -468,14 +480,12 @@ class RotationState(smach.State):
         self.full_rotation_timeout = full_rotation_timeout
         self.tf_buffer = get_tf_buffer()
 
-        self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
-        self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
-
-        self.enable_pub = rospy.Publisher(
-            "enable",
-            Bool,
-            queue_size=1,
+        self.sub = get_node().create_subscription(
+            Odometry, self.odom_topic, self.odom_cb, 10
         )
+        self.pub = get_node().create_publisher(Twist, self.cmd_vel_topic, 1)
+
+        self.enable_pub = get_node().create_publisher(Bool, "enable", 1)
 
     def odom_cb(self, msg):
         q = msg.pose.pose.orientation
@@ -492,10 +502,11 @@ class RotationState(smach.State):
         try:
             lookup_fresh_transform(
                 self.tf_buffer,
+                get_node(),
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                Duration(seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)),
+                Duration(seconds=get_param(get_node(), "~tf_freshness_threshold", 0.4)),
             )
             return True
         except (
@@ -503,11 +514,11 @@ class RotationState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logdebug(f"RotationState: Transform check failed: {e}")
+            get_node().get_logger().debug(f"RotationState: Transform check failed: {e}")
             return False
 
     def execute(self, userdata):
-        while not rospy.is_shutdown() and not self.odom_data:
+        while rclpy.ok() and not self.odom_data:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
@@ -518,16 +529,16 @@ class RotationState(smach.State):
         twist = Twist()
         twist.angular.z = self.rotation_speed
         self.active = True
-        rotation_start_time = rospy.Time.now()
+        rotation_start_time = get_node().get_clock().now()
 
         transform_found = self.is_transform_available()
         if transform_found and not self.full_rotation:
-            rospy.loginfo(
+            get_node().get_logger().info(
                 "RotationState: transform already available, no need to rotate"
             )
             return "succeeded"
 
-        while not rospy.is_shutdown() and self.total_yaw < self.rotation_radian:
+        while rclpy.ok() and self.total_yaw < self.rotation_radian:
             if self.preempt_requested():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
@@ -536,10 +547,11 @@ class RotationState(smach.State):
 
             if (
                 self.full_rotation
-                and (rospy.Time.now() - rotation_start_time).to_sec()
+                and (get_node().get_clock().now() - rotation_start_time).nanoseconds
+                / 1e9
                 > self.full_rotation_timeout
             ):
-                rospy.logwarn(
+                get_node().get_logger().warning(
                     f"RotationState: Timeout reached after {self.full_rotation_timeout} seconds during full rotation."
                 )
                 twist.angular.z = 0.0
@@ -551,7 +563,7 @@ class RotationState(smach.State):
             if not self.full_rotation and self.is_transform_available():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
-                rospy.loginfo(
+                get_node().get_logger().info(
                     "RotationState: transform found during rotation, stopping rotation"
                 )
                 return "succeeded"
@@ -568,17 +580,16 @@ class RotationState(smach.State):
         twist.angular.z = 0.0
         self.pub.publish(twist)
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             f"RotationState: completed full rotation. Total yaw: {self.total_yaw}"
         )
 
         if self.is_transform_available():
             return "succeeded"
         else:
-            rospy.logwarn(
-                "RotationState: completed full rotation but no transform found between %s and %s",
-                self.source_frame,
-                self.look_at_frame,
+            get_node().get_logger().warning(
+                "RotationState: completed full rotation but no transform found between %s and %s"
+                % (self.source_frame, self.look_at_frame)
             )
             return "aborted"
 
@@ -591,16 +602,16 @@ class SetFrameLookingAtState(smach.State):
         self.alignment_frame = alignment_frame
         self.duration_time = duration_time
         self.tf_buffer = get_tf_buffer()
-        self.rate = rospy.Rate(10)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.rate = Rate(get_node(), 10)
+        self.set_object_transform_service = service_client(
+            get_node(), SetObjectTransform, "set_object_transform"
         )
 
     def execute(self, userdata):
-        start_time = rospy.Time.now()
-        end_time = start_time + rospy.Duration(self.duration_time)
+        start_time = get_node().get_clock().now()
+        end_time = start_time + Duration(seconds=self.duration_time)
 
-        while not rospy.is_shutdown() and rospy.Time.now() < end_time:
+        while rclpy.ok() and get_node().get_clock().now() < end_time:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
@@ -609,8 +620,8 @@ class SetFrameLookingAtState(smach.State):
                 base_to_look_at_transform = self.tf_buffer.lookup_transform(
                     self.source_frame,
                     self.look_at_frame,
-                    rospy.Time(0),
-                    rospy.Duration(4.0),
+                    Time(),
+                    Duration(seconds=4.0),
                 )
 
                 direction_vector = np.array(
@@ -624,7 +635,7 @@ class SetFrameLookingAtState(smach.State):
                 quaternion = transformations.quaternion_from_euler(0, 0, facing_angle)
 
                 t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
+                t.header.stamp = get_node().get_clock().now().to_msg()
                 t.header.frame_id = self.source_frame
                 t.child_frame_id = self.alignment_frame
                 t.transform.translation.x = 0.0
@@ -635,17 +646,21 @@ class SetFrameLookingAtState(smach.State):
                 t.transform.rotation.z = quaternion[2]
                 t.transform.rotation.w = quaternion[3]
 
-                req = SetObjectTransformRequest()
+                req = SetObjectTransform.Request()
                 req.transform = t
                 res = self.set_object_transform_service(req)
 
                 if not res.success:
-                    rospy.logwarn(f"SetObjectTransform failed: {res.message}")
+                    get_node().get_logger().warning(
+                        f"SetObjectTransform failed: {res.message}"
+                    )
 
-                time_remaining = (end_time - rospy.Time.now()).to_sec()
-                rospy.loginfo_throttle(
-                    1.0,
+                time_remaining = (
+                    end_time - get_node().get_clock().now()
+                ).nanoseconds / 1e9
+                get_node().get_logger().info(
                     f"Looking at {self.look_at_frame}. Time remaining: {time_remaining:.2f}s",
+                    throttle_duration_sec=1.0,
                 )
 
             except (
@@ -653,15 +668,15 @@ class SetFrameLookingAtState(smach.State):
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logwarn(f"TF lookup exception: {e}")
+                get_node().get_logger().warning(f"TF lookup exception: {e}")
 
-            except rospy.ServiceException as e:
-                rospy.logwarn(f"Service call failed: {e}")
+            except Exception as e:
+                get_node().get_logger().warning(f"Service call failed: {e}")
                 return "aborted"
 
             self.rate.sleep()
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             f"Successfully looked at {self.look_at_frame} for {self.duration_time} seconds"
         )
         return "succeeded"
@@ -671,16 +686,19 @@ class ClearObjectMapState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "clear_object_transforms",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
             response_cb=self.response_cb,
         )
 
     @staticmethod
     def response_cb(userdata, response):
         if not response.success:
-            rospy.logwarn("ClearObjectMapState: clear_object_transforms failed")
+            get_node().get_logger().warning(
+                "ClearObjectMapState: clear_object_transforms failed"
+            )
             return "aborted"
 
         reset_tf_buffer()
@@ -691,16 +709,17 @@ class ClearKDEMapState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "kde_map/clear",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
             response_cb=self.response_cb,
         )
 
     @staticmethod
     def response_cb(userdata, response):
         if not response.success:
-            rospy.logwarn("ClearKDEMapState: kde_map/clear failed")
+            get_node().get_logger().warning("ClearKDEMapState: kde_map/clear failed")
             return "aborted"
 
         return "succeeded"
@@ -718,9 +737,10 @@ class SetDetectionState(smach_ros.ServiceState):
             )
 
         service_name = f"enable_{camera_name}_camera_detections"
-        request = SetBoolRequest(data=enable)
+        request = SetBool.Request(data=enable)
 
         super(SetDetectionState, self).__init__(
+            get_node(),
             service_name,
             SetBool,
             request=request,
@@ -735,9 +755,10 @@ class SetDetectionFocusBottomState(smach_ros.ServiceState):
 
     def __init__(self, focus_object: str):
         service_name = "set_bottom_camera_focus"
-        request = SetDetectionFocusRequest(focus_object=focus_object)
+        request = SetDetectionFocus.Request(focus_object=focus_object)
 
         super(SetDetectionFocusBottomState, self).__init__(
+            get_node(),
             service_name,
             SetDetectionFocus,
             request=request,
@@ -752,9 +773,10 @@ class SetDetectionFocusState(smach_ros.ServiceState):
 
     def __init__(self, focus_object: str):
         service_name = "set_front_camera_focus"
-        request = SetDetectionFocusRequest(focus_object=focus_object)
+        request = SetDetectionFocus.Request(focus_object=focus_object)
 
         super(SetDetectionFocusState, self).__init__(
+            get_node(),
             service_name,
             SetDetectionFocus,
             request=request,
@@ -780,47 +802,71 @@ class ExecutePathState(smach.State):
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
         if self._client is None:
-            rospy.logdebug("[ExecutePathState] Initializing the FollowPathActionClient")
-            self._client = follow_path_client.FollowPathActionClient()
+            get_node().get_logger().debug(
+                "[ExecutePathState] Initializing the FollowPathActionClient"
+            )
+            self._client = follow_path_client.FollowPathActionClient(get_node())
 
         # Check for preemption before proceeding
         if self.preempt_requested():
-            rospy.logwarn("[ExecutePathState] Preempt requested before execution")
+            get_node().get_logger().warning(
+                "[ExecutePathState] Preempt requested before execution"
+            )
             self.service_preempt()
             return "preempted"
 
         try:
-            goal = FollowPathGoal()
+            goal = FollowPath.Goal()
             goal.paths = []
-            rospy.logdebug("[ExecutePathState] Sending paths goal...")
-            self._client.client.send_goal(goal)
+            get_node().get_logger().debug("[ExecutePathState] Sending paths goal...")
+            send_goal_future = self._client.client.send_goal_async(goal)
+            goal_handle = None
+            result_future = None
 
-            while not rospy.is_shutdown():
+            while rclpy.ok():
                 if self.preempt_requested():
-                    rospy.logwarn(
+                    get_node().get_logger().warning(
                         "[ExecutePathState] Preempt requested, cancelling goal"
                     )
-                    self._client.client.cancel_goal()
+                    if goal_handle is not None:
+                        goal_handle.cancel_goal_async()
+                    else:
+                        send_goal_future.add_done_callback(
+                            lambda future: future.result().cancel_goal_async()
+                        )
                     self.service_preempt()
                     return "preempted"
 
-                if self._client.client.wait_for_result(rospy.Duration(0.1)):
-                    result = self._client.client.get_result()
+                if goal_handle is None and send_goal_future.done():
+                    goal_handle = send_goal_future.result()
+                    if not goal_handle.accepted:
+                        get_node().get_logger().warning(
+                            "[ExecutePathState] Execution of planned paths failed"
+                        )
+                        return "aborted"
+                    result_future = goal_handle.get_result_async()
+
+                if result_future is not None and result_future.done():
+                    result = result_future.result().result
                     if result and result.success:
-                        rospy.logdebug(
+                        get_node().get_logger().debug(
                             "[ExecutePathState] Planned paths executed successfully"
                         )
                         return "succeeded"
                     else:
-                        rospy.logwarn(
+                        get_node().get_logger().warning(
                             "[ExecutePathState] Execution of planned paths failed"
                         )
                         return "aborted"
 
+                get_node().get_clock().sleep_for(Duration(seconds=0.1))
+
             return "aborted"
 
         except Exception as e:
-            rospy.logerr("[ExecutePathState] Exception occurred: %s", str(e))
+            get_node().get_logger().error(
+                "[ExecutePathState] Exception occurred: %s" % (str(e),)
+            )
             return "aborted"
 
 
@@ -968,12 +1014,12 @@ class PlanPathToSingleFrameState(smach.State):
     def execute(self, userdata) -> str:
         try:
             if self.preempt_requested():
-                rospy.logwarn(
+                get_node().get_logger().warning(
                     f"[PlanPathToSingleFrameState] Preempt requested for path to {self.target_frame}"
                 )
                 return "preempted"
 
-            path_planners = PathPlanners(self.tf_buffer)
+            path_planners = PathPlanners(get_node(), self.tf_buffer)
             path = path_planners.straight_path_to_frame(
                 source_frame=self.source_frame,
                 target_frame=self.target_frame,
@@ -981,19 +1027,19 @@ class PlanPathToSingleFrameState(smach.State):
             )
 
             if path is None:
-                rospy.logerr(
+                get_node().get_logger().error(
                     f"[PlanPathToSingleFrameState] Failed to plan path to {self.target_frame}"
                 )
                 return "aborted"
 
             userdata.planned_paths = [path]  #
-            rospy.loginfo(
+            get_node().get_logger().info(
                 f"[PlanPathToSingleFrameState] Successfully planned path to {self.target_frame}"
             )
             return "succeeded"
 
         except Exception as e:
-            rospy.logerr(
+            get_node().get_logger().error(
                 f"[PlanPathToSingleFrameState] Error planning path to {self.target_frame}: {e}"
             )
             return "aborted"
@@ -1027,16 +1073,17 @@ class CheckAlignmentState(smach.State):
         self.closest_yaw = closest_yaw
         self.closest_yaw_180 = closest_yaw_180
         self.tf_buffer = get_tf_buffer()
-        self.rate = rospy.Rate(10)
+        self.rate = Rate(get_node(), 10)
 
     def get_error(self):
         try:
             transform = lookup_fresh_transform(
                 self.tf_buffer,
+                get_node(),
                 self.source_frame,
                 self.target_frame,
-                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                Duration(seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)),
+                Duration(seconds=get_param(get_node(), "~tf_freshness_threshold", 0.4)),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1088,7 +1135,9 @@ class CheckAlignmentState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(3.0, f"CheckAlignmentState: TF lookup failed: {e}")
+            get_node().get_logger().warning(
+                f"CheckAlignmentState: TF lookup failed: {e}", throttle_duration_sec=3.0
+            )
             return None, None
 
     def is_aligned_distance_only(self, dist_error):
@@ -1098,10 +1147,12 @@ class CheckAlignmentState(smach.State):
         return dist_error < self.dist_threshold and yaw_error < self.yaw_threshold
 
     def execute(self, userdata):
-        start_time = rospy.Time.now()
+        start_time = get_node().get_clock().now()
         first_success_time = None
 
-        while (rospy.Time.now() - start_time).to_sec() < self.timeout:
+        while (
+            get_node().get_clock().now() - start_time
+        ).nanoseconds / 1e9 < self.timeout:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
@@ -1109,9 +1160,9 @@ class CheckAlignmentState(smach.State):
             dist_error, yaw_error = self.get_error()
 
             if dist_error is not None and yaw_error is not None:
-                rospy.loginfo_throttle(
-                    1.0,
+                get_node().get_logger().info(
                     f"Alignment check: dist_error={dist_error:.2f}m, yaw_error={yaw_error:.2f}rad",
+                    throttle_duration_sec=1.0,
                 )
                 if self.keep_orientation:
                     aligned = self.is_aligned_distance_only(dist_error)
@@ -1120,14 +1171,16 @@ class CheckAlignmentState(smach.State):
 
                 if aligned:
                     if self.confirm_duration == 0.0:
-                        rospy.loginfo("CheckAlignmentState: Alignment successful.")
+                        get_node().get_logger().info(
+                            "CheckAlignmentState: Alignment successful."
+                        )
                         return "succeeded"
                     if first_success_time is None:
-                        first_success_time = rospy.Time.now()
+                        first_success_time = get_node().get_clock().now()
                     if (
-                        rospy.Time.now() - first_success_time
-                    ).to_sec() >= self.confirm_duration:
-                        rospy.loginfo(
+                        get_node().get_clock().now() - first_success_time
+                    ).nanoseconds / 1e9 >= self.confirm_duration:
+                        get_node().get_logger().info(
                             f"CheckAlignmentState: Alignment successful for {self.confirm_duration} seconds."
                         )
                         return "succeeded"
@@ -1138,7 +1191,7 @@ class CheckAlignmentState(smach.State):
 
             self.rate.sleep()
 
-        rospy.logwarn("CheckAlignmentState: Timeout reached.")
+        get_node().get_logger().warning("CheckAlignmentState: Timeout reached.")
         return "succeeded"
 
 
@@ -1260,35 +1313,35 @@ class SetPlanState(smach.State):
     def execute(self, userdata) -> str:
         try:
             if self.preempt_requested():
-                rospy.logwarn("[SetPlanState] Preempt requested")
+                get_node().get_logger().warning("[SetPlanState] Preempt requested")
                 return "preempted"
 
-            rospy.wait_for_service("/set_plan")
-            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
+            set_plan = service_client(get_node(), PlanPath, "/set_plan")
+            set_plan.wait_for_service()
 
-            req = PlanPathRequest(
+            req = PlanPath.Request(
                 target_frame=self.target_frame,
                 angle_offset=self.angle_offset,
                 dynamic=self.dynamic,
             )
             response = set_plan(req)
             if not response.success:
-                rospy.logerr(
-                    "[SetPlanState] /set_plan returned success=False for target_frame=%s",
-                    self.target_frame,
+                get_node().get_logger().error(
+                    "[SetPlanState] /set_plan returned success=False for target_frame=%s"
+                    % (self.target_frame,)
                 )
                 return "aborted"
             return "succeeded"
 
         except Exception as e:
-            rospy.logerr("[SetPlanState] Error: %s", str(e))
+            get_node().get_logger().error("[SetPlanState] Error: %s" % (str(e),))
             return "aborted"
 
 
 class SetPlanningNotActive(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
-            self, "/stop_planning", Trigger, request=TriggerRequest()
+            self, get_node(), "/stop_planning", Trigger, request=Trigger.Request()
         )
 
 
@@ -1296,9 +1349,10 @@ class GravityZEnable(smach_ros.ServiceState):
     def __init__(self, enable):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "gravity_compensation_estimator/set_apply_updates",
             SetBool,
-            request=SetBoolRequest(data=enable),
+            request=SetBool.Request(data=enable),
         )
 
 
@@ -1466,8 +1520,8 @@ class CreateFrameAtCurrentPositionState(smach.State):
         self.current_pose_frame = current_pose_frame
         self.reference_frame = reference_frame
         self.tf_buffer = get_tf_buffer()
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_service = service_client(
+            get_node(), SetObjectTransform, "set_object_transform"
         )
 
     def execute(self, userdata):
@@ -1478,11 +1532,11 @@ class CreateFrameAtCurrentPositionState(smach.State):
             current_transform = self.tf_buffer.lookup_transform(
                 self.reference_frame,
                 self.source_frame,
-                rospy.Time(0),
-                rospy.Duration(4.0),
+                Time(),
+                Duration(seconds=4.0),
             )
             new_transform = TransformStamped()
-            new_transform.header.stamp = rospy.Time.now()
+            new_transform.header.stamp = get_node().get_clock().now().to_msg()
             new_transform.header.frame_id = self.reference_frame
             new_transform.child_frame_id = self.current_pose_frame
 
@@ -1491,12 +1545,12 @@ class CreateFrameAtCurrentPositionState(smach.State):
             )
             new_transform.transform.rotation = current_transform.transform.rotation
 
-            req = SetObjectTransformRequest()
+            req = SetObjectTransform.Request()
             req.transform = new_transform
             res = self.set_object_transform_service(req)
 
             if not res.success:
-                rospy.logerr(
+                get_node().get_logger().error(
                     f"CreateFrameAtCurrentPositionState: Failed to create frame '{self.current_pose_frame}': {res.message}"
                 )
                 return "aborted"
@@ -1508,11 +1562,15 @@ class CreateFrameAtCurrentPositionState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}")
+            get_node().get_logger().error(
+                f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}"
+            )
             return "aborted"
 
-        except rospy.ServiceException as e:
-            rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
+        except Exception as e:
+            get_node().get_logger().error(
+                f"CreateFrameAtCurrentPositionState: Service call failed: {e}"
+            )
             return "aborted"
 
 
@@ -1539,9 +1597,9 @@ class CreateRotatingFrameState(smach.State):
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.tf_buffer = get_tf_buffer()
-        self.rate = rospy.Rate(rate_hz)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.rate = Rate(get_node(), rate_hz)
+        self.set_object_transform_service = service_client(
+            get_node(), SetObjectTransform, "set_object_transform"
         )
 
     def is_transform_available(self):
@@ -1550,10 +1608,11 @@ class CreateRotatingFrameState(smach.State):
         try:
             lookup_fresh_transform(
                 self.tf_buffer,
+                get_node(),
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                Duration(seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)),
+                Duration(seconds=get_param(get_node(), "~tf_freshness_threshold", 0.4)),
             )
             return True
         except (
@@ -1564,18 +1623,16 @@ class CreateRotatingFrameState(smach.State):
             return False
 
     def execute(self, userdata):
-        rospy.loginfo(
-            "Creating rotating frame '%s' for %d rotation(s) (%.2fs each).",
-            self.target_frame,
-            self.rotation_count,
-            self.rotation_period,
+        get_node().get_logger().info(
+            "Creating rotating frame '%s' for %d rotation(s) (%.2fs each)."
+            % (self.target_frame, self.rotation_count, self.rotation_period)
         )
         try:
             initial_transform = self.tf_buffer.lookup_transform(
                 self.reference_frame,
                 self.source_frame,
-                rospy.Time(0),
-                rospy.Duration(4.0),
+                Time(),
+                Duration(seconds=4.0),
             )
             initial_translation = initial_transform.transform.translation
             initial_rotation = initial_transform.transform.rotation
@@ -1587,55 +1644,60 @@ class CreateRotatingFrameState(smach.State):
                     initial_rotation.w,
                 ]
             )[2]
-            rospy.loginfo(
-                "Initial pose locked at: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f",
-                initial_translation.x,
-                initial_translation.y,
-                initial_translation.z,
-                initial_yaw,
+            get_node().get_logger().info(
+                "Initial pose locked at: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f"
+                % (
+                    initial_translation.x,
+                    initial_translation.y,
+                    initial_translation.z,
+                    initial_yaw,
+                )
             )
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(
-                "CreateRotatingFrameState: Failed to get initial robot pose: %s", str(e)
+            get_node().get_logger().error(
+                "CreateRotatingFrameState: Failed to get initial robot pose: %s"
+                % (str(e),)
             )
             return "aborted"
 
-        start_time = rospy.Time.now()
-        end_time = start_time + rospy.Duration(
-            self.rotation_period * self.rotation_count
+        start_time = get_node().get_clock().now()
+        end_time = start_time + Duration(
+            seconds=self.rotation_period * self.rotation_count
         )
         angular_velocity = 2.0 * math.pi / self.rotation_period
 
         if not self.full_rotation and self.is_transform_available():
-            rospy.loginfo(
+            get_node().get_logger().info(
                 "CreateRotatingFrameState: transform found before starting, returning"
             )
             return "succeeded"
 
-        while not rospy.is_shutdown() and rospy.Time.now() < end_time:
+        while rclpy.ok() and get_node().get_clock().now() < end_time:
             if self.preempt_requested():
-                rospy.logwarn(
-                    "CreateRotatingFrameState: Preempted while creating frame '%s'.",
-                    self.target_frame,
+                get_node().get_logger().warning(
+                    "CreateRotatingFrameState: Preempted while creating frame '%s'."
+                    % (self.target_frame,)
                 )
                 return "preempted"
 
             if not self.full_rotation and self.is_transform_available():
-                rospy.loginfo(
+                get_node().get_logger().info(
                     "CreateRotatingFrameState: transform found during rotation, stopping."
                 )
                 return "succeeded"
 
             try:
-                elapsed_time = (rospy.Time.now() - start_time).to_sec()
+                elapsed_time = (
+                    get_node().get_clock().now() - start_time
+                ).nanoseconds / 1e9
                 current_yaw = initial_yaw + angular_velocity * elapsed_time
                 qx, qy, qz, qw = quaternion_from_euler(0.0, 0.0, current_yaw)
                 t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
+                t.header.stamp = get_node().get_clock().now().to_msg()
                 t.header.frame_id = self.reference_frame
                 t.child_frame_id = self.target_frame
                 t.transform.translation.x = initial_translation.x
@@ -1645,19 +1707,23 @@ class CreateRotatingFrameState(smach.State):
                 t.transform.rotation.y = qy
                 t.transform.rotation.z = qz
                 t.transform.rotation.w = qw
-                req = SetObjectTransformRequest()
+                req = SetObjectTransform.Request()
                 req.transform = t
                 res = self.set_object_transform_service(req)
                 if not res.success:
-                    rospy.logwarn("SetObjectTransform failed: %s", res.message)
-            except rospy.ServiceException as e:
-                rospy.logwarn("Service call failed: %s", str(e))
+                    get_node().get_logger().warning(
+                        "SetObjectTransform failed: %s" % (res.message,)
+                    )
+            except Exception as e:
+                get_node().get_logger().warning("Service call failed: %s" % (str(e),))
                 return "aborted"
             self.rate.sleep()
 
-        if rospy.is_shutdown():
+        if not rclpy.ok():
             return "aborted"
-        rospy.loginfo("Finished rotating frame '%s'.", self.target_frame)
+        get_node().get_logger().info(
+            "Finished rotating frame '%s'." % (self.target_frame,)
+        )
         return "succeeded"
 
 
@@ -1723,7 +1789,7 @@ class CheckForTransformState(smach.State):
         self.target_frame = target_frame
         self.timeout = timeout
         self.tf_buffer = get_tf_buffer()
-        self.rate = rospy.Rate(check_rate_hz)
+        self.rate = Rate(get_node(), check_rate_hz)
         self.allow_mutli_check_goal = allow_mutli_check_goal
 
     def is_transform_available(self):
@@ -1738,10 +1804,13 @@ class CheckForTransformState(smach.State):
             try:
                 lookup_fresh_transform(
                     self.tf_buffer,
+                    get_node(),
                     self.source_frame,
                     frame,
-                    rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                    Duration(seconds=get_param(get_node(), "~tf_lookup_timeout", 0.2)),
+                    Duration(
+                        seconds=get_param(get_node(), "~tf_freshness_threshold", 0.2)
+                    ),
                 )
                 return True
             except (
@@ -1753,30 +1822,30 @@ class CheckForTransformState(smach.State):
         return False
 
     def execute(self, userdata):
-        start_time = rospy.Time.now()
+        start_time = get_node().get_clock().now()
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if self.preempt_requested():
-                rospy.loginfo("CheckForTransformState: Preempted")
+                get_node().get_logger().info("CheckForTransformState: Preempted")
                 self.service_preempt()
                 return "preempted"
 
-            elapsed = (rospy.Time.now() - start_time).to_sec()
+            elapsed = (get_node().get_clock().now() - start_time).nanoseconds / 1e9
             if elapsed > self.timeout:
-                rospy.logwarn(
+                get_node().get_logger().warning(
                     f"CheckForTransformState: Timeout ({self.timeout}s) reached while waiting for transform from {self.source_frame} to {self.target_frame}"
                 )
                 return "aborted"
 
             if self.is_transform_available():
-                rospy.loginfo(
+                get_node().get_logger().info(
                     f"CheckForTransformState: Transform found from {self.source_frame} to {self.target_frame}"
                 )
                 return "succeeded"
 
-            rospy.logdebug_throttle(
-                1.0,
+            get_node().get_logger().debug(
                 f"CheckForTransformState: Checking for transform from {self.source_frame} to {self.target_frame}...",
+                throttle_duration_sec=1.0,
             )
             self.rate.sleep()
 

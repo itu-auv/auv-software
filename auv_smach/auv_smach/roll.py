@@ -1,10 +1,13 @@
 import smach
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest
+import rclpy
+from auv_common_lib.ros import get_node, Rate
+from rclpy.duration import Duration
+from rclpy.exceptions import ROSInterruptException
+from std_srvs.srv import SetBool
 from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
-from tf.transformations import euler_from_quaternion
+from tf_transformations import euler_from_quaternion
 from .initialize import *
 import smach_ros
 import math
@@ -27,9 +30,10 @@ class DvlOdometryServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "dvl_to_odom_node/enable",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -44,17 +48,19 @@ class PitchCorrection(smach.State):
         self.frame_id = get_base_link()
 
         self.fixed_torque = -abs(fixed_torque)
-        self.timeout = rospy.Duration(timeout_s)
-        self.rate = rospy.Rate(rate_hz)
+        self.timeout = Duration(seconds=timeout_s)
+        self.rate = Rate(get_node(), rate_hz)
 
         self.current_pitch = 0.0
         self.odom_ready = False
         self.active = True
         self.start_time = None
 
-        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.pub_wrench = rospy.Publisher(
-            self.wrench_topic, WrenchStamped, queue_size=1
+        self.sub_odom = get_node().create_subscription(
+            Odometry, self.odometry_topic, self.odom_cb, 10
+        )
+        self.pub_wrench = get_node().create_publisher(
+            WrenchStamped, self.wrench_topic, 1
         )
 
     def odom_cb(self, msg: Odometry):
@@ -66,81 +72,84 @@ class PitchCorrection(smach.State):
             self.current_pitch = pitch
             self.odom_ready = True
         except:
-            rospy.logwarn("PITCH_CORRECTION: Quaternion conversion failed!")
+            get_node().get_logger().warning(
+                "PITCH_CORRECTION: Quaternion conversion failed!"
+            )
 
     def execute(self, userdata):
-        rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
-        start_wait = rospy.Time.now()
+        get_node().get_logger().info("PITCH_CORRECTION: Waiting for odometry data...")
+        start_wait = get_node().get_clock().now()
 
-        while not rospy.is_shutdown() and not self.odom_ready:
-            if (rospy.Time.now() - start_wait) > rospy.Duration(5.0):
-                rospy.logerr("PITCH_CORRECTION: No odometry data → abort")
+        while rclpy.ok() and not self.odom_ready:
+            if (get_node().get_clock().now() - start_wait) > Duration(seconds=5.0):
+                get_node().get_logger().error(
+                    "PITCH_CORRECTION: No odometry data → abort"
+                )
                 return "aborted"
             if self.preempt_requested():
                 return "preempted"
             self.rate.sleep()
 
         if self.current_pitch <= 0:
-            rospy.loginfo(
-                "PITCH_CORRECTION: Pitch already corrected (%.2f°)",
-                math.degrees(self.current_pitch),
+            get_node().get_logger().info(
+                "PITCH_CORRECTION: Pitch already corrected (%.2f°)"
+                % (math.degrees(self.current_pitch),)
             )
             return "succeeded"
 
-        rospy.loginfo(
-            "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm",
-            math.degrees(self.current_pitch),
-            self.fixed_torque,
+        get_node().get_logger().info(
+            "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm"
+            % (math.degrees(self.current_pitch), self.fixed_torque)
         )
 
-        self.start_time = rospy.Time.now()
+        self.start_time = get_node().get_clock().now()
 
         try:
-            while not rospy.is_shutdown() and self.active:
+            while rclpy.ok() and self.active:
                 if self.preempt_requested():
                     return self._stop_and("preempted")
-                if (rospy.Time.now() - self.start_time) > self.timeout:
-                    rospy.logwarn(
-                        "PITCH_CORRECTION: Timeout after %.1f s. Continuing as if succeeded.",
-                        self.timeout.to_sec(),
+                if (get_node().get_clock().now() - self.start_time) > self.timeout:
+                    get_node().get_logger().warning(
+                        "PITCH_CORRECTION: Timeout after %.1f s. Continuing as if succeeded."
+                        % (self.timeout.nanoseconds / 1e9,)
                     )
                     return self._stop_and("succeeded")
 
                 if self.current_pitch <= 0:
-                    rospy.loginfo(
-                        "PITCH_CORRECTION: Pitch corrected to %.2f°",
-                        math.degrees(self.current_pitch),
+                    get_node().get_logger().info(
+                        "PITCH_CORRECTION: Pitch corrected to %.2f°"
+                        % (math.degrees(self.current_pitch),)
                     )
                     return self._stop_and("succeeded")
 
                 cmd = WrenchStamped()
-                cmd.header.stamp = rospy.Time.now()
+                cmd.header.stamp = get_node().get_clock().now().to_msg()
                 cmd.header.frame_id = self.frame_id
                 cmd.wrench.torque.y = self.fixed_torque
                 self.pub_wrench.publish(cmd)
 
-                rospy.loginfo_throttle(
-                    1.0,
-                    "PITCH_CORRECTION: Current pitch: %.2f°",
-                    math.degrees(self.current_pitch),
+                get_node().get_logger().info(
+                    "PITCH_CORRECTION: Current pitch: %.2f°"
+                    % (math.degrees(self.current_pitch),),
+                    throttle_duration_sec=1.0,
                 )
 
                 self.rate.sleep()
 
-        except rospy.ROSInterruptException:
+        except ROSInterruptException:
             return self._abort_on_shutdown()
 
         return "aborted"
 
     def _stop_and(self, outcome):
         stop_cmd = WrenchStamped()
-        stop_cmd.header.stamp = rospy.Time.now()
+        stop_cmd.header.stamp = get_node().get_clock().now().to_msg()
         stop_cmd.header.frame_id = self.frame_id
         self.pub_wrench.publish(stop_cmd)
         return outcome
 
     def _abort_on_shutdown(self):
-        rospy.logwarn("PITCH_CORRECTION: ROS shutdown → aborting")
+        get_node().get_logger().warning("PITCH_CORRECTION: ROS shutdown → aborting")
         return self._stop_and("aborted")
 
 
@@ -155,21 +164,23 @@ class RollTwoTimes(smach.State):
         self.frame_id = get_base_link()
 
         self.roll_torque = roll_torque
-        self.timeout = rospy.Duration(timeout_s)
-        self.rate = rospy.Rate(rate_hz)
+        self.timeout = Duration(seconds=timeout_s)
+        self.rate = Rate(get_node(), rate_hz)
 
         self.odom_ready = False
         self.active = True
         self.total_roll = 0.0
         self.last_time = None
 
-        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.pub_wrench = rospy.Publisher(
-            self.wrench_topic, WrenchStamped, queue_size=1
+        self.sub_odom = get_node().create_subscription(
+            Odometry, self.odometry_topic, self.odom_cb, 10
+        )
+        self.pub_wrench = get_node().create_publisher(
+            WrenchStamped, self.wrench_topic, 1
         )
 
     def odom_cb(self, msg: Odometry):
-        now = rospy.Time.now()
+        now = get_node().get_clock().now()
 
         if not self.odom_ready:
             self.last_time = now
@@ -180,7 +191,7 @@ class RollTwoTimes(smach.State):
             self.last_time = now
             return
 
-        dt = (now - self.last_time).to_sec()
+        dt = (now - self.last_time).nanoseconds / 1e9
         self.last_time = now
 
         omega_x = msg.twist.twist.angular.x
@@ -188,71 +199,74 @@ class RollTwoTimes(smach.State):
         self.total_roll += abs(delta_angle)
 
     def execute(self, userdata):
-        rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
-        start_wait = rospy.Time.now()
-        while not rospy.is_shutdown() and not self.odom_ready:
-            if (rospy.Time.now() - start_wait).to_sec() > 5.0:
-                rospy.logerr("ROLL_TWO_TIMES: No odometry data after 5 s → abort")
+        get_node().get_logger().info("ROLL_TWO_TIMES: waiting for odometry data…")
+        start_wait = get_node().get_clock().now()
+        while rclpy.ok() and not self.odom_ready:
+            if (get_node().get_clock().now() - start_wait).nanoseconds / 1e9 > 5.0:
+                get_node().get_logger().error(
+                    "ROLL_TWO_TIMES: No odometry data after 5 s → abort"
+                )
                 return "aborted"
             if self.preempt_requested():
                 return "preempted"
             try:
                 self.rate.sleep()
-            except rospy.ROSInterruptException:
+            except ROSInterruptException:
                 return self._abort_on_shutdown()
 
         self.total_roll = 0.0
-        self.last_time = rospy.Time.now()
-        self.start_time = rospy.Time.now()
+        self.last_time = get_node().get_clock().now()
+        self.start_time = get_node().get_clock().now()
         target = math.radians(660.0)
-        rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
-            self.roll_torque,
-            target,
+        get_node().get_logger().info(
+            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad"
+            % (self.roll_torque, target)
         )
 
         try:
-            while not rospy.is_shutdown() and self.total_roll < target and self.active:
+            while rclpy.ok() and self.total_roll < target and self.active:
 
                 if self.preempt_requested():
                     return self._stop_and("preempted")
 
-                if (rospy.Time.now() - self.start_time) > self.timeout:
-                    rospy.logerr(
-                        "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
+                if (get_node().get_clock().now() - self.start_time) > self.timeout:
+                    get_node().get_logger().error(
+                        "ROLL_TWO_TIMES: timed out after %.1f s"
+                        % (self.timeout.nanoseconds / 1e9,)
                     )
                     return self._stop_and("aborted")
 
                 cmd = WrenchStamped()
-                cmd.header.stamp = rospy.Time.now()
+                cmd.header.stamp = get_node().get_clock().now().to_msg()
                 cmd.header.frame_id = self.frame_id
                 cmd.wrench.torque.x = self.roll_torque
                 self.pub_wrench.publish(cmd)
 
-                rospy.loginfo_throttle(
-                    1.0,
-                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f",
-                    self.total_roll,
-                    target,
+                get_node().get_logger().info(
+                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f"
+                    % (self.total_roll, target),
+                    throttle_duration_sec=1.0,
                 )
 
                 self.rate.sleep()
 
-        except rospy.ROSInterruptException:
+        except ROSInterruptException:
             return self._abort_on_shutdown()
 
         return self._stop_and("succeeded")
 
     def _stop_and(self, outcome):
         stop = WrenchStamped()
-        stop.header.stamp = rospy.Time.now()
+        stop.header.stamp = get_node().get_clock().now().to_msg()
         stop.header.frame_id = self.frame_id
         stop.wrench.torque.x = 0.0
         self.pub_wrench.publish(stop)
         return outcome
 
     def _abort_on_shutdown(self):
-        rospy.logwarn("ROLL_TWO_TIMES: ROS shutdown detected → aborting state")
+        get_node().get_logger().warning(
+            "ROLL_TWO_TIMES: ROS shutdown detected → aborting state"
+        )
         return self._stop_and("aborted")
 
 

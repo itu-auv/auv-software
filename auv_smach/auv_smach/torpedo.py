@@ -1,10 +1,12 @@
 from .initialize import *
 import smach
 import smach_ros
-from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
+from std_srvs.srv import SetBool, Trigger
 import math
 
-import rospy
+import rclpy
+from auv_common_lib.ros import service_client, get_node, ROSException
+from rclpy.duration import Duration
 
 from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
@@ -34,9 +36,10 @@ class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_transform_torpedo_target_frame",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -44,9 +47,10 @@ class TorpedoRealsenseTargetFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_transform_torpedo_realsense_target_frame",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -54,9 +58,10 @@ class DA3PublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "enable_da3_publisher",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -79,10 +84,9 @@ class ResolveTorpedoClosestFrameState(smach.State):
             return [TORPEDO_PRIORITY_DA3, TORPEDO_PRIORITY_REALSENSE]
 
         if priority != TORPEDO_PRIORITY_REALSENSE:
-            rospy.logwarn(
-                "Unknown torpedo_priority '%s'. Falling back to '%s'.",
-                self.torpedo_priority,
-                TORPEDO_PRIORITY_REALSENSE,
+            get_node().get_logger().warning(
+                "Unknown torpedo_priority '%s'. Falling back to '%s'."
+                % (self.torpedo_priority, TORPEDO_PRIORITY_REALSENSE)
             )
         return [TORPEDO_PRIORITY_REALSENSE, TORPEDO_PRIORITY_DA3]
 
@@ -93,18 +97,17 @@ class ResolveTorpedoClosestFrameState(smach.State):
         wait_timeout: float = 2.0,
     ) -> bool:
         try:
-            rospy.wait_for_service(service_name, timeout=wait_timeout)
-            set_enabled = rospy.ServiceProxy(service_name, SetBool)
-            response = set_enabled(SetBoolRequest(data=enabled))
+            set_enabled = service_client(get_node(), SetBool, service_name)
+            set_enabled.wait_for_service(timeout=wait_timeout)
+            response = set_enabled(SetBool.Request(data=enabled))
             if not response.success:
-                rospy.logerr(
-                    "Service %s returned success=False: %s",
-                    service_name,
-                    response.message,
+                get_node().get_logger().error(
+                    "Service %s returned success=False: %s"
+                    % (service_name, response.message)
                 )
             return response.success
-        except (rospy.ROSException, rospy.ServiceException) as exc:
-            rospy.logerr("Failed to call %s: %s", service_name, exc)
+        except (ROSException, Exception) as exc:
+            get_node().get_logger().error("Failed to call %s: %s" % (service_name, exc))
             return False
 
     def _set_method_enabled(
@@ -141,26 +144,27 @@ class ResolveTorpedoClosestFrameState(smach.State):
 
         outcome = checker.execute(None)
         if outcome == "succeeded" and method == TORPEDO_PRIORITY_REALSENSE:
-            rospy.loginfo(
+            get_node().get_logger().info(
                 "Realsense transform found. Waiting for 5.0s to let it publish and settle..."
             )
-            start_sleep = rospy.Time.now()
-            while not rospy.is_shutdown():
+            start_sleep = get_node().get_clock().now()
+            while rclpy.ok():
                 if self.preempt_requested():
                     self.service_preempt()
                     return "preempted"
-                if (rospy.Time.now() - start_sleep).to_sec() >= 5.0:
+                if (
+                    get_node().get_clock().now() - start_sleep
+                ).nanoseconds / 1e9 >= 5.0:
                     break
-                rospy.sleep(0.1)
+                get_node().get_clock().sleep_for(Duration(seconds=0.1))
 
         return outcome
 
     def execute(self, userdata):
         methods = self._ordered_methods()
-        rospy.loginfo(
-            "Torpedo closest frame priority: %s, fallback: %s",
-            methods[0],
-            methods[1],
+        get_node().get_logger().info(
+            "Torpedo closest frame priority: %s, fallback: %s"
+            % (methods[0], methods[1])
         )
 
         self._set_all_methods_enabled(False)
@@ -181,17 +185,21 @@ class ResolveTorpedoClosestFrameState(smach.State):
                     outcome = "preempted"
                     break
 
-                rospy.loginfo("Trying torpedo closest frame source: %s", method)
+                get_node().get_logger().info(
+                    "Trying torpedo closest frame source: %s" % (method,)
+                )
                 if not self._set_method_enabled(method, True):
-                    rospy.logerr(
-                        "Could not enable torpedo closest frame source: %s", method
+                    get_node().get_logger().error(
+                        "Could not enable torpedo closest frame source: %s" % (method,)
                     )
                     continue
 
                 frame_outcome = self._check_for_closest_frame(method)
 
                 if frame_outcome == "succeeded":
-                    rospy.loginfo("Using torpedo closest frame source: %s", method)
+                    get_node().get_logger().info(
+                        "Using torpedo closest frame source: %s" % (method,)
+                    )
                     outcome = "succeeded"
                     chosen_method = method
                     # If we used realsense, disable it now. If da3, keep it active.
@@ -221,9 +229,10 @@ class TorpedoFireFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             "set_transform_torpedo_hole_target_frame",
             SetBool,
-            request=SetBoolRequest(data=req),
+            request=SetBool.Request(data=req),
         )
 
 
@@ -231,9 +240,10 @@ class LaunchTorpedoState(smach_ros.ServiceState):
     def __init__(self, id: int):
         smach_ros.ServiceState.__init__(
             self,
+            get_node(),
             f"torpedo_{id}/launch",
             Trigger,
-            request=TriggerRequest(),
+            request=Trigger.Request(),
         )
 
 
@@ -654,17 +664,21 @@ class TorpedoTaskState(smach.State):
     def _disable_da3_pipeline(self):
         service_name = TORPEDO_CLOSEST_METHOD_SERVICES[TORPEDO_PRIORITY_DA3]
         try:
-            rospy.wait_for_service(service_name, timeout=1.0)
-            response = rospy.ServiceProxy(service_name, SetBool)(
-                SetBoolRequest(data=False)
+            service_client(get_node(), SetBool, service_name).wait_for_service(
+                timeout=1.0
+            )
+            response = service_client(get_node(), SetBool, service_name)(
+                SetBool.Request(data=False)
             )
             if not response.success:
-                rospy.logerr(
-                    "DA3 pipeline cleanup returned success=False: %s",
-                    response.message,
+                get_node().get_logger().error(
+                    "DA3 pipeline cleanup returned success=False: %s"
+                    % (response.message,)
                 )
-        except (rospy.ROSException, rospy.ServiceException) as exc:
-            rospy.logerr("Failed to disable DA3 pipeline during cleanup: %s", exc)
+        except (ROSException, Exception) as exc:
+            get_node().get_logger().error(
+                "Failed to disable DA3 pipeline during cleanup: %s" % (exc,)
+            )
 
     def execute(self, userdata):
         try:

@@ -3,6 +3,7 @@ import threading
 import rclpy
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.duration import Duration
 from rclpy.exceptions import ROSInterruptException
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
@@ -124,12 +125,35 @@ def wait_for_service(proxy, timeout=None):
     proxy.wait_for_service(timeout)
 
 
-def wait_for_message(node, topic, msg_type, timeout=None):
+class Rate:
+    """rospy.Rate. Unlike node.create_rate() it owns no timer, so making one per
+    state execution or per call leaks nothing."""
+
+    def __init__(self, node, hz):
+        self.clock = node.get_clock()
+        self.period = Duration(seconds=1.0 / hz)
+        self.deadline = self.clock.now() + self.period
+
+    def sleep(self):
+        if not rclpy.ok() or not self.clock.sleep_until(self.deadline):
+            if not rclpy.ok():
+                raise ROSInterruptException()
+        now = self.clock.now()
+        self.deadline = self.deadline + self.period
+        if self.deadline < now:  # fell behind (or time jumped): start over from now
+            self.deadline = now + self.period
+
+
+def wait_for_message(node, topic, msg_type, timeout=None, latched=False):
     """rospy.wait_for_message: raises ROSException on timeout."""
     from rclpy.wait_for_message import wait_for_message as wait
 
     received, msg = wait(
-        msg_type, node, topic, time_to_wait=-1 if timeout is None else timeout
+        msg_type,
+        node,
+        topic,
+        qos_profile=latched_qos() if latched else 1,
+        time_to_wait=-1 if timeout is None else timeout,
     )
     if not received:
         raise ROSException(f"timeout waiting for a message on {topic}")

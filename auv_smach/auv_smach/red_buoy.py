@@ -2,23 +2,19 @@ from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
+import rclpy
+from auv_common_lib.ros import get_param, service_client, get_node, Rate
+from rclpy.duration import Duration
+from rclpy.time import Time
+from std_srvs.srv import SetBool
+from std_srvs.srv import Trigger
+from robot_localization.srv import SetPose
+from auv_msgs.srv import SetObjectTransform, AlignFrameController
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped, PointStamped
 import tf2_ros
 import numpy as np
-import tf.transformations as transformations
+import tf_transformations as transformations
 import tf2_geometry_msgs
 
 from auv_smach.common import (
@@ -43,11 +39,15 @@ class RotateAroundCenterState(smach.State):
         self.radius = radius
         self.direction = direction
         self.tf_buffer = get_tf_buffer()
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.rate = rospy.Rate(10)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(get_node())
+        self.rate = Rate(get_node(), 10)
 
-        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = (
+            0.8  # get_param(get_node(), "/smach/max_linear_velocity")
+        )
+        self.angular_velocity = (
+            0.8  # get_param(get_node(), "/smach/max_angular_velocity")
+        )
 
     def execute(self, userdata):
         try:
@@ -55,8 +55,8 @@ class RotateAroundCenterState(smach.State):
             center_to_base_transform = self.tf_buffer.lookup_transform(
                 self.center_frame,
                 self.base_frame,
-                rospy.Time(0),
-                rospy.Duration(100000.0),
+                Time(),
+                Duration(seconds=100000.0),
             )
 
             # Calculate the initial angle from the center to the base
@@ -96,7 +96,7 @@ class RotateAroundCenterState(smach.State):
 
                 # Broadcast the new transform relative to center_frame
                 t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
+                t.header.stamp = get_node().get_clock().now().to_msg()
                 t.header.frame_id = self.center_frame
                 t.child_frame_id = self.target_frame
                 t.transform.translation.x = interp_pos[0]
@@ -117,7 +117,7 @@ class RotateAroundCenterState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup exception: {e}")
+            get_node().get_logger().warning(f"TF lookup exception: {e}")
             return "aborted"
 
 
@@ -129,10 +129,10 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.target_frame = target_frame
         self.radius = radius
         self.tf_buffer = get_tf_buffer()
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.rate = rospy.Rate(10)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(get_node())
+        self.rate = Rate(get_node(), 10)
+        self.set_object_transform_service = service_client(
+            get_node(), SetObjectTransform, "set_object_transform"
         )
 
     def execute(self, userdata):
@@ -141,8 +141,8 @@ class SetRedBuoyRotationStartFrame(smach.State):
             center_to_base_transform = self.tf_buffer.lookup_transform(
                 self.center_frame,
                 self.base_frame,
-                rospy.Time(0),
-                rospy.Duration(10000.0),
+                Time(),
+                Duration(seconds=10000.0),
             )
 
             # Calculate the position from the center to the base
@@ -165,7 +165,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
 
             # Lookup the transform from odom to center_frame
             # odom_to_center_transform = self.tf_buffer.lookup_transform(
-            #     "odom", self.center_frame, rospy.Time(0), rospy.Duration(1.0)
+            #     "odom", self.center_frame, Time(), rospy.Duration(1.0)
             # )
 
             # Convert the calculated position to a PointStamped in the center_frame
@@ -181,7 +181,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
 
             # Create the TransformStamped message for odom -> target_frame
             t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
+            t.header.stamp = get_node().get_clock().now().to_msg()
             t.header.frame_id = "odom"
             t.child_frame_id = self.target_frame
             t.transform.translation.x = point_in_odom.point.x
@@ -192,17 +192,23 @@ class SetRedBuoyRotationStartFrame(smach.State):
             t.transform.rotation.z = quaternion[2]
             t.transform.rotation.w = quaternion[3]
 
-            rospy.loginfo(f"Transform from odom to {self.target_frame}: {t}")
+            get_node().get_logger().info(
+                f"Transform from odom to {self.target_frame}: {t}"
+            )
 
             # Call the set_object_transform service
-            req = SetObjectTransformRequest()
+            req = SetObjectTransform.Request()
             req.transform = t
             res = self.set_object_transform_service(req)
 
             if res.success:
-                rospy.loginfo(f"SetObjectTransform succeeded: {res.message}")
+                get_node().get_logger().info(
+                    f"SetObjectTransform succeeded: {res.message}"
+                )
             else:
-                rospy.logwarn(f"SetObjectTransform failed: {res.message}")
+                get_node().get_logger().warning(
+                    f"SetObjectTransform failed: {res.message}"
+                )
 
             return "succeeded" if res.success else "aborted"
 
@@ -211,10 +217,10 @@ class SetRedBuoyRotationStartFrame(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup exception: {e}")
+            get_node().get_logger().warning(f"TF lookup exception: {e}")
             return "aborted"
-        except rospy.ServiceException as e:
-            rospy.logwarn(f"Service call failed: {e}")
+        except Exception as e:
+            get_node().get_logger().warning(f"Service call failed: {e}")
             return "aborted"
 
 

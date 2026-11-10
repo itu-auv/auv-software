@@ -2,7 +2,8 @@
 <launch>
   <arg name="namespace" default="taluy"/>
 
-  <group ns="$(arg namespace)">
-    <node name="smach_parameters_server" pkg="auv_bringup" type="smach_params_server.py" output="screen"/>
+  <group>
+    <push_ros_namespace namespace="$(var namespace)" />
+    <node name="smach_parameters_server" pkg="auv_bringup" exec="smach_params_server.py" output="screen"/>
   </group>
 </launch>

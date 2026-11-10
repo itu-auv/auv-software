@@ -5,25 +5,31 @@
   <arg name="verbose" default="false"/>
   <arg name="pub_camera_info" default="true"/>
 
-  <group ns="$(arg namespace)/cameras">
-    <rosparam command="load" file="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
-  </group>
 
-  <group ns="$(arg namespace)/cameras/cam_front">
-    <node name="cam_front_depthai" pkg="auv_cam" type="oak_cam.py" output="screen"/>
+  <group>
+    <push_ros_namespace namespace="$(var namespace)/cameras/cam_front" />
+    <!-- named after its section in the cameras file -->
+    <node name="cam_front" pkg="auv_cam" exec="oak_cam.py" output="screen">
+      <param from="$(find-pkg-share auv_bringup)/config/cameras_$(var namespace).yaml" />
+    </node>
     <!-- image_transport publishes image_raw/compressed automatically in c++ -->
-    <node if="$(arg compressed)" name="republish_raw" pkg="image_transport" type="republish" args="raw in:=image_raw compressed out:=image_raw"/>
+    <node if="$(var compressed)" name="republish_raw" pkg="image_transport" exec="republish">
+      <param name="in_transport" value="raw" />
+      <param name="out_transport" value="compressed" />
+      <remap from="in" to="image_raw" />
+      <remap from="out/compressed" to="image_raw/compressed" />
+    </node>
   </group>
-  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
-    <arg name="camera_namespace" value="$(arg namespace)/cameras/cam_front" />
+  <include file="$(find-pkg-share auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(var namespace)/cameras/cam_front" />
   </include>
 
-  <!-- <include file="$(find auv_cam)/launch/start_gst_camera.launch">
-    <arg name="namespace" value="$(arg namespace)"/>
-    <arg name="compressed" value="$(arg compressed)"/>
-    <arg name="verbose" value="$(arg verbose)"/>
+  <!-- <include file="$(find-pkg-share auv_cam)/launch/start_gst_camera.launch">
+    <arg name="namespace" value="$(var namespace)"/>
+    <arg name="compressed" value="$(var compressed)"/>
+    <arg name="verbose" value="$(var verbose)"/>
     <arg name="name" value="cam_bottom"/>
-    <arg name="pub_camera_info" value="$(arg pub_camera_info)"/>
+    <arg name="pub_camera_info" value="$(var pub_camera_info)"/>
   </include> -->
 
 </launch>

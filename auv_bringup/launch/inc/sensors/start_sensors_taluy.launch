@@ -5,24 +5,24 @@
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
 
   <!-- launch xsens driver -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
+  <include file="$(find-pkg-share auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="control_rate" value="$(var control_rate)" />
     <arg name="port" value="/dev/auv_imu" />
   </include>
 
-  <include file="$(find auv_hydrophone)/launch/start_hydrophone_tdoa_to_angle.launch">
-    <arg name="namespace" value="$(arg namespace)" />
+  <include file="$(find-pkg-share auv_hydrophone)/launch/start_hydrophone_tdoa_to_angle.launch">
+    <arg name="namespace" value="$(var namespace)" />
   </include>
 
   <!-- launch dvl driver -->
-  <include file="$(find auv_wayfinder_dvl)/launch/start_wayfinder_dvl.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="port" value="$(arg dvl_virtual_port)" />
+  <include file="$(find-pkg-share auv_wayfinder_dvl)/launch/start_wayfinder_dvl.launch">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="port" value="$(var dvl_virtual_port)" />
   </include>
 
   <!-- launch cameras -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras_taluy.launch">
-    <arg name="namespace" value="$(arg namespace)" />
+  <include file="$(find-pkg-share auv_bringup)/launch/inc/sensors/start_cameras_taluy.launch">
+    <arg name="namespace" value="$(var namespace)" />
   </include>
 </launch>
