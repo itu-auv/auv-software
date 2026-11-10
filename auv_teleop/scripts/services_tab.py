@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import service_client, get_node, ROSException
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,90 +15,87 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from std_msgs.msg import Bool
-from std_srvs.srv import (
-    Empty,
-    EmptyRequest,
-    Trigger,
-    TriggerRequest,
-    SetBool,
-    SetBoolRequest,
-)
-from auv_msgs.srv import SetDepth, SetDepthRequest
+from std_srvs.srv import Empty, Trigger, SetBool
+from auv_msgs.srv import SetDepth
 
 
 class ROSServiceCaller:
     def _call_trigger_service(self, service_name):
         try:
-            rospy.wait_for_service(service_name, timeout=1)
-            trigger_service = rospy.ServiceProxy(service_name, Trigger)
-            response = trigger_service(TriggerRequest())
+            trigger_service = service_client(get_node(), Trigger, service_name)
+            trigger_service.wait_for_service(timeout=1)
+            response = trigger_service(Trigger.Request())
             if not response.success:
                 print(f"{service_name} failed: {response.message}")
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"{service_name} call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"{service_name} not available: {e}")
             return False
 
     def set_depth(self, target_depth):
         try:
-            rospy.wait_for_service("set_depth", timeout=1)
-            set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
-            request = SetDepthRequest()
+            set_depth_service = service_client(get_node(), SetDepth, "set_depth")
+            set_depth_service.wait_for_service(timeout=1)
+            request = SetDepth.Request()
             request.target_depth = target_depth
             response = set_depth_service(request)
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def calibrate_imu(self, duration):
         try:
-            rospy.wait_for_service("calibrate_imu", timeout=1)
-            from auv_msgs.srv import CalibrateIMU, CalibrateIMURequest
+            from auv_msgs.srv import CalibrateIMU
 
-            calibrate_service = rospy.ServiceProxy("calibrate_imu", CalibrateIMU)
-            request = CalibrateIMURequest()
+            calibrate_service = service_client(
+                get_node(), CalibrateIMU, "calibrate_imu"
+            )
+            calibrate_service.wait_for_service(timeout=1)
+            request = CalibrateIMU.Request()
             request.duration = float(duration)
             response = calibrate_service(request)
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except (rospy.ROSException, ImportError) as e:
+        except (ROSException, ImportError) as e:
             print(f"Service not available or import error: {e}")
             return False
 
     def start_localization(self):
         try:
-            rospy.wait_for_service("localization_enable", timeout=1)
-            localization_service = rospy.ServiceProxy("localization_enable", Empty)
-            localization_service(EmptyRequest())
+            localization_service = service_client(
+                get_node(), Empty, "localization_enable"
+            )
+            localization_service.wait_for_service(timeout=1)
+            localization_service(Empty.Request())
             return True
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def enable_dvl(self):
         try:
-            rospy.wait_for_service("dvl/enable", timeout=1)
-            dvl_service = rospy.ServiceProxy("dvl/enable", SetBool)
-            request = SetBoolRequest()
+            dvl_service = service_client(get_node(), SetBool, "dvl/enable")
+            dvl_service.wait_for_service(timeout=1)
+            request = SetBool.Request()
             request.data = True
             response = dvl_service(data=True)
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
@@ -112,92 +110,100 @@ class ROSServiceCaller:
 
     def cancel_alignment(self):
         try:
-            rospy.wait_for_service("align_frame/cancel", timeout=1)
-            cancel_alignment_service = rospy.ServiceProxy("align_frame/cancel", Trigger)
-            response = cancel_alignment_service(TriggerRequest())
+            cancel_alignment_service = service_client(
+                get_node(), Trigger, "align_frame/cancel"
+            )
+            cancel_alignment_service.wait_for_service(timeout=1)
+            response = cancel_alignment_service(Trigger.Request())
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def disable_dvl(self):
         try:
-            rospy.wait_for_service("dvl/enable", timeout=1)
-            dvl_service = rospy.ServiceProxy("dvl/enable", SetBool)
-            request = SetBoolRequest()
+            dvl_service = service_client(get_node(), SetBool, "dvl/enable")
+            dvl_service.wait_for_service(timeout=1)
+            request = SetBool.Request()
             request.data = False
             response = dvl_service(data=False)
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def reset_pose(self):
         try:
-            rospy.wait_for_service("reset_odometry", timeout=1)
-            reset_odometry_service = rospy.ServiceProxy("reset_odometry", Trigger)
-            response = reset_odometry_service(TriggerRequest())
+            reset_odometry_service = service_client(
+                get_node(), Trigger, "reset_odometry"
+            )
+            reset_odometry_service.wait_for_service(timeout=1)
+            response = reset_odometry_service(Trigger.Request())
             return response.success, response.message
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False, str(e)
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False, str(e)
 
     def drop_ball(self):
         try:
-            rospy.wait_for_service("ball_dropper/drop", timeout=1)
-            ball_dropper_service = rospy.ServiceProxy("ball_dropper/drop", Trigger)
-            response = ball_dropper_service(TriggerRequest())
+            ball_dropper_service = service_client(
+                get_node(), Trigger, "ball_dropper/drop"
+            )
+            ball_dropper_service.wait_for_service(timeout=1)
+            response = ball_dropper_service(Trigger.Request())
             if response.success:
                 print("Ball dropped successfully")
             else:
                 print(f"Failed to drop ball: {response.message}")
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def launch_torpedo(self, torpedo_id):
         service_name = f"{torpedo_id}/launch"
         try:
-            rospy.wait_for_service(service_name, timeout=1)
-            torpedo_service = rospy.ServiceProxy(service_name, Trigger)
-            response = torpedo_service(TriggerRequest())
+            torpedo_service = service_client(get_node(), Trigger, service_name)
+            torpedo_service.wait_for_service(timeout=1)
+            response = torpedo_service(Trigger.Request())
             if response.success:
                 print(f"{torpedo_id.capitalize()} launched successfully")
             else:
                 print(f"Failed to launch {torpedo_id}: {response.message}")
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 
     def enable_all_detections(self, enable):
         try:
-            rospy.wait_for_service("vision/enable_all_camera_detections", timeout=1)
-            service = rospy.ServiceProxy("vision/enable_all_camera_detections", SetBool)
-            request = SetBoolRequest()
+            service = service_client(
+                get_node(), SetBool, "vision/enable_all_camera_detections"
+            )
+            service.wait_for_service(timeout=1)
+            request = SetBool.Request()
             request.data = enable
             response = service(request)
             return response.success
-        except rospy.ServiceException as e:
+        except Exception as e:
             print(f"Service call failed: {e}")
             return False
-        except rospy.ROSException as e:
+        except ROSException as e:
             print(f"Service not available: {e}")
             return False
 

@@ -12,7 +12,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 import subprocess
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node, Rate
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import threading
@@ -22,8 +23,8 @@ import time
 class VehicleControlTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
+        self.cmd_vel_pub = get_node().create_publisher(Twist, "cmd_vel", 10)
+        self.enable_pub = get_node().create_publisher(Bool, "enable", 10)
 
         self.init_ui()
         self.publishing = False
@@ -144,7 +145,7 @@ class VehicleControlTab(QWidget):
         return self.angular_speed_spinbox.value()
 
     def start_teleop(self):
-        cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
+        cmd = ["ros2", "launch", "auv_teleop", "start_teleop.launch"]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")
@@ -164,8 +165,8 @@ class VehicleControlTab(QWidget):
             print("No teleop process to stop.")
 
     def publish_velocity_loop(self):
-        rate = rospy.Rate(20)
-        while self.publishing and not rospy.is_shutdown():
+        rate = Rate(get_node(), 20)
+        while self.publishing and rclpy.ok():
             self.cmd_vel_pub.publish(self.current_twist)
             rate.sleep()
 
@@ -200,8 +201,8 @@ class VehicleControlTab(QWidget):
         self.cmd_vel_pub.publish(self.current_twist)
 
     def publish_control_enable_loop(self):
-        rate = rospy.Rate(20)
-        while self.enable_publishing and not rospy.is_shutdown():
+        rate = Rate(get_node(), 20)
+        while self.enable_publishing and rclpy.ok():
             self.enable_pub.publish(True)
             rate.sleep()
 

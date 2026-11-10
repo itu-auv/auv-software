@@ -1,32 +1,32 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
-  <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
+  <arg name="imu_topic" default="$(eval &quot;'/vectornav/IMU' if '$(var namespace)' == 'taluy_mini' else 'sensors/imu/data'&quot;)" />
+  <arg name="dvl_is_valid_topic" default="$(eval &quot;'dvl/is_valid' if '$(var namespace)' == 'taluy_mini' else 'sensors/dvl/is_valid'&quot;)" />
 
-    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
-        <remap from="set_depth" to="$(arg namespace)/set_depth"/>
-        <remap from="localization_enable" to="$(arg namespace)/auv_localization_node/enable"/>
-        <remap from="dvl/enable" to="$(arg namespace)/sensors/dvl/enable"/>
-        <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
-        <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
-        <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
-        <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
-        <remap from="enable" to="$(arg namespace)/enable"/>
-        <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
-        <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
-        <remap from="kde_map/clear" to="$(arg namespace)/map/kde_map/clear"/>
-      <remap from="power" to="$(arg namespace)/mainboard/power_sensor/power" />
+    <node name="taluy_gui" pkg="auv_teleop" exec="taluy_gui.py" output="screen">
+        <remap from="set_depth" to="$(var namespace)/set_depth"/>
+        <remap from="localization_enable" to="$(var namespace)/auv_localization_node/enable"/>
+        <remap from="dvl/enable" to="$(var namespace)/sensors/dvl/enable"/>
+        <remap from="ball_dropper/drop" to="$(var namespace)/actuators/ball_dropper/drop"/>
+        <remap from="torpedo_1/launch" to="$(var namespace)/actuators/torpedo_1/launch"/>
+        <remap from="torpedo_2/launch" to="$(var namespace)/actuators/torpedo_2/launch"/>
+        <remap from="cmd_vel" to="$(var namespace)/cmd_vel"/>
+        <remap from="enable" to="$(var namespace)/enable"/>
+        <remap from="drive_pulse" to="$(var namespace)/board/drive_pulse"/>
+        <remap from="clear_object_transforms" to="$(var namespace)/map/clear_object_transforms"/>
+        <remap from="kde_map/clear" to="$(var namespace)/map/kde_map/clear"/>
+      <remap from="power" to="$(var namespace)/mainboard/power_sensor/power" />
 
-        <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
-        <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
-        <remap from="calibrate_imu" to="$(arg namespace)/calibrate_imu"/>
-        <remap from="vision/enable_all_camera_detections" to="$(arg namespace)/vision/enable_all_camera_detections"/>
+        <remap from="align_frame/cancel" to="$(var namespace)/control/align_frame/cancel"/>
+        <remap from="reset_odometry" to="$(var namespace)/reset_odometry"/>
+        <remap from="calibrate_imu" to="$(var namespace)/calibrate_imu"/>
+        <remap from="vision/enable_all_camera_detections" to="$(var namespace)/vision/enable_all_camera_detections"/>
 
-        <param name="topic_imu" value="$(arg namespace)/$(arg imu_topic)" />
-        <param name="topic_dvl_validity" value="$(arg namespace)/$(arg dvl_is_valid_topic)" />
-        <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
-        <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
-        <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
+        <param name="topic_imu" value="$(var namespace)/$(var imu_topic)" />
+        <param name="topic_dvl_validity" value="$(var namespace)/$(var dvl_is_valid_topic)" />
+        <param name="topic_pressure" value="$(var namespace)/sensors/external_pressure_sensor/depth" />
+        <param name="topic_camera_bottom" value="$(var namespace)/cameras/cam_bottom/image_raw" />
+        <param name="topic_camera_front" value="$(var namespace)/cameras/cam_front/image_raw" />
     </node>
 </launch>

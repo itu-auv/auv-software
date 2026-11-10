@@ -4,7 +4,7 @@
 import cv2
 import numpy as np
 import rclpy
-from auv_common_lib.ros import get_param, latched_qos
+from auv_common_lib.ros import get_param, latched_qos, on_shutdown
 from auv_common_lib import ros
 from rclpy.node import Node
 import zmq
@@ -64,7 +64,7 @@ class DepthAnythingNode(Node):
                 PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1),
             ]
 
-        rclpy.get_default_context().on_shutdown(self.cleanup)
+        on_shutdown(self.cleanup)
 
         if not self._ping_server():
             self.get_logger().warning(

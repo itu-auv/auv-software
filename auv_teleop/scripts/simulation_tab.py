@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 import subprocess
-import rospy
+import rclpy
 from std_msgs.msg import Bool
 
 
@@ -80,7 +80,7 @@ class SimulationTab(QWidget):
                 cb.setChecked(False)
 
     def start_detection(self):
-        cmd = ["roslaunch", "auv_detection", "tracker.launch", "device:=cpu"]
+        cmd = ["ros2", "launch", "auv_detection", "tracker.launch", "device:=cpu"]
         print(f"Executing: {' '.join(cmd)}")
         self.detect_process = subprocess.Popen(cmd)
 
@@ -98,7 +98,7 @@ class SimulationTab(QWidget):
             print("No detection process to stop.")
 
     def start_smach(self):
-        cmd = ["roslaunch", "auv_smach", "start.launch"]
+        cmd = ["ros2", "launch", "auv_smach", "start.launch"]
         if self.test_check.isChecked():
             states = ",".join(
                 [s for s, cb in self.state_checks.items() if cb.isChecked()]

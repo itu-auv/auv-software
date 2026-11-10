@@ -1,3 +1,4 @@
+import signal
 import threading
 
 import rclpy
@@ -7,6 +8,7 @@ from rclpy.duration import Duration
 from rclpy.exceptions import ROSInterruptException
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.signals import SignalHandlerOptions
 
 _UNSET = object()
 
@@ -78,7 +80,11 @@ class ROSException(Exception):
     pass
 
 
-class ServiceUnavailable(ROSException):
+class ServiceException(Exception):
+    pass
+
+
+class ServiceUnavailable(ROSException, ServiceException):
     pass
 
 
@@ -160,6 +166,15 @@ def wait_for_message(node, topic, msg_type, timeout=None, latched=False):
     return msg
 
 
+_shutdown_hooks = []
+
+
+def on_shutdown(callback):
+    """rospy.on_shutdown: `callback` runs when spin() ends, while the node can still
+    publish and call services."""
+    _shutdown_hooks.append(callback)
+
+
 def spin(node, loop=None):
     """Run a node until shutdown, then clean up.
 
@@ -185,6 +200,11 @@ def spin(node, loop=None):
     except (KeyboardInterrupt, ExternalShutdownException, ROSInterruptException):
         pass
     finally:
+        for hook in _shutdown_hooks:
+            try:
+                hook()
+            except Exception as error:
+                node.get_logger().error(f"shutdown hook failed: {error}")
         executor.shutdown(timeout_sec=1.0)
         if thread.is_alive():
             thread.join(2.0)  # a still-spinning thread aborts the process at exit
@@ -278,4 +298,11 @@ def init(args=None):
             self, coerce(response), header
         )
         Publisher._auv_lenient = True
-    rclpy.init(args=args)
+
+    # Ctrl-C and SIGTERM end spin() with the node still usable, so shutdown hooks
+    # and `finally` blocks can talk to ROS (rclpy's own handlers shut down first).
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt()
+
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    signal.signal(signal.SIGTERM, interrupt)

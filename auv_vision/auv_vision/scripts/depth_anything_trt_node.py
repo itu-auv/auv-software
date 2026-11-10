@@ -11,7 +11,7 @@ from typing import Tuple
 import cv2
 import numpy as np
 import rclpy
-from auv_common_lib.ros import get_param, latched_qos
+from auv_common_lib.ros import get_param, latched_qos, on_shutdown
 from auv_common_lib import ros
 from rclpy.node import Node
 import tensorrt as trt
@@ -175,7 +175,7 @@ class DepthAnythingTRTNode(Node):
         if self.scaled_intrinsics:
             self._publish_scaled_camera_info()
 
-        rclpy.get_default_context().on_shutdown(self.cleanup)
+        on_shutdown(self.cleanup)
         self.get_logger().info(f"[DA3-TRT] Ready, rate={self.rate_hz}Hz")
 
     def _compute_scaled_intrinsics(self) -> dict:
