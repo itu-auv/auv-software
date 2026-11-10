@@ -3,8 +3,8 @@ import datetime
 
 import dvl.dvl
 import rclpy
+from auv_common_lib.ros import get_param, Rate
 from auv_common_lib import ros
-from auv_common_lib.ros import get_param
 from rclpy.node import Node
 from rclpy.duration import Duration
 import dvl
@@ -60,7 +60,7 @@ class WayfinderNode(Node):
             timeout = np.inf
         self._initialize_dvl(port, baudrate, timeout)
 
-        self.rate = self.create_rate(rate)
+        self.rate = Rate(self, rate)
 
         self.pub_is_valid = self.create_publisher(std_msgs.msg.Bool, "is_valid", 1)
         self.pub_velocity_raw = self.create_publisher(

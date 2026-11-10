@@ -2,7 +2,7 @@
 
 import numpy as np
 import rclpy
-from auv_common_lib.ros import get_param, service_client
+from auv_common_lib.ros import get_param, service_client, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -312,7 +312,7 @@ class OctagonTransformServiceNode(Node):
         return SetBool.Response(success=True)
 
     def run(self):
-        rate = self.create_rate(10)  # 10 Hz
+        rate = Rate(self, 10)  # 10 Hz
         while rclpy.ok():
             if self.enable:
                 self.create_middle_basket_frame()

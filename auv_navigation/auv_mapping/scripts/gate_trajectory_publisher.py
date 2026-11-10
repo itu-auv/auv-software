@@ -4,7 +4,7 @@
 from typing import Tuple, Optional
 import math
 import rclpy
-from auv_common_lib.ros import get_param, service_client
+from auv_common_lib.ros import get_param, service_client, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -654,7 +654,7 @@ class TransformServiceNode(Node):
         return Trigger.Response(success=True, message=message)
 
     def _publish_gate_angle_loop(self):
-        rate = self.create_rate(10.0)
+        rate = Rate(self, 10.0)
         while rclpy.ok():
             if self.publish_gate_angle_enabled and self.gate_angle is not None:
                 self.gate_angle_publisher.publish(self.gate_angle)
@@ -665,7 +665,7 @@ class TransformServiceNode(Node):
         gate_angle_thread.daemon = True
         gate_angle_thread.start()
 
-        rate = self.create_rate(2.0)
+        rate = Rate(self, 2.0)
         while rclpy.ok():
             if self.is_enabled:
                 self.create_trajectory_frames()

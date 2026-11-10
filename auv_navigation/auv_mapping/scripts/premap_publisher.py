@@ -3,7 +3,7 @@
 import os
 import time
 import rclpy
-from auv_common_lib.ros import get_param
+from auv_common_lib.ros import get_param, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -437,7 +437,7 @@ class PremapPublisher(Node):
 
     def run(self):
         """Main loop: broadcast transforms at configured rate."""
-        rate = self.create_rate(self.rate_hz)
+        rate = Rate(self, self.rate_hz)
         while rclpy.ok():
             self.broadcast_transforms()
             rate.sleep()

@@ -4,7 +4,7 @@
 import cv2
 import numpy as np
 import rclpy
-from auv_common_lib.ros import get_param, latched_qos, on_shutdown
+from auv_common_lib.ros import get_param, latched_qos, Rate, on_shutdown
 from auv_common_lib import ros
 from rclpy.node import Node
 import zmq
@@ -260,7 +260,7 @@ class DepthAnythingNode(Node):
         self.point_cloud_pub.publish(cloud_msg)
 
     def run(self) -> None:
-        rate = self.create_rate(self.rate_hz)
+        rate = Rate(self, self.rate_hz)
 
         while rclpy.ok():
             if self.latest_image is None:

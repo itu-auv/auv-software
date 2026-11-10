@@ -3,8 +3,8 @@
 import depthai as dai
 import numpy as np
 import rclpy
+from auv_common_lib.ros import get_param, Rate
 from auv_common_lib import ros
-from auv_common_lib.ros import get_param
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
@@ -55,7 +55,7 @@ class OakCameraNode(Node):
         self.videoQueue = self.videoOut.createOutputQueue(maxSize=4, blocking=False)
 
         self.pipeline.start()
-        self.rate = self.create_rate(self.hz)
+        self.rate = Rate(self, self.hz)
 
     def _build_camera_info(self):
         msg = CameraInfo()

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import threading
 import rclpy
+from auv_common_lib.ros import get_param, Rate
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from auv_common_lib import ros
-from auv_common_lib.ros import get_param
 import tf2_ros
 from typing import List, Optional
 
@@ -33,7 +33,7 @@ class FollowPathActionServer(Node):
             self, "~completion_yaw_threshold", 0.4
         )
         self.source_frame: str = get_param(self, "~source_frame", "taluy/base_link")
-        self.loop_rate = self.create_rate(get_param(self, "~loop_rate", 20))
+        self.loop_rate = Rate(self, get_param(self, "~loop_rate", 20))
 
         self.path_pub = self.create_publisher(Path, "target_path", 1)
         self.path_sub = self.create_subscription(Path, "/planned_path", self.path_cb, 1)

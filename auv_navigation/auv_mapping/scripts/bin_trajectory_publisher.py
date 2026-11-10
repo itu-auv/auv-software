@@ -4,7 +4,7 @@ import numpy as np
 
 from typing import Tuple
 import rclpy
-from auv_common_lib.ros import get_param, service_client
+from auv_common_lib.ros import get_param, service_client, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -343,7 +343,7 @@ class BinTransformServiceNode(Node):
         return SetBool.Response(success=True, message=message)
 
     def spin(self):
-        rate = self.create_rate(5.0)
+        rate = Rate(self, 5.0)
         while rclpy.ok():
             if self.enable:
                 self.create_bin_frames()

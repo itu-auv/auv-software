@@ -7,9 +7,10 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnShutdown
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.conditions import IfCondition
+from launch.launch_description_sources import AnyLaunchDescriptionSource, PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 
 
 def start(context):
@@ -35,6 +36,27 @@ def start(context):
         path = Path(get_package_share_directory(package)) / 'launch' / filename
         return IncludeLaunchDescription(PythonLaunchDescriptionSource(str(path)), launch_arguments=arguments.items())
 
+    def include_xml(package, filename, arguments):
+        path = Path(get_package_share_directory(package)) / 'launch' / filename
+        return IncludeLaunchDescription(AnyLaunchDescriptionSource(str(path)), launch_arguments=arguments.items())
+
+    # What the ROS 1 start_gazebo.launch started on top of the simulator itself
+    # (start_bridge.launch -> start_navigation.launch, parameter server, monitor, GUIs).
+    description_share = Path(get_package_share_directory(f'{namespace}_description'))
+    application = [
+        include_xml('auv_mapping', 'start.launch',
+                    {'namespace': namespace, 'control_rate': '20.0', 'plane_fitter_sync_queue_size': '90'}),
+        include('auv_navigation', 'start.launch.py', {'namespace': namespace, 'use_sim_time': 'true'}),
+        include_xml('auv_vision', 'start.launch', {'namespace': namespace}),
+        include_xml('auv_bringup', 'param_server.launch', {'namespace': namespace}),
+        Node(package='auv_smach', executable='smach_monitor_node.py', name='smach_monitor_node', namespace=namespace, output='screen'),
+        IncludeLaunchDescription(
+            AnyLaunchDescriptionSource(str(Path(get_package_share_directory('auv_teleop')) / 'launch' / 'start_taluy_gui.launch')),
+            launch_arguments={'namespace': namespace}.items(), condition=IfCondition(LaunchConfiguration('use_taluy_gui'))),
+        Node(package='rviz2', executable='rviz2', name='rviz', arguments=['-d', str(description_share / 'rviz' / 'araba.rviz')],
+             condition=IfCondition(LaunchConfiguration('use_rviz'))),
+    ]
+
     camera_nodes = []
     for camera in (['front', 'bottom', 'torpedo'] if namespace == 'taluy' else ['front', 'bottom']):
         camera_namespace = f'/{namespace}/cameras/cam_{camera}'
@@ -47,7 +69,7 @@ def start(context):
             Node(package='image_proc', executable='rectify_node', namespace=camera_namespace,
                  parameters=[{'use_sim_time': True}], remappings=[('image', 'image_raw'), ('image_rect', 'image_rect_color')]),
         ])
-    return camera_nodes + [
+    return [SetParameter(name='use_sim_time', value=True)] + camera_nodes + [
         include('auv_sim_bringup', 'start_harmonic.launch.py',
                 {'namespace': namespace, 'world': world, 'gui': LaunchConfiguration('gui'),
                  'initial_z': LaunchConfiguration('initial_z')}),
@@ -64,6 +86,7 @@ def start(context):
              parameters=[str(root / 'ekf.yaml')], remappings=[('odometry/filtered', 'odometry'), ('accel/filtered', 'acceleration')], output='screen'),
         include('auv_control', 'start.launch.py',
                 {'namespace': namespace, 'use_sim_time': 'true', 'config_file': str(root / 'control.yaml')}),
+    ] + application + [
         RegisterEventHandler(OnShutdown(on_shutdown=[OpaqueFunction(function=lambda context: temporary.cleanup())])),
     ]
 
@@ -75,5 +98,7 @@ def generate_launch_description():
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
         DeclareLaunchArgument('pinger_mode', default_value='torpedo'),
+        DeclareLaunchArgument('use_taluy_gui', default_value=LaunchConfiguration('gui')),
+        DeclareLaunchArgument('use_rviz', default_value=LaunchConfiguration('gui')),
         OpaqueFunction(function=start),
     ])

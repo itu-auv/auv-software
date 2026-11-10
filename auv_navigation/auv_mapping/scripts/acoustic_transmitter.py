@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import rclpy
+from auv_common_lib.ros import Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from std_msgs.msg import UInt8
@@ -34,7 +35,7 @@ class AcousticTransmitterNode(Node):
             return SendAcoustic.Response(success=False, message=message)
 
     def spin(self):
-        rate = self.create_rate(0.2)
+        rate = Rate(self, 0.2)
 
         while rclpy.ok():
             if self.is_transmitting and self.data_to_transmit is not None:

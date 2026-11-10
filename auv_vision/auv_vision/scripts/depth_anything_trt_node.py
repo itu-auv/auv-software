@@ -11,7 +11,7 @@ from typing import Tuple
 import cv2
 import numpy as np
 import rclpy
-from auv_common_lib.ros import get_param, latched_qos, on_shutdown
+from auv_common_lib.ros import get_param, latched_qos, Rate, on_shutdown
 from auv_common_lib import ros
 from rclpy.node import Node
 import tensorrt as trt
@@ -368,7 +368,7 @@ class DepthAnythingTRTNode(Node):
 
     def run(self) -> None:
         """Main loop."""
-        rate = self.create_rate(self.rate_hz)
+        rate = Rate(self, self.rate_hz)
 
         while rclpy.ok():
             if self.latest_image is None:

@@ -17,5 +17,7 @@
   <exec_depend>taluy_description</exec_depend>
   <exec_depend>taluy_mini_description</exec_depend>
   <!-- <exec_depend>joint_state_publisher_gui</exec_depend> -->
-  <export/>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

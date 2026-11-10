@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import rclpy
-from auv_common_lib.ros import get_param, latched_qos
+from auv_common_lib.ros import get_param, latched_qos, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -454,7 +454,7 @@ class WaypointPublisher(Node):
         self.paths_pub.publish(String(data=json.dumps(data)))
 
     def run(self):
-        rate = self.create_rate(self.broadcast_rate_hz)
+        rate = Rate(self, self.broadcast_rate_hz)
         while rclpy.ok():
             self.broadcast_transforms()
             rate.sleep()

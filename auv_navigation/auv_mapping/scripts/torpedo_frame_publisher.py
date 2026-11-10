@@ -5,7 +5,7 @@ from tf_transformations import (
     quaternion_matrix,
 )
 import rclpy
-from auv_common_lib.ros import get_param, service_client
+from auv_common_lib.ros import get_param, service_client, Rate
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -434,7 +434,7 @@ class TorpedoTransformServiceNode(Node):
         return config
 
     def spin(self):
-        rate = self.create_rate(20)
+        rate = Rate(self, 20)
         while rclpy.ok():
             if self.enable_target:
                 self.create_target_frame()

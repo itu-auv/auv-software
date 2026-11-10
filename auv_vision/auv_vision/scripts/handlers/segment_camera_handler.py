@@ -14,7 +14,7 @@ from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String
 from ultralytics_ros.msg import YoloResult
 import tf2_ros
-from tf import transformations as tf_transformations
+import tf_transformations
 
 from utils.detection_utils import (
     calculate_angles_and_offsets,

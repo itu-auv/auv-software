@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import rclpy
+from auv_common_lib.ros import get_param, Rate
 from rclpy.node import Node
 from auv_common_lib import ros
-from auv_common_lib.ros import get_param
 import tf2_ros
 from nav_msgs.msg import Path
 from std_srvs.srv import Trigger
@@ -30,7 +30,7 @@ class PathPlannerNode(Node):
         self.stop_planning_service = self.create_service(
             Trigger, "/stop_planning", self.stop_planning_cb
         )
-        self.loop_rate = self.create_rate(get_param(self, "~loop_rate", 9))
+        self.loop_rate = Rate(self, get_param(self, "~loop_rate", 9))
         self.dynamic = True
         self.static_path = None
         self.get_logger().info("[path_planner_node] Path planner node started.")
