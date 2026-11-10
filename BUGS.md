@@ -327,3 +327,7 @@ Dead or broken leftovers:
   `objects:=torpedo,...` shortcuts for other start poses are not ported; pass the pose.)
 - Gazebo's 1 kHz `/clock` was bridged as is. **Fixed**: `clock_bridge` (see
   ROS2_PORT.md).
+- The Harmonic vehicle had no depth camera, so the torpedo task stopped at
+  `RESOLVE_TORPEDO_CLOSEST_FRAME`. **Fixed**: an `rgbd_camera` at the RealSense pose,
+  bridged to the topics the ROS 1 plugin published (`camera/color/*`, `camera/depth/*`,
+  `/points_filtered` via `depth_image_proc`).

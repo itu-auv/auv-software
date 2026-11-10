@@ -69,6 +69,23 @@ def start(context):
             Node(package='image_proc', executable='rectify_node', namespace=camera_namespace,
                  parameters=[{'use_sim_time': True}], remappings=[('image', 'image_raw'), ('image_rect', 'image_rect_color')]),
         ])
+    if namespace == 'taluy':
+        # RealSense: colour and depth images, and the cloud the ROS 1 plugin published
+        gz, ros = f'/model/{namespace}/realsense', f'/{namespace}/camera'
+        camera_nodes.extend([
+            Node(package='ros_gz_bridge', executable='parameter_bridge', name='realsense_bridge',
+                 arguments=[f'{gz}/image@sensor_msgs/msg/Image[gz.msgs.Image',
+                            f'{gz}/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
+                            f'{gz}/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'],
+                 remappings=[(f'{gz}/image', f'{ros}/color/image_raw'), (f'{gz}/depth_image', f'{ros}/depth/image_raw'),
+                             (f'{gz}/camera_info', f'{ros}/color/camera_info')]),
+            Node(package='ros_gz_bridge', executable='parameter_bridge', name='realsense_depth_info_bridge',
+                 arguments=[f'{gz}/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'],
+                 remappings=[(f'{gz}/camera_info', f'{ros}/depth/camera_info')]),
+            Node(package='depth_image_proc', executable='point_cloud_xyz_node', name='realsense_cloud',
+                 remappings=[('image_rect', f'{ros}/depth/image_raw'), ('camera_info', f'{ros}/depth/camera_info'),
+                             ('points', '/points_filtered')]),
+        ])
     return [SetParameter(name='use_sim_time', value=True)] + camera_nodes + [
         include('auv_sim_bringup', 'start_harmonic.launch.py',
                 {'namespace': namespace, 'world': world, 'gui': LaunchConfiguration('gui'),

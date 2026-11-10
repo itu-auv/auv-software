@@ -14,11 +14,21 @@ int main(int argc, char** argv) {
   auto node = std::make_shared<rclcpp::Node>("world_pose_bridge");
   const auto world = node->declare_parameter<std::string>("world", "pool");
   const auto topic = "/world/" + world + "/pose/info";
+  // Unpacking sixty transforms per message is slow in Python; 20 Hz of simulation
+  // time is plenty for projecting objects into camera images.
+  const auto period = node->declare_parameter<double>("period", 0.05);
   auto publisher = node->create_publisher<tf2_msgs::msg::TFMessage>(topic, 1);
+  double last = -1.0;
 
   gz::transport::Node gz_node;
   std::function<void(const gz::msgs::Pose_V&)> callback =
       [&](const gz::msgs::Pose_V& poses) {
+        const double sim_time = poses.header().stamp().sec() +
+                                1e-9 * poses.header().stamp().nsec();
+        if (sim_time >= last && sim_time - last < period) {
+          return;
+        }
+        last = sim_time;
         tf2_msgs::msg::TFMessage out;
         out.transforms.reserve(poses.pose_size());
         const auto stamp = node->now();
