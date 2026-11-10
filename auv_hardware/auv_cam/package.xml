@@ -6,16 +6,15 @@
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
-  <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>cv_bridge</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_export_depend>cv_bridge</build_export_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <exec_depend>cv_bridge</exec_depend>
-  <exec_depend>roscpp</exec_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>cv_bridge</depend>
   <depend>image_transport</depend>
-  <!-- The export tag contains other, unspecified, tags -->
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <exec_depend>image_proc</exec_depend>
+  <exec_depend>image_transport_plugins</exec_depend>
+  <exec_depend>rclpy</exec_depend>
   <export>
-    <!-- Other tools can request additional information be placed here -->
+    <build_type>ament_cmake</build_type>
   </export>
 </package>

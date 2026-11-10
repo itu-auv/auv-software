@@ -66,3 +66,14 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   does not exist; the node only starts when the launch file passes the real path.
 - `yolo_result_bridge` and the tracker launch files use absolute topic names
   (`/yolo_result_*`, `/yolo_detections*`), so two vehicles cannot share a network.
+
+## Hardware
+
+- `auv_cam` (`auv_camera_ros.cpp`, `rtsp_camera_ros.cpp`): when the camera cannot be
+  opened the code builds a `std::runtime_error` but never throws it, so the node
+  carries on and exits on the first empty frame instead.
+- `start_rtsp_camera.launch` passes `buffer_mode`, `drop_on_latency`,
+  `reconnect_interval_sec` and `max_consecutive_failures`; `rtsp_cam_node` reads
+  none of them.
+- `realsense_camera.launch` forwarded about seventy arguments to the driver at their
+  default values. The ROS 2 file keeps only the ones the vehicle changes.

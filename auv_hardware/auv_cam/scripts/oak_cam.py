@@ -2,32 +2,35 @@
 
 import depthai as dai
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import get_param
+from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 
 
-class OakCameraNode:
+class OakCameraNode(Node):
     def __init__(self):
-        rospy.init_node("oak_camera_node")
+        super().__init__("oak_camera_node")
 
-        self.name = rospy.get_param("~name", "cam_front")
+        self.name = get_param(self, "~name", "cam_front")
 
-        self.width = rospy.get_param("width", 1280)
-        self.height = rospy.get_param("height", 720)
-        self.hz = rospy.get_param("fps", 30)
+        self.width = get_param(self, "width", 1280)
+        self.height = get_param(self, "height", 720)
+        self.hz = get_param(self, "fps", 30)
 
-        self.distortion_model = rospy.get_param("distortion_model", "plumb_bob")
-        self.D = rospy.get_param("distortion_coefficients/data", [])
-        self.K = rospy.get_param("camera_matrix/data", [])
-        self.R = rospy.get_param("rectification_matrix/data", [])
-        self.P = rospy.get_param("projection_matrix/data", [])
+        self.distortion_model = get_param(self, "distortion_model", "plumb_bob")
+        self.D = get_param(self, "distortion_coefficients/data", [])
+        self.K = get_param(self, "camera_matrix/data", [])
+        self.R = get_param(self, "rectification_matrix/data", [])
+        self.P = get_param(self, "projection_matrix/data", [])
 
         self.frame_id = f"{self.name}_optical_frame"
         self.bridge = CvBridge()
 
-        self.pub_raw = rospy.Publisher("image_raw", Image, queue_size=1)
-        self.pub_info = rospy.Publisher("camera_info", CameraInfo, queue_size=1)
+        self.pub_raw = self.create_publisher(Image, "image_raw", 1)
+        self.pub_info = self.create_publisher(CameraInfo, "camera_info", 1)
 
         self.cam_info_msg = self._build_camera_info()
 
@@ -52,7 +55,7 @@ class OakCameraNode:
         self.videoQueue = self.videoOut.createOutputQueue(maxSize=4, blocking=False)
 
         self.pipeline.start()
-        self.rate = rospy.Rate(self.hz)
+        self.rate = self.create_rate(self.hz)
 
     def _build_camera_info(self):
         msg = CameraInfo()
@@ -60,17 +63,17 @@ class OakCameraNode:
         msg.width = self.width
         msg.height = self.height
         msg.distortion_model = self.distortion_model
-        msg.D = list(self.D)
-        msg.K = list(self.K)
-        msg.R = list(self.R)
-        msg.P = list(self.P)
+        msg.d = list(self.D)
+        msg.k = list(self.K)
+        msg.r = list(self.R)
+        msg.p = list(self.P)
         return msg
 
     def spin(self):
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             videoIn = self.videoQueue.get()
             frame = np.ascontiguousarray(videoIn.getCvFrame())
-            stamp = rospy.Time.now()
+            stamp = self.get_clock().now().to_msg()
 
             img_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
             img_msg.header.stamp = stamp
@@ -84,5 +87,11 @@ class OakCameraNode:
             self.rate.sleep()
 
 
+def main():
+    ros.init()
+    node = OakCameraNode()
+    ros.spin(node, node.spin)
+
+
 if __name__ == "__main__":
-    OakCameraNode().spin()
+    main()

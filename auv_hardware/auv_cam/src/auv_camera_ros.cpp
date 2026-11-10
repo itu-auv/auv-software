@@ -35,46 +35,50 @@
 #include <boost/range/algorithm.hpp>
 
 namespace auv_cam {
-USBGStreamerCameraROS::USBGStreamerCameraROS(const ros::NodeHandle &nh)
+USBGStreamerCameraROS::USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh)
     : nh_(nh), it_(nh_) {
-  width_ = nh_.param<int>("width", 1920);
-  height_ = nh_.param<int>("height", 1080);
-  fps_ = nh_.param<int>("fps", 30);
-  device_ = nh_.param<std::string>("device", "/dev/video0");
-  verbose_ = nh_.param<bool>("verbose", false);
-  pub_camera_info_ = nh_.param<bool>("pub_camera_info", false);
+  width_ = nh_->declare_parameter<int>("width", 1920);
+  height_ = nh_->declare_parameter<int>("height", 1080);
+  fps_ = nh_->declare_parameter<int>("fps", 30);
+  device_ = nh_->declare_parameter<std::string>("device", "/dev/video0");
+  verbose_ = nh_->declare_parameter<bool>("verbose", false);
+  pub_camera_info_ = nh_->declare_parameter<bool>("pub_camera_info", false);
 
   if (pub_camera_info_) {
     bool success = true;
-    success &= nh_.getParam("distortion_coefficients/data", cam_info_.D);
+    const auto get_vector = [this, &success](const std::string &name) {
+      const auto value = nh_->declare_parameter<std::vector<double>>(
+          name, std::vector<double>{});
+      success &= !value.empty();
+      return value;
+    };
+    cam_info_.d = get_vector("distortion_coefficients.data");
 
-    std::vector<double> K;
-    success &= nh_.getParam("camera_matrix/data", K);
-    boost::range::copy(K, cam_info_.K.begin());
+    std::vector<double> K = get_vector("camera_matrix.data");
+    boost::range::copy(K, cam_info_.k.begin());
 
-    std::vector<double> R;
-    success &= nh_.getParam("rectification_matrix/data", R);
-    boost::range::copy(R, cam_info_.R.begin());
+    std::vector<double> R = get_vector("rectification_matrix.data");
+    boost::range::copy(R, cam_info_.r.begin());
 
-    std::vector<double> P;
-    success &= nh_.getParam("projection_matrix/data", P);
-    boost::range::copy(P, cam_info_.P.begin());
+    std::vector<double> P = get_vector("projection_matrix.data");
+    boost::range::copy(P, cam_info_.p.begin());
 
-    success &= nh_.getParam("distortion_model", cam_info_.distortion_model);
+    cam_info_.distortion_model =
+        nh_->declare_parameter<std::string>("distortion_model", "");
     int width, height;
-    success &= nh_.getParam("image_width", width);
-    success &= nh_.getParam("image_height", height);
+    width = nh_->declare_parameter<int>("image_width", 0);
+    height = nh_->declare_parameter<int>("image_height", 0);
 
     cam_info_.width = static_cast<uint32_t>(width);
     cam_info_.height = static_cast<uint32_t>(height);
   }
 
   if (verbose_) {
-    ROS_INFO_STREAM("Opening GST Cam");
-    ROS_INFO_STREAM("device:" << device_);
-    ROS_INFO_STREAM("width:" << width_);
-    ROS_INFO_STREAM("height:" << height_);
-    ROS_INFO_STREAM("fps:" << fps_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "Opening GST Cam");
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "device:" << device_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "width:" << width_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "height:" << height_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "fps:" << fps_);
   }
 
   std::stringstream ss;
@@ -86,7 +90,7 @@ USBGStreamerCameraROS::USBGStreamerCameraROS(const ros::NodeHandle &nh)
      << " ! videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=1";
   const std::string default_gst_device = ss.str();
   if (verbose_) {
-    ROS_INFO_STREAM("gstreamer pipeline:" << default_gst_device);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "gstreamer pipeline:" << default_gst_device);
   }
 
   // open device
@@ -94,42 +98,42 @@ USBGStreamerCameraROS::USBGStreamerCameraROS(const ros::NodeHandle &nh)
 
   if (!capture_.isOpened()) {
     // do not proceed any further
-    ROS_ERROR_STREAM("camera is not opened.");
+    RCLCPP_ERROR_STREAM(nh_->get_logger(), "camera is not opened.");
     std::runtime_error("camera is not opened.");
   }
 
   if (pub_camera_info_) {
-    cam_pub_ = it_.advertiseCamera("image_raw", 1);
+    cam_pub_ = it_.advertiseCamera("~/image_raw", 1);
   } else {
-    image_pub_ = it_.advertise("image_raw", 1);
+    image_pub_ = it_.advertise("~/image_raw", 1);
   }
-  ROS_INFO_STREAM("started camera");
+  RCLCPP_INFO_STREAM(nh_->get_logger(), "started camera");
 }
 
 void USBGStreamerCameraROS::start() {
-  sensor_msgs::Image img_msg;
-  while (ros::ok()) {
+  sensor_msgs::msg::Image img_msg;
+  while (rclcpp::ok()) {
     cv::Mat frame;
     capture_ >> frame;
 
     if (frame.empty()) {
-      ROS_ERROR_STREAM("capture frame is empty.");
+      RCLCPP_ERROR_STREAM(nh_->get_logger(), "capture frame is empty.");
       break;
     }
 
-    std_msgs::Header header;
-    header.stamp = ros::Time::now();
+    std_msgs::msg::Header header;
+    header.stamp = nh_->now();
 
     const auto img_bridge =
         cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frame);
     img_bridge.toImageMsg(img_msg);
 
     if (pub_camera_info_) {
-      cam_pub_.publish(img_msg, cam_info_, ros::Time::now());
+      cam_pub_.publish(img_msg, cam_info_, nh_->now());
     } else {
       image_pub_.publish(img_msg);
     }
-    ros::spinOnce();
+    rclcpp::spin_some(nh_);
   }
 }
 }  // namespace auv_cam

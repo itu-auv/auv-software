@@ -4,30 +4,23 @@
   <arg name="compressed" default="true" />
   <arg name="verbose" default="true" />
   <arg name="pub_camera_info" default="false" />
+  <arg name="camera_config" default="$(find-pkg-share auv_bringup)/config/cameras_$(var namespace).yaml"/>
 
-  <group ns="$(arg namespace)/cameras">
-    <group ns="$(arg name)/image_raw">
-      <!-- Disable unused plugins -->
-      <group if="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressedDepth",
-          "image_transport/theora"]</rosparam>
-      </group>
-
-      <!-- Disable unused plugins and compressed -->
-      <group unless="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressed",
-          "image_transport/compressedDepth", "image_transport/theora"]</rosparam>
-      </group>
-    </group>
-
+  <group>
+    <push_ros_namespace namespace="$(var namespace)/cameras" />
     <!-- Launch Camera -->
-    <node name="$(arg name)" type="auv_gst_cam_node" pkg="auv_cam" output="screen">
-      <param name="verbose" type="bool" value="$(arg verbose)" />
-      <param name="pub_camera_info" value="$(arg pub_camera_info)" />
+    <node name="$(var name)" exec="auv_gst_cam_node" pkg="auv_cam" output="screen">
+      <!-- camera settings and calibration: the section named after this node -->
+      <param from="$(var camera_config)" />
+      <!-- image_transport plugins to publish with -->
+      <param if="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw, image_transport/compressed]" />
+      <param unless="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw]" />
+      <param name="verbose" type="bool" value="$(var verbose)" />
+      <param name="pub_camera_info" value="$(var pub_camera_info)" />
     </node>
   </group>
 
-  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
-    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg name)" />
+  <include file="$(find-pkg-share auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(var namespace)/cameras/$(var name)" />
   </include>
 </launch>

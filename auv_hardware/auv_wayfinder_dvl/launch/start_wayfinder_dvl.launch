@@ -3,15 +3,16 @@
   <arg name="namespace" default="taluy"/>
   <arg name="port" default="/dev/auv_wayfinder_dvl"/>
   <arg name="baudrate" default="115200"/>
-  <group ns="$(arg namespace)">
-    <node pkg="auv_wayfinder_dvl" type="wayfinder_dvl_node.py" name="wayfinder_dvl_node" output="screen" respawn="true">
-      <param name="port" value="$(arg port)"/>
-      <param name="baudrate" value="$(arg baudrate)"/>
+  <group>
+    <push_ros_namespace namespace="$(var namespace)" />
+    <node pkg="auv_wayfinder_dvl" exec="wayfinder_dvl_node.py" name="wayfinder_dvl_node" output="screen" respawn="true">
+      <param name="port" value="$(var port)"/>
+      <param name="baudrate" value="$(var baudrate)"/>
       <param name="timeout" value="5"/>
       <param name="frame_id" value="base_link/dvl_link"/>
-      <param name="tf_prefix" value="$(arg namespace)"/>
-      <param name="velocity_covariance" type="yaml" value="[0.01, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"/>
-      <param name="position_covariance" type="yaml" value="0.1"/>
+      <param name="tf_prefix" value="$(var namespace)"/>
+      <param name="velocity_covariance" value="[0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+      <param name="position_covariance" value="0.1"/>
       <remap from="enable" to="sensors/dvl/enable"/>
       <remap from="velocity" to="sensors/dvl/velocity"/>
       <remap from="velocity_stamped" to="sensors/dvl/velocity_stamped"/>

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_hardware)
 
-find_package(catkin REQUIRED)
+find_package(ament_cmake REQUIRED)
 
-catkin_package()
+
+ament_package()

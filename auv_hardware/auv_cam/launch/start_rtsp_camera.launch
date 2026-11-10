@@ -20,49 +20,38 @@
   <arg name="fps" default="30" />
 
   <!-- Camera calibration parameters -->
-  <arg name="camera_config" default="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
+  <arg name="camera_config" default="$(find-pkg-share auv_bringup)/config/cameras_$(var namespace).yaml"/>
 
-  <group ns="$(arg namespace)/cameras">
-    <!-- Load camera calibration from YAML for the specific camera -->
-    <rosparam command="load" file="$(arg camera_config)" ns="$(arg name)" subst_value="true"/>
-
-    <group ns="$(arg name)/image_raw">
-      <!-- Disable unused plugins -->
-      <group if="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressedDepth",
-          "image_transport/theora"]</rosparam>
-      </group>
-
-      <!-- Disable unused plugins and compressed -->
-      <group unless="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressed",
-          "image_transport/compressedDepth", "image_transport/theora"]</rosparam>
-      </group>
-    </group>
-
+  <group>
+    <push_ros_namespace namespace="$(var namespace)/cameras" />
     <!-- Launch RTSP Camera -->
-    <node name="$(arg name)" type="rtsp_cam_node" pkg="auv_cam" output="screen">
-      <param name="verbose" type="bool" value="$(arg verbose)" />
-      <param name="pub_camera_info" value="$(arg pub_camera_info)" />
+    <node name="$(var name)" exec="rtsp_cam_node" pkg="auv_cam" output="screen">
+      <!-- camera settings and calibration: the section named after this node -->
+      <param from="$(var camera_config)" />
+      <!-- image_transport plugins to publish with -->
+      <param if="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw, image_transport/compressed]" />
+      <param unless="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw]" />
+      <param name="verbose" type="bool" value="$(var verbose)" />
+      <param name="pub_camera_info" value="$(var pub_camera_info)" />
 
       <!-- RTSP Parameters -->
-      <param name="rtsp_url" value="$(arg rtsp_url)" />
-      <param name="latency" value="$(arg latency)" />
-      <param name="buffer_mode" value="$(arg buffer_mode)" />
-      <param name="drop_on_latency" value="$(arg drop_on_latency)" />
+      <param name="rtsp_url" value="$(var rtsp_url)" />
+      <param name="latency" value="$(var latency)" />
+      <param name="buffer_mode" value="$(var buffer_mode)" />
+      <param name="drop_on_latency" value="$(var drop_on_latency)" />
 
       <!-- Reconnection Parameters -->
-      <param name="reconnect_interval_sec" value="$(arg reconnect_interval_sec)" />
-      <param name="max_consecutive_failures" value="$(arg max_consecutive_failures)" />
+      <param name="reconnect_interval_sec" value="$(var reconnect_interval_sec)" />
+      <param name="max_consecutive_failures" value="$(var max_consecutive_failures)" />
 
       <!-- Video Parameters -->
-      <param name="width" value="$(arg width)" />
-      <param name="height" value="$(arg height)" />
-      <param name="fps" value="$(arg fps)" />
+      <param name="width" value="$(var width)" />
+      <param name="height" value="$(var height)" />
+      <param name="fps" value="$(var fps)" />
     </node>
   </group>
 
-  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
-    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg name)" />
+  <include file="$(find-pkg-share auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(var namespace)/cameras/$(var name)" />
   </include>
 </launch>

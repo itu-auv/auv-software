@@ -209,6 +209,8 @@ def _coerce_value(value, slot_type):
         return value if isinstance(value, int) else int(value)
     if isinstance(slot_type, NamespacedType):
         cls = _message_class(slot_type)
+        if hasattr(value, "to_msg"):  # rclpy Time / Duration
+            value = value.to_msg()
         if type(value) is not cls:
             converted = cls()
             for slot in cls.__slots__:

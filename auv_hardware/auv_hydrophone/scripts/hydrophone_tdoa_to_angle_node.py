@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import get_param
+from rclpy.node import Node
 from geometry_msgs.msg import Point
 from std_msgs.msg import Float32, Int16MultiArray
 from visualization_msgs.msg import Marker
@@ -46,26 +49,26 @@ def to_robot_angle(hydrophone_angle, yaw_offset):
     return normalize_angle(hydrophone_angle + yaw_offset)
 
 
-class HydrophoneTDOAToAngle:
+class HydrophoneTDOAToAngle(Node):
     def __init__(self):
-        rospy.init_node("hydrophone_tdoa_to_angle_node", anonymous=True)
-        yaw_offset_deg = rospy.get_param("~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG)
+        super().__init__("hydrophone_tdoa_to_angle_node")
+        yaw_offset_deg = get_param(self, "~yaw_offset_deg", ROBOT_YAW_OFFSET_DEG)
         self.yaw_offset = np.radians(yaw_offset_deg)
-        self.marker_length = rospy.get_param("~marker_length", 1.5)
-        self.base_link = rospy.get_param("~base_link", "taluy/base_link")
-        self.marker_pub = rospy.Publisher(
-            "acoustic/hydrophone/marker", Marker, queue_size=10
+        self.marker_length = get_param(self, "~marker_length", 1.5)
+        self.base_link = get_param(self, "~base_link", "taluy/base_link")
+        self.marker_pub = self.create_publisher(
+            Marker, "acoustic/hydrophone/marker", 10
         )
-        self.angle_pub = rospy.Publisher(
-            "acoustic/hydrophone/base_angle", Float32, queue_size=10
+        self.angle_pub = self.create_publisher(
+            Float32, "acoustic/hydrophone/base_angle", 10
         )
-        self.tdoa_sub = rospy.Subscriber(
-            "acoustic/hydrophone/tdoa", Int16MultiArray, self.tdoa_callback
+        self.tdoa_sub = self.create_subscription(
+            Int16MultiArray, "acoustic/hydrophone/tdoa", self.tdoa_callback, 10
         )
 
     def tdoa_callback(self, msg):
         if len(msg.data) < 4:
-            rospy.logwarn("Incomplete TDOA data: %s", list(msg.data))
+            self.get_logger().warning("Incomplete TDOA data: %s" % (list(msg.data),))
             return
 
         hydrophone_angle = calculate_angle(msg.data[0:3])
@@ -82,14 +85,14 @@ class HydrophoneTDOAToAngle:
 
         marker = Marker()
         marker.header.frame_id = self.base_link
-        marker.header.stamp = rospy.Time.now()
+        marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = "tdoa_direction"
         marker.id = 0
         marker.type = Marker.ARROW
         marker.action = Marker.ADD
         marker.points = [
-            Point(0.0, 0.0, 0.0),
-            Point(float(end_x), float(end_y), 0.0),
+            Point(x=0.0, y=0.0, z=0.0),
+            Point(x=float(end_x), y=float(end_y), z=0.0),
         ]
         marker.scale.x = 0.05
         marker.scale.y = 0.16
@@ -102,8 +105,9 @@ class HydrophoneTDOAToAngle:
 
 
 def main():
-    HydrophoneTDOAToAngle()
-    rospy.spin()
+    ros.init()
+    node = HydrophoneTDOAToAngle()
+    ros.spin(node)
 
 
 if __name__ == "__main__":

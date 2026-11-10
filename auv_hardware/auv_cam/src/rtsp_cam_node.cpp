@@ -29,15 +29,15 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 #include "auv_cam/rtsp_camera_ros.h"
 
 int main(int argc, char* argv[]) {
-  ros::init(argc, argv, "rtsp_cam_node");
-  ros::NodeHandle nh("~");
+  rclcpp::init(argc, argv);
+  auto nh = std::make_shared<rclcpp::Node>("rtsp_cam_node");
   auto node = auv_cam::RTSPCameraROS(nh);
   node.start();
-  ros::shutdown();
+  rclcpp::shutdown();
   return 0;
 }

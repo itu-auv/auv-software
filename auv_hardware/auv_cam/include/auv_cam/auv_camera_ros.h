@@ -31,19 +31,19 @@
 
 #pragma once
 
-#include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
+#include <cv_bridge/cv_bridge.hpp>
+#include <image_transport/image_transport.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 
 #include "opencv2/opencv.hpp"
-#include "ros/ros.h"
+#include "rclcpp/rclcpp.hpp"
 
 namespace auv_cam {
 class USBGStreamerCameraROS {
  private:
-  ros::NodeHandle nh_;
+  rclcpp::Node::SharedPtr nh_;
   cv::VideoCapture capture_;
   int height_;
   int width_;
@@ -54,7 +54,7 @@ class USBGStreamerCameraROS {
   image_transport::Publisher image_pub_;
   image_transport::CameraPublisher cam_pub_;
   bool pub_camera_info_;
-  sensor_msgs::CameraInfo cam_info_;
+  sensor_msgs::msg::CameraInfo cam_info_;
 
  public:
   /**
@@ -62,7 +62,7 @@ class USBGStreamerCameraROS {
    *
    * @param nh Node handle
    */
-  USBGStreamerCameraROS(const ros::NodeHandle &nh);
+  USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh);
 
   /**
    * @brief Start polling frames and publish
