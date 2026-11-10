@@ -361,3 +361,10 @@ Dead or broken leftovers:
   sphere reaches 39 cm above `base_link`, so at the gate depth of 0.7 m it passed
   1 cm under the plate hanging in the gate, or caught on it and stopped the mission
   there. **Fixed**: the launch sets the bitmask on the converted model.
+- The simulator ran with the real pool's premap, which is in `odom` and so only means
+  something from the place it was made for. Detections more than 5 m from it are
+  thrown away, so tasks could not find their objects; with no premap, glimpses from
+  far away put the bin 8 m from where it is and the full mission stopped there.
+  **Fixed**: `premaps/sim_pool.yaml` for the pool world seen from the gate start; the
+  sim launch uses it when starting there and no premap for the other start poses
+  (`premap:=auto`).

@@ -32,6 +32,12 @@ def start(context):
         raise ValueError(
             "supported namespaces: taluy, taluy_mini; worlds: pool, taluy_harmonic"
         )
+    premap = LaunchConfiguration("premap").perform(context)
+    if premap == "auto":
+        # premaps are in odom, whose origin is the start pose
+        moved = any(LaunchConfiguration(n).perform(context) for n in ("x", "y", "yaw"))
+        at_gate = LaunchConfiguration("start").perform(context) == "gate" and not moved
+        premap = "sim_pool" if world == "pool" and at_gate else "none"
     temporary = tempfile.TemporaryDirectory(prefix="auv-sim-chain-")
     root = Path(temporary.name)
     bridge_share = Path(get_package_share_directory("auv_sim_bridge"))
@@ -81,7 +87,7 @@ def start(context):
                 "namespace": namespace,
                 "control_rate": "20.0",
                 "plane_fitter_sync_queue_size": "90",
-                "premap": LaunchConfiguration("premap"),
+                "premap": premap,
             },
         ),
         include(
@@ -303,9 +309,9 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "premap",
-                default_value="premap",
+                default_value="auto",
                 description="expected object positions (auv_mapping/config/premaps); "
-                "they are in odom, so use none unless starting at the gate",
+                "auto: sim_pool when starting at the pool's gate, else none",
             ),
             DeclareLaunchArgument(
                 "start",
