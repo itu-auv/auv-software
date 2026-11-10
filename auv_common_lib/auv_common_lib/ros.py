@@ -308,9 +308,16 @@ def init(args=None):
             Client.call_async,
             Service.send_response,
         )
-        Publisher.publish = lambda self, msg: publish(
-            self, msg if isinstance(msg, bytes) else coerce(msg)
-        )
+
+        def lenient_publish(self, msg):
+            if isinstance(msg, bytes):
+                return publish(self, msg)
+            if not hasattr(msg, "SLOT_TYPES"):  # rospy: pub.publish(True)
+                first_field = next(iter(self.msg_type.get_fields_and_field_types()))
+                msg = self.msg_type(**{first_field: msg})
+            return publish(self, coerce(msg))
+
+        Publisher.publish = lenient_publish
         Client.call_async = lambda self, request: call_async(self, coerce(request))
         Service.send_response = lambda self, response, header: send_response(
             self, coerce(response), header

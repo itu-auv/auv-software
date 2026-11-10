@@ -119,3 +119,6 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   `createAndPublishDetection` (leftovers of removed 3D detection and marker output).
 - `controller_ros.h`: members are initialised in a different order than declared
   (`-Wreorder`); harmless today, a trap if one initialiser starts using another.
+- `auv_teleop/simulation_tab.py`: the "start detection" button launches
+  `auv_detection tracker.launch`, which does not exist (the package has
+  `tracker_all.launch` and `tracker_robosub.launch`).
