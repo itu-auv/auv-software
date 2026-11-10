@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="namespace" default="taluy" />
+    <arg name="use_sim_time" default="false" description="true when running against the simulator" />
+    <set_parameter name="use_sim_time" value="$(var use_sim_time)" />
     <arg name="enable_rate" default="20" />
 
     <!-- State Mapping Definitions

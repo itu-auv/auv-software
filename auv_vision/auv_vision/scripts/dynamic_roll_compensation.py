@@ -187,15 +187,13 @@ class CameraRollStabilizer(Node):
         norm = math.sqrt(q[0] ** 2 + q[1] ** 2 + q[2] ** 2 + q[3] ** 2)
         return 0.5 < norm < 2.0  # loose sanity bounds
 
-    def spin(self):
-        self.get_logger().info("Camera roll stabilizer node is up.")
-        rclpy.spin(self)
 
 
 def main():
     ros.init()
     node = CameraRollStabilizer()
-    ros.spin(node, node.spin)
+    node.get_logger().info("Camera roll stabilizer node is up.")
+    ros.spin(node)
 
 
 if __name__ == "__main__":

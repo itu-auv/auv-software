@@ -52,7 +52,7 @@ def start(context):
         Node(package='auv_smach', executable='smach_monitor_node.py', name='smach_monitor_node', namespace=namespace, output='screen'),
         IncludeLaunchDescription(
             AnyLaunchDescriptionSource(str(Path(get_package_share_directory('auv_teleop')) / 'launch' / 'start_taluy_gui.launch')),
-            launch_arguments={'namespace': namespace}.items(), condition=IfCondition(LaunchConfiguration('use_taluy_gui'))),
+            launch_arguments={'namespace': namespace, 'use_sim_time': 'true'}.items(), condition=IfCondition(LaunchConfiguration('use_taluy_gui'))),
         Node(package='rviz2', executable='rviz2', name='rviz', arguments=['-d', str(description_share / 'rviz' / 'araba.rviz')],
              condition=IfCondition(LaunchConfiguration('use_rviz'))),
     ]
@@ -72,7 +72,8 @@ def start(context):
     return [SetParameter(name='use_sim_time', value=True)] + camera_nodes + [
         include('auv_sim_bringup', 'start_harmonic.launch.py',
                 {'namespace': namespace, 'world': world, 'gui': LaunchConfiguration('gui'),
-                 'initial_z': LaunchConfiguration('initial_z')}),
+                 'initial_z': LaunchConfiguration('initial_z'), 'x': LaunchConfiguration('x'),
+                 'y': LaunchConfiguration('y'), 'yaw': LaunchConfiguration('yaw')}),
         Node(package='ros_gz_bridge', executable='parameter_bridge', name='simulation_spawn_bridge',
              arguments=[f'/world/{world}/create@ros_gz_interfaces/srv/SpawnEntity',
                         f'/world/{world}/set_pose@ros_gz_interfaces/srv/SetEntityPose']),
@@ -98,6 +99,9 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value='pool'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
+        DeclareLaunchArgument('x', default_value='', description='start pose; empty = default of the world'),
+        DeclareLaunchArgument('y', default_value=''),
+        DeclareLaunchArgument('yaw', default_value=''),
         DeclareLaunchArgument('pinger_mode', default_value='torpedo'),
         DeclareLaunchArgument('use_taluy_gui', default_value=LaunchConfiguration('gui')),
         DeclareLaunchArgument('use_rviz', default_value=LaunchConfiguration('gui')),

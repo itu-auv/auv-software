@@ -139,19 +139,14 @@ class ImageSaver(Node):
         except Exception as e:
             self.get_logger().error(f"Image save error: {e}")
 
-    def run(self):
-        """Spin ROS node."""
-        try:
-            rclpy.spin(self)
-        except KeyboardInterrupt:
-            self.get_logger().info("Stopping image saver node...")
-            self.get_logger().info(f"Total images saved: {self.image_count}")
-
 
 def main():
     ros.init()
     node = ImageSaver()
-    ros.spin(node, node.run)
+    ros.on_shutdown(
+        lambda: node.get_logger().info(f"Total images saved: {node.image_count}")
+    )
+    ros.spin(node)
 
 
 if __name__ == "__main__":

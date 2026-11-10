@@ -57,7 +57,10 @@ def start(context):
     pose = entity.find('pose')
     if pose is None:
         pose = ET.SubElement(entity, 'pose')
-    pose.text = '0 0 ' + str(float(LaunchConfiguration('initial_z').perform(context))) + ' 0 0 0'
+    # start pose: as in the ROS 1 launch, the pool mission starts in front of the gate
+    start = {'pool': ('-7.0', '-15.5', '0')}.get(LaunchConfiguration('world').perform(context), ('0', '0', '0'))
+    x, y, yaw = (float(LaunchConfiguration(name).perform(context) or default) for name, default in zip(('x', 'y', 'yaw'), start))
+    pose.text = f"{x} {y} {float(LaunchConfiguration('initial_z').perform(context))} 0 0 {yaw}"
     model = ET.tostring(entity, encoding='unicode')
     world_name = LaunchConfiguration('world').perform(context)
     if world_name not in ('taluy_harmonic', 'pool'):
@@ -83,7 +86,7 @@ def start(context):
         simulator,
         Node(package='robot_state_publisher', executable='robot_state_publisher', parameters=[{'robot_description': ParameterValue(robot, value_type=str), 'use_sim_time': True}]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(bridge)), launch_arguments={'namespace': namespace, 'world': world_name}.items()),
-        Node(package='ros_gz_bridge', executable='parameter_bridge', name='simulation_clock_bridge', arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock']),
+        Node(package='auv_sim_bridge', executable='clock_bridge', parameters=[{'period': 0.01}]),
         RegisterEventHandler(OnShutdown(on_shutdown=[OpaqueFunction(function=lambda context: temporary.cleanup())])),
     ]
 
@@ -94,5 +97,8 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value='taluy_harmonic'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
+        DeclareLaunchArgument('x', default_value='', description='start pose; empty = default of the world'),
+        DeclareLaunchArgument('y', default_value=''),
+        DeclareLaunchArgument('yaw', default_value=''),
         OpaqueFunction(function=start),
     ])

@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="use_sim_time" default="false" description="true when running against the simulator" />
+  <set_parameter name="use_sim_time" value="$(var use_sim_time)" />
   <arg name="imu_topic" default="$(eval &quot;'/vectornav/IMU' if '$(var namespace)' == 'taluy_mini' else 'sensors/imu/data'&quot;)" />
   <arg name="dvl_is_valid_topic" default="$(eval &quot;'dvl/is_valid' if '$(var namespace)' == 'taluy_mini' else 'sensors/dvl/is_valid'&quot;)" />
 

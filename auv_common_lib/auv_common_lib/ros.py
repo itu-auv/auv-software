@@ -1,4 +1,5 @@
 import inspect
+import os
 import signal
 import threading
 import time
@@ -193,6 +194,31 @@ def on_shutdown(callback):
     _shutdown_hooks.append(callback)
 
 
+def sim_time_arg(node):
+    """Launch argument that gives a child launch the same clock as this node."""
+    return "use_sim_time:=%s" % str(node.get_parameter("use_sim_time").value).lower()
+
+
+def _refuse_mixed_clocks(node):
+    """Stop a node that runs on wall time next to a simulation.
+
+    ROS 1 had one /use_sim_time for everything; here each launch has to pass it. A
+    mission started without it would stamp and time everything on the wrong clock.
+    """
+    if node.get_parameter("use_sim_time").value:
+        return
+    deadline = time.monotonic() + 20.0
+    while rclpy.ok() and time.monotonic() < deadline:
+        if node.count_publishers("/clock"):
+            node.get_logger().fatal(
+                "A simulation clock is running but this node uses wall time. "
+                "Start it with use_sim_time:=true."
+            )
+            os.kill(os.getpid(), signal.SIGINT)
+            return
+        time.sleep(0.5)
+
+
 def spin(node, loop=None):
     """Run a node until shutdown, then clean up.
 
@@ -201,6 +227,7 @@ def spin(node, loop=None):
     """
     executor = MultiThreadedExecutor()
     executor.add_node(node)
+    threading.Thread(target=_refuse_mixed_clocks, args=(node,), daemon=True).start()
 
     def spin_executor():
         try:

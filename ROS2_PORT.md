@@ -20,8 +20,6 @@ Not done or not verified:
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
 - Full competition missions have not been run in the new simulator.
-- `rviz/araba.rviz` files were converted to RViz 2 plugin names but have not been
-  opened yet.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
 - The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
@@ -36,7 +34,7 @@ docker/dev/ros2                  # shell in the container, workspace at /auv_ws
 vcs import src < src/auv-software/third_party.repos
 colcon build --symlink-install
 ros2 launch auv_sim_bringup start_gazebo.launch.py gui:=true
-ros2 launch auv_smach start.launch test_mode:=true "test_states:=['init']"
+ros2 launch auv_smach start.launch use_sim_time:=true test_mode:=true "test_states:=['init']"
 ros2 launch auv_bringup start.launch          # the real vehicle
 ```
 
@@ -50,6 +48,12 @@ launch files were ported to Python earlier and stay that way.
 Parameter files loaded with `<param from=…>` are ROS 2 parameter files
 (`/**:` or `/**/<node>:` then `ros__parameters:`). YAML files that code opens
 itself (premaps, waypoints, detection objects) are unchanged.
+
+There is no global parameter server, and so no global `/use_sim_time` either. The
+simulator launch sets it for its own nodes; anything started separately against the
+simulator needs `use_sim_time:=true` (the mission and teleop launch files take it).
+A node of ours that finds a `/clock` while on wall time stops with an error instead
+of running on mixed clocks.
 
 There is no global parameter server. `start.launch` and the simulator launch push
 `use_sim_time` and `environment.yaml` to every node they start; a node reads
@@ -109,3 +113,12 @@ Things ROS 2 does differently that bit during the port:
   (`latched_qos()` on both sides).
 - Scripts started by launch files need the executable bit in git.
 - PID integral gains tuned on ROS 1 need rescaling (see BUGS.md, Control).
+- In simulation every rclpy node wakes up for each `/clock` message, and a wake-up is
+  expensive (about 2 ms in a multi-threaded executor). Gazebo ticks at 1 kHz, so
+  `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
+  (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
+  about 1.5 % of a core.
+- smach for ROS 2 resolves `Concurrence` outcomes differently from ROS 1 (see
+  BUGS.md); use `auv_smach.common.Concurrence`.
+- `ros_gz_bridge` drops entity names from `gz.msgs.Pose_V`; `world_pose_bridge` keeps
+  them.

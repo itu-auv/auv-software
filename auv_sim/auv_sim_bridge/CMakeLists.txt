@@ -15,6 +15,7 @@ find_package(gz_transport_vendor REQUIRED)
 find_package(gz-transport13 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 
 add_library(auv-subsea-pressure-system SHARED src/subsea_pressure_system.cpp)
 target_compile_features(auv-subsea-pressure-system PRIVATE cxx_std_17)
@@ -25,7 +26,12 @@ add_executable(world_pose_bridge src/world_pose_bridge.cpp)
 target_compile_features(world_pose_bridge PRIVATE cxx_std_17)
 target_link_libraries(world_pose_bridge gz-transport13::gz-transport13)
 ament_target_dependencies(world_pose_bridge rclcpp tf2_msgs geometry_msgs)
-install(TARGETS world_pose_bridge DESTINATION lib/${PROJECT_NAME})
+
+add_executable(clock_bridge src/clock_bridge.cpp)
+target_compile_features(clock_bridge PRIVATE cxx_std_17)
+target_link_libraries(clock_bridge gz-transport13::gz-transport13)
+ament_target_dependencies(clock_bridge rclcpp rosgraph_msgs)
+install(TARGETS world_pose_bridge clock_bridge DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS
   scripts/sim_hardware_mocks.py

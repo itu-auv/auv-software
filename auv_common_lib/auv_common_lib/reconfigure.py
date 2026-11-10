@@ -6,6 +6,7 @@ and is told when they change.
 """
 
 import threading
+import time
 
 import rclpy
 from rcl_interfaces.msg import (
@@ -73,19 +74,40 @@ class Client:
     def __init__(self, node, name, timeout=None, config_callback=None):
         self.node = node
         self.config_callback = config_callback
+        self.config = Config()
         self.client = AsyncParameterClient(
             node, name, callback_group=ReentrantCallbackGroup()
         )
-        if not self.client.wait_for_services(timeout_sec=timeout):
-            raise TimeoutError(f"parameter services of {name} are not available")
-        self.config = self.get_configuration(timeout)
         if config_callback is not None:
             namespace = node.get_namespace().rstrip("/")
             self.remote = name if name.startswith("/") else f"{namespace}/{name}"
             self._events = node.create_subscription(
                 ParameterEvent, "/parameter_events", self._on_event, 100
             )
-            config_callback(self.config)
+        if self.client.wait_for_services(timeout_sec=timeout):
+            self._connected(timeout)
+        else:
+            # When a whole system starts at once, discovery can take longer than any
+            # timeout that made sense with a ROS 1 master. Keep waiting in the
+            # background instead of running without the server for good.
+            node.get_logger().warning(
+                f"parameter services of {name} not found yet, still waiting"
+            )
+            threading.Thread(target=self._connect_later, daemon=True).start()
+
+    def _connect_later(self):
+        while rclpy.ok() and (
+            self.node.executor is None
+            or not self.client.wait_for_services(timeout_sec=1.0)
+        ):
+            time.sleep(0.2)
+        if rclpy.ok():
+            self._connected(None)
+
+    def _connected(self, timeout):
+        self.config = self.get_configuration(timeout)
+        if self.config_callback is not None:
+            self.config_callback(self.config)
 
     def _on_event(self, event):
         if event.node != self.remote:
@@ -95,6 +117,8 @@ class Client:
         self.config_callback(self.config)
 
     def get_configuration(self, timeout=None):
+        if not self.client.services_are_ready():
+            raise TimeoutError("parameter services are not available")
         names = _wait(self.node, self.client.list_parameters(), timeout).result.names
         values = _wait(self.node, self.client.get_parameters(names), timeout).values
         return Config(

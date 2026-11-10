@@ -15,6 +15,22 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   ROS 1 branch need the same rescale when copied over.
 - `AlignFrame.cfg` (`linear_kp`, `linear_kd`, `angular_kp`, `angular_kd`): nothing
   reads these gains.
+- `reference_pose_publisher.cmd_vel_callback` turns an angular velocity into a rotation
+  by feeding `axis * angle` to `quaternion_from_euler`; that is only a rotation about
+  that axis when one component is non-zero.
+- `MultiDOFPIDController::control` runs every cycle, also while control is disabled or
+  the kill switch is open, and nothing ever resets the integrals. They wind up (to the
+  clamp limits, or without bound on an axis whose limit is 0) and are released when
+  control comes back.
+- `MultiDOFPIDController`: the integral clamp runs between the position-loop and the
+  velocity-loop update, so the velocity integral is used one step before it is clamped.
+- `controller_ros.h` `accel_callback` sets the angular accelerations to zero, so `kd` of
+  the angular velocity loop multiplies nothing.
+- `controller_ros.h` casts the loaded plugin to `SixDOFPIDController` and uses the
+  result unchecked when publishing the desired velocity; any other controller plugin
+  would crash the node.
+- `MultiDOFPIDController` takes the attitude error as per-axis differences of Euler
+  angles and uses them as body rates; only right near level attitude.
 
 ## Localization
 
@@ -22,6 +38,18 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   by arrival time.
 - `pressure_odometry_node`: an out-of-range depth is clamped and published with the
   normal covariance, so the EKF trusts a value known to be wrong.
+- `dvl_odometry_node.compute_model_based_velocity`: once any odometry message has
+  arrived (always), each step starts from the EKF's current velocity instead of the
+  model's own state. The estimate is then fed to the same EKF as a measurement, so
+  during a DVL dropout the filter is mostly measuring itself, and the "seed the model
+  with the last valid DVL velocity" code has no effect.
+- `dvl_odometry_node`: when the DVL mount transform is not available after 10 s it
+  silently assumes a mount yaw of -45 degrees.
+- `pressure_odometry_node.get_base_to_pressure_height` rotates a vector expressed in
+  the sensor frame with the vehicle's orientation; right only while the sensor frame is
+  not rotated against `base_link`.
+- `imu_odometry_node`: the default `imu_calibration_path` is relative to the working
+  directory, and a calibration file that exists but is malformed crashes the node.
 
 ## Navigation
 
@@ -32,6 +60,16 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 - `path_planners.path_for_bin` logs with the `[GatePathPlanner]` prefix.
 - Unused: `follow_path_helpers.check_segment_progress`, `is_segment_completed`,
   `FollowPathActionClient.execute_paths`.
+- A dynamic path to a frame that does not exist hangs the mission: `/set_plan` answers
+  success without checking the frame, the planner then publishes nothing, and the
+  follow-path server waits for a path with no timeout (seen in the simulator: the gate
+  task sat in `EXECUTE_PATH` until it was killed).
+- `path_planners.straight_path_to_frame` catches every exception, so the TF retry
+  branches in `path_for_gate` / `path_for_bin` never run. `path_for_bin` also defaults
+  `bin_closer_frame` to `bin_close_trial`; the frame is called `bin_close_approach`.
+  (Both planners are unused.)
+- `generate_waypoints` ignores `interpolate_yaw` and `angular_diff` whenever
+  `target_euler` is given, which is always.
 
 ## Mapping
 
@@ -40,6 +78,40 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   last update of *any* object.
 - `process_tracker_with_cloud` and `object_plane_fitter_node` each carry their own
   copy of the detection id → frame name table.
+- `kde_object_mapper` no longer estimates a density. The first "peak" of a class is the
+  time-weighted mean of *all* its points, so one group of false detections elsewhere
+  pulls the `*_kde` frame into open water between the groups. `min_peak_density` is
+  compared with a weight sum that is 1 for the first peak. Parameter names and the
+  docstring still describe a KDE.
+- `kde_object_mapper`: a class with too few detections is published at its premap
+  position under the same `*_kde` name, so missions cannot tell "seen" from "assumed".
+- `octagon_trajectory_publisher` always builds its frames from `octagon_link_kde`, also
+  when the mission runs with `ignore_kde`.
+- `bin_trajectory_publisher`: `bin_exit` takes its depth and heading from
+  `torpedo_target_realsense` (the variable and the log call it `gate_exit`), and waits
+  1 s for it every cycle when the torpedo task has not run. The `second_trial_frame`
+  parameter is read and then the name is hard-coded.
+- `gate_trajectory_publisher`, `torpedo_frame_publisher`, `bin_trajectory_publisher`,
+  `octagon_trajectory_publisher` look frames up at time "now" with a 4 s timeout, so one
+  missing frame slows the whole loop to one pass per several seconds (the gate
+  publisher's coin-flip frame shares that loop).
+- `gate_trajectory_publisher`: `coin_flip_rescuer_pose` is computed and never used;
+  `_shift_transform_parallel_to_gate_line` looks a transform up only to check its
+  length.
+- `ObjectPositionFilter` tracks objects that do not move with a constant-velocity
+  Kalman filter and only predicts when a detection arrives. Detection noise becomes a
+  velocity, and the next detection after a long gap first moves the frame by that
+  velocity times the gap (made worse by the shared `last_time` above).
+- `object_map_tf_server`: the unindexed frame name goes to whichever cluster of a class
+  is nearest to the vehicle right now, so `gate_link` can change which object it means
+  while the vehicle moves. Clusters are never dropped or limited in number; every false
+  detection more than the threshold away from the others adds a frame until the map is
+  cleared.
+- `object_map_tf_server` holds the map lock across TF lookups with timeouts of up to
+  4 s (`dynamic_transform_callback`), and broadcasting of every frame stops meanwhile.
+- `process_tracker_with_cloud` `planeSegmentationAndPCA`: when the plane fit fails the
+  PCA eigenvectors are used as a rotation matrix without the handedness check the
+  plane path has; a left-handed set gives a meaningless quaternion.
 
 ## Simulation
 
@@ -61,6 +133,9 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   `outcome_map` entries it takes the last, ROS 1 took the first. With the maps in
   `common.py` that turns "frame found while driving" from `succeeded` into
   `preempted`. `auv_smach.common.Concurrence` restores the ROS 1 rule.
+- The controller no longer writes its gains back to its YAML file (`save_parameters()`
+  and the `config_file` parameter are gone), so values changed from `rqt` or by the
+  gravity estimator last until the node restarts. Deliberate (Melih), to be revisited.
 - There is no global parameter server. `waypoint_publisher` publishes the path
   summary it used to store at `/waypoint_gui/paths` as latched JSON on that topic.
 
@@ -70,6 +145,16 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   does not exist; the node only starts when the launch file passes the real path.
 - `yolo_result_bridge` and the tracker launch files use absolute topic names
   (`/yolo_result_*`, `/yolo_detections*`), so two vehicles cannot share a network.
+- `segment_camera_handler._estimate_distance` calls the image-border checks without the
+  camera's configured size; it works because the defaults (1920x1080) happen to match.
+  `_build_rotation` looks up `taluy/base_link` whatever the vehicle is called, and
+  `last_yaws` is keyed by class, so two objects of one class share a yaw memory.
+- `front_camera_handler` / `kde_camera_handler._process_altitude_projection` require an
+  altitude and then do not use it; the front one warns without throttling.
+- `Prop.estimate_distance_diagonal` compares the pixel diagonal with the real *height*.
+  Harmless for the slalom pipes (2.5 cm wide), wrong for anything wider.
+- `camera_detection_node`: `set_front_camera_focus` does not affect the KDE handler,
+  which reads the same detections.
 
 ## Hardware
 
@@ -81,6 +166,21 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   none of them.
 - `realsense_camera.launch` forwarded about seventy arguments to the driver at their
   default values. The ROS 2 file keeps only the ones the vehicle changes.
+
+## Teleoperation
+
+- `joy_manager`: the last joystick message is used for ever. If the controller
+  disconnects with a stick deflected, the node keeps publishing that velocity and
+  `enable = true` at 50 Hz. There is no dead-man button and no staleness check.
+- `joy_manager`: torpedo, dropper and reset-orientation service calls are made inside
+  the joystick callback while holding the lock the publishing loop needs, so `cmd_vel`
+  and `enable` pause for the length of the call (1 s or more when the service is
+  missing, which is the controller's enable timeout).
+- `joy_manager` `use_vel` mode zeroes the X/Y position gains of the controller and
+  restores them on a clean shutdown only.
+- `dynamic_roll_compensation` rotates the image about its centre pixel, not about the
+  principal point of the camera, while the detections are later projected with the
+  camera matrix.
 
 ## Missions (auv_smach)
 

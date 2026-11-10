@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="use_sim_time" default="false" description="true when running against the simulator" />
+  <set_parameter name="use_sim_time" value="$(var use_sim_time)" />
   <arg name="id" default="0" />
   <arg name="control_rate" default="25.0" />
   <arg name="controller" default="ps5" />

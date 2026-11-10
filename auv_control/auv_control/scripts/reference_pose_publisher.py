@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from auv_common_lib import ros
 from rclpy.time import Time
 from rclpy.duration import Duration
 from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
@@ -888,11 +890,15 @@ class ReferencePosePublisherNode(Node):
 
     def run(self):
         self.timer = self.create_timer(1.0 / self.update_rate, self.control_loop)
-        rclpy.spin(self)
+        # Callbacks must run side by side as in ROS 1: reset_odometry sleeps in its
+        # handler and relies on odometry callbacks arriving meanwhile.
+        executor = MultiThreadedExecutor()
+        executor.add_node(self)
+        executor.spin()
 
 
 def main():
-    init_ros()
+    ros.init()
     node = ReferencePosePublisherNode()
     try:
         node.run()

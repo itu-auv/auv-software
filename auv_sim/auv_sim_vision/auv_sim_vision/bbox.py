@@ -529,6 +529,12 @@ class GazeboInterface:
         )
 
     def _model_states_cb(self, msg: TFMessage):
+        # poses arrive much faster than images; convert a message only when it is used
+        with self._state_lock:
+            self._pose_buffer.append([get_node().get_clock().now(), msg, None])
+
+    @staticmethod
+    def _convert(msg: TFMessage):
         poses = {}
         for transform in msg.transforms:
             # models are listed before their links; keep the model on a name clash
@@ -541,11 +547,7 @@ class GazeboInterface:
                     ),
                     orientation=transform.transform.rotation,
                 )
-        matrices = {name: pose_to_matrix(pose) for name, pose in poses.items()}
-        with self._state_lock:
-            self._pose_buffer.append((get_node().get_clock().now(), poses, matrices))
-            self.model_poses = poses
-            self.model_matrices = matrices
+        return poses, {name: pose_to_matrix(pose) for name, pose in poses.items()}
 
     def snapshot_at_time(
         self, stamp: Time
@@ -553,15 +555,16 @@ class GazeboInterface:
         """Return the buffered model snapshot closest to *stamp*."""
         with self._state_lock:
             if not self._pose_buffer:
-                return self.model_poses, self.model_matrices
-            snapshot = min(
+                return {}, {}
+            entry = min(
                 tuple(self._pose_buffer),
                 key=lambda entry: abs(
                     (entry[0] - Time.from_msg(stamp)).nanoseconds / 1e9
                 ),
             )
-        _, poses, matrices = snapshot
-        return poses, matrices
+            if entry[2] is None:
+                entry[2] = self._convert(entry[1])
+        return entry[2]
 
 
 class SimCamera:

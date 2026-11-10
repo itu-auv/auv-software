@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
 )
 import subprocess
 import rclpy
-from auv_common_lib.ros import get_node, Rate
+from auv_common_lib.ros import get_node, Rate, sim_time_arg
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import threading
@@ -145,7 +145,7 @@ class VehicleControlTab(QWidget):
         return self.angular_speed_spinbox.value()
 
     def start_teleop(self):
-        cmd = ["ros2", "launch", "auv_teleop", "start_teleop.launch"]
+        cmd = ["ros2", "launch", "auv_teleop", "start_teleop.launch", sim_time_arg(get_node())]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")
