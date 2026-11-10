@@ -90,6 +90,9 @@ spin, so a lookup in a constructor would always time out). And a service call ge
 its answer or an error: requests and replies are never dropped from a full queue,
 and a server that dies during a call raises.
 
+A Python node that seems stuck prints what each of its threads is doing when sent
+`kill -USR1 <pid>` (into its log, or the terminal of `ros2 launch`).
+
 ## Porting a ROS 1 branch
 
 `tools/ros1to2/` holds the scripts that did the mechanical part of this port.

@@ -533,3 +533,5 @@ def init(args=None):
 
     rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
     signal.signal(signal.SIGTERM, interrupt)
+    # kill -USR1 <pid>: what every thread of a stuck node is doing, into its log
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
