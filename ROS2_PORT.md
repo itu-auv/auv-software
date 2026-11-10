@@ -75,13 +75,15 @@ written around:
 | `rospy.Rate`, `rospy.on_shutdown`, `rospy.wait_for_message` | `Rate`, `on_shutdown`, `wait_for_message` |
 | latched publisher | `latched_qos()` |
 
-`ros.init()` also restores two rospy behaviours the code depends on. Every
+`ros.init()` also restores three rospy behaviours the code depends on. Every
 subscriber, timer and service runs independently of the others (rclpy would run
 all of a node's callbacks one at a time, so one slow callback stalls the rest).
 And message fields are forgiving again. rclpy aborts the whole
 process when a message with an `int` in a float field, a numpy scalar, or a
 `Vector3` where a `Point` belongs is published; rospy accepted all of those and
-the code relies on it in many places.
+the code relies on it in many places. And a TF listener receives transforms in a
+thread of its own from the moment it is created (rclpy's waits for the node to
+spin, so a lookup in a constructor would always time out).
 
 ## Porting a ROS 1 branch
 

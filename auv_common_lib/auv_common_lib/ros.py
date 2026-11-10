@@ -351,6 +351,29 @@ def init(args=None):
         )
         Publisher._auv_lenient = True
 
+    # rospy's TF listener received transforms in a thread of its own from the moment
+    # it was created. Give each listener a private node and thread, so lookups also
+    # work in constructors and TF traffic does not wake the node's own executor.
+    import tf2_ros
+
+    if not getattr(tf2_ros.TransformListener, "_auv_threaded", False):
+        listener_init = tf2_ros.TransformListener.__init__
+
+        def threaded_listener(self, buffer, node, *args, spin_thread=None, **kwargs):
+            if spin_thread is None:
+                spin_thread = True
+                node = Node(
+                    node.get_name() + "_tf",
+                    namespace=node.get_namespace(),
+                    use_global_arguments=False,
+                    start_parameter_services=False,
+                    parameter_overrides=[node.get_parameter("use_sim_time")],
+                )
+            listener_init(self, buffer, node, *args, spin_thread=spin_thread, **kwargs)
+
+        tf2_ros.TransformListener.__init__ = threaded_listener
+        tf2_ros.TransformListener._auv_threaded = True
+
     # rospy ran every subscriber, timer and service in its own thread. rclpy puts
     # all of a node's callbacks in one mutually exclusive group, so one slow callback
     # stalls the rest. Give each its own group unless the caller chose one.
