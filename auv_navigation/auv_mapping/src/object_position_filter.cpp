@@ -5,10 +5,12 @@
 namespace auv_mapping {
 
 ObjectPositionFilter::ObjectPositionFilter(
-    const geometry_msgs::TransformStamped &initial_transform, const double dt)
+    const geometry_msgs::msg::TransformStamped &initial_transform, const double dt,
+    rclcpp::Clock::SharedPtr clock)
     : kf_(6, 3, 0),
       static_frame_(initial_transform.header.frame_id),
-      child_frame_(initial_transform.child_frame_id) {
+      child_frame_(initial_transform.child_frame_id),
+      clock_(clock) {
   // Initialize state vector: [x, y, z, vx, vy, vz]
   kf_.statePre.at<float>(0) =
       static_cast<float>(initial_transform.transform.translation.x);
@@ -58,7 +60,7 @@ void ObjectPositionFilter::predict(const double dt) {
 }
 
 void ObjectPositionFilter::update(
-    const geometry_msgs::TransformStamped &measurement, const double dt) {
+    const geometry_msgs::msg::TransformStamped &measurement, const double dt) {
   predict(dt);
 
   // Create measurement vector [x, y, z]^T.
@@ -79,10 +81,10 @@ void ObjectPositionFilter::update(
 void ObjectPositionFilter::updateFrameIndex(const std::string &new_frame_id) {
   child_frame_ = new_frame_id;
 }
-geometry_msgs::TransformStamped ObjectPositionFilter::getFilteredTransform()
+geometry_msgs::msg::TransformStamped ObjectPositionFilter::getFilteredTransform()
     const {
-  geometry_msgs::TransformStamped out;
-  out.header.stamp = ros::Time::now();
+  geometry_msgs::msg::TransformStamped out;
+  out.header.stamp = clock_->now();
   out.header.frame_id = static_frame_;
   out.child_frame_id = child_frame_;
   out.transform.translation.x = static_cast<double>(kf_.statePost.at<float>(0));

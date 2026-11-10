@@ -6,80 +6,55 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-std=c++17)
 
-find_package(catkin REQUIRED COMPONENTS
-  auv_msgs
-  geometry_msgs
-  message_filters
-  pcl_conversions
-  pcl_ros
-  roscpp
-  rospy
-  sensor_msgs
-  std_msgs
-  std_srvs
-  tf2_geometry_msgs
-  tf2_ros
-  sensor_msgs
-  message_filters
-  pcl_ros
-  pcl_conversions
-  vision_msgs
-  visualization_msgs
-  cv_bridge
-  dynamic_reconfigure
-)
-
-find_package(PCL REQUIRED COMPONENTS common segmentation)
+find_package(ament_cmake REQUIRED)
+find_package(auv_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(pcl_ros REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(vision_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common filters segmentation)
 find_package(Eigen3 REQUIRED)
+find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc imgcodecs video videoio)
 
-find_package(OpenCV 4 QUIET COMPONENTS
-  opencv_core
-  opencv_imgproc
-  opencv_imgcodecs
-  opencv_video
-  opencv_videoio
-  CONFIG)
+include_directories(include ${PCL_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
-if(NOT OpenCV_FOUND)
-  message(STATUS "Did not find OpenCV 4, trying OpenCV 3")
-  find_package(OpenCV 3 REQUIRED COMPONENTS
-    opencv_core
-    opencv_imgproc
-    opencv_imgcodecs
-    opencv_video
-    opencv_videoio
-    CONFIG)
-endif()
+add_library(object_position_filter src/object_position_filter.cpp)
+target_link_libraries(object_position_filter ${OpenCV_LIBRARIES})
+ament_target_dependencies(object_position_filter geometry_msgs rclcpp tf2 tf2_geometry_msgs)
 
-generate_dynamic_reconfigure_options(
-  cfg/GateTrajectory.cfg
-  cfg/TorpedoTrajectory.cfg
+add_executable(object_map_tf_server_node
+  src/object_map_tf_server_ros.cpp
+  src/object_map_tf_server_node.cpp
 )
+target_link_libraries(object_map_tf_server_node object_position_filter)
+ament_target_dependencies(object_map_tf_server_node auv_msgs geometry_msgs rclcpp std_srvs tf2 tf2_geometry_msgs tf2_ros)
 
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs tf2_ros tf2_geometry_msgs geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge dynamic_reconfigure
-  DEPENDS OpenCV PCL
-)
+add_executable(process_tracker_with_cloud src/process_tracker_with_cloud.cpp)
+target_link_libraries(process_tracker_with_cloud ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+ament_target_dependencies(process_tracker_with_cloud geometry_msgs message_filters pcl_conversions pcl_ros rclcpp sensor_msgs std_srvs tf2 tf2_ros vision_msgs visualization_msgs)
 
-include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIRS}
-)
+add_executable(realsense_filter_node src/realsense_filter.cpp)
+target_link_libraries(realsense_filter_node ${PCL_LIBRARIES})
+ament_target_dependencies(realsense_filter_node nav_msgs pcl_conversions rclcpp sensor_msgs std_msgs)
 
-link_directories(
-  ${PCL_LIBRARY_DIRS}
-)
+add_executable(object_plane_fitter_node src/object_plane_fitter_node.cpp)
+target_link_libraries(object_plane_fitter_node ${PCL_LIBRARIES})
+ament_target_dependencies(object_plane_fitter_node cv_bridge geometry_msgs message_filters pcl_conversions rclcpp sensor_msgs std_srvs tf2 tf2_ros vision_msgs)
 
-add_definitions(
-  ${PCL_DEFINITIONS}
-)
-
-catkin_install_python(PROGRAMS
+install(PROGRAMS
   scripts/gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
@@ -90,70 +65,18 @@ catkin_install_python(PROGRAMS
   scripts/premap_publisher.py
   scripts/competition_map_gui.py
   scripts/kde_object_mapper.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  scripts/kde_visualizer.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
-add_library(object_position_filter
-  src/object_position_filter.cpp
+install(TARGETS object_map_tf_server_node process_tracker_with_cloud realsense_filter_node object_plane_fitter_node
+  DESTINATION lib/${PROJECT_NAME}
 )
+install(TARGETS object_position_filter
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+)
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
-target_link_libraries(object_position_filter
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
-
-# Executables
-add_executable(object_map_tf_server_node
-  src/object_map_tf_server_ros.cpp
-  src/object_map_tf_server_node.cpp
-)
-
-add_executable(process_tracker_with_cloud
-  src/process_tracker_with_cloud.cpp
-)
-
-add_executable(realsense_filter_node
-  src/realsense_filter.cpp
-)
-
-add_executable(object_plane_fitter_node
-  src/object_plane_fitter_node.cpp
-)
-
-# Link libraries
-target_link_libraries(object_map_tf_server_node
-  ${catkin_LIBRARIES}
-  object_position_filter
-)
-
-target_link_libraries(process_tracker_with_cloud
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
-
-target_link_libraries(realsense_filter_node
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-)
-
-target_link_libraries(object_plane_fitter_node
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-)
-
-install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node object_plane_fitter_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h"
-  PATTERN ".svn" EXCLUDE
-)
-
-install(DIRECTORY launch
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+ament_package()

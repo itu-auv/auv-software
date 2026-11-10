@@ -4,21 +4,21 @@
  * Inspired by ultralytics_ros tracker_with_cloud_node
  */
 
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
-#include <ros/ros.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <std_srvs/SetBool.h>
+#include "rclcpp/rclcpp.hpp"
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
-#include <vision_msgs/Detection2DArray.h>
-#include <vision_msgs/Detection3DArray.h>
-#include <visualization_msgs/MarkerArray.h>
+#include <vision_msgs/msg/detection2_d_array.hpp>
+#include <vision_msgs/msg/detection3_d_array.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <opencv2/core/core.hpp>
 
@@ -32,12 +32,13 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/transforms.h>
+#include <pcl_ros/transforms.hpp>
 
 class ProcessTrackerWithCloud {
  private:
   // ROS handlers
-  ros::NodeHandle nh_, pnh_;
+  rclcpp::Node::SharedPtr nh_;
+  rclcpp::CallbackGroup::SharedPtr client_group_;
 
   // Parameters
   std::string camera_info_topic_, lidar_topic_, yolo_result_topic_;
@@ -47,26 +48,27 @@ class ProcessTrackerWithCloud {
   float roi_expansion_factor_;
 
   // Publishers
-  ros::Publisher detection_cloud_pub_;
-  ros::Publisher object_transform_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr detection_cloud_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr
+      object_transform_pub_;
 
   // Service Servers
-  ros::ServiceServer enable_service_;
-  ros::ServiceClient tracker_enable_client_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
+  rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr tracker_enable_client_;
   bool enabled_;
   std::string tracker_enable_service_;
 
   // Subscribers and synchronizers
-  message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> lidar_sub_;
-  message_filters::Subscriber<vision_msgs::Detection2DArray> yolo_result_sub_;
+  message_filters::Subscriber<sensor_msgs::msg::CameraInfo> camera_info_sub_;
+  message_filters::Subscriber<sensor_msgs::msg::PointCloud2> lidar_sub_;
+  message_filters::Subscriber<vision_msgs::msg::Detection2DArray> yolo_result_sub_;
 
   typedef message_filters::sync_policies::ApproximateTime<
-      sensor_msgs::CameraInfo, sensor_msgs::PointCloud2,
-      vision_msgs::Detection2DArray>
+      sensor_msgs::msg::CameraInfo, sensor_msgs::msg::PointCloud2,
+      vision_msgs::msg::Detection2DArray>
       SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
-  boost::shared_ptr<Sync> sync_;
+  std::shared_ptr<Sync> sync_;
 
   // TF
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
@@ -76,10 +78,10 @@ class ProcessTrackerWithCloud {
   std::string base_link_frame_;
 
   // Camera model
-  sensor_msgs::CameraInfo cam_info_;
+  sensor_msgs::msg::CameraInfo cam_info_;
 
   // Last processing time
-  ros::Time last_call_time_;
+  rclcpp::Time last_call_time_{0, 0, RCL_ROS_TIME};
 
   // Set to store detection IDs to skip
   std::set<int> skip_detection_ids;
@@ -92,28 +94,29 @@ class ProcessTrackerWithCloud {
       {6, "bin_whole_link"},    {7, "octagon_link"}};
 
  public:
-  ProcessTrackerWithCloud()
-      : pnh_("~"),
+  ProcessTrackerWithCloud(rclcpp::Node::SharedPtr nh)
+      : nh_(nh),
         enabled_(false),
-        tf_buffer_(ros::Duration(10.0)),
+        tf_buffer_(nh->get_clock(), tf2::durationFromSec(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Load parameters
-    pnh_.param<std::string>("camera_info_topic", camera_info_topic_,
-                            "camera_info");
-    pnh_.param<std::string>("lidar_topic", lidar_topic_, "points_raw");
-    pnh_.param<std::string>("yolo_result_topic", yolo_result_topic_,
-                            "yolo_result");
-    pnh_.param<float>("cluster_tolerance", cluster_tolerance_, 0.3);
-    pnh_.param<float>("voxel_leaf_size", voxel_leaf_size_, 0.1);
-    pnh_.param<int>("min_cluster_size", min_cluster_size_, 100);
-    pnh_.param<int>("max_cluster_size", max_cluster_size_, 10000);
-    pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_,
-                      1.1);  // 10% expansion
-    pnh_.param<std::string>("tracker_enable_service", tracker_enable_service_,
-                            "/tracker_node_realsense/enable");
+    camera_info_topic_ = nh_->declare_parameter<std::string>(
+        "camera_info_topic", "camera_info");
+    lidar_topic_ =
+        nh_->declare_parameter<std::string>("lidar_topic", "points_raw");
+    yolo_result_topic_ = nh_->declare_parameter<std::string>(
+        "yolo_result_topic", "yolo_result");
+    cluster_tolerance_ = nh_->declare_parameter<double>("cluster_tolerance", 0.3);
+    voxel_leaf_size_ = nh_->declare_parameter<double>("voxel_leaf_size", 0.1);
+    min_cluster_size_ = nh_->declare_parameter<int>("min_cluster_size", 100);
+    max_cluster_size_ = nh_->declare_parameter<int>("max_cluster_size", 10000);
+    roi_expansion_factor_ = nh_->declare_parameter<double>(
+        "roi_expansion_factor", 1.1);  // 10% expansion
+    tracker_enable_service_ = nh_->declare_parameter<std::string>(
+        "tracker_enable_service", "/tracker_node_realsense/enable");
 
-    std::vector<int> skip_ids;
-    pnh_.getParam("skip_detection_ids", skip_ids);
+    std::vector<int64_t> skip_ids = nh_->declare_parameter<std::vector<int64_t>>(
+        "skip_detection_ids", std::vector<int64_t>{});
     if (skip_ids.empty()) {
       // Set default values
       skip_detection_ids = {0, 1, 2, 3, 5, 6, 7};  // torpedo_hole_link
@@ -124,40 +127,63 @@ class ProcessTrackerWithCloud {
     }
 
     // Initialize publishers
-    detection_cloud_pub_ =
-        nh_.advertise<sensor_msgs::PointCloud2>("detection_cloud", 1);
-    object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
-        "update_object_transforms", 10);
+    detection_cloud_pub_ = nh_->create_publisher<sensor_msgs::msg::PointCloud2>(
+        "detection_cloud", 1);
+    object_transform_pub_ =
+        nh_->create_publisher<geometry_msgs::msg::TransformStamped>(
+            "update_object_transforms", 10);
 
     // Initialize service server
-    enable_service_ = pnh_.advertiseService(
-        "enable", &ProcessTrackerWithCloud::enableCallback, this);
+    enable_service_ = nh_->create_service<std_srvs::srv::SetBool>(
+        "~/enable",
+        [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> req,
+               std::shared_ptr<std_srvs::srv::SetBool::Response> res) {
+          enableCallback(*req, *res);
+        });
+    client_group_ = nh_->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
     if (!tracker_enable_service_.empty()) {
-      tracker_enable_client_ =
-          nh_.serviceClient<std_srvs::SetBool>(tracker_enable_service_);
+      tracker_enable_client_ = nh_->create_client<std_srvs::srv::SetBool>(
+          tracker_enable_service_, rclcpp::ServicesQoS(), client_group_);
     }
 
     // Initialize subscribers
-    camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
-    lidar_sub_.subscribe(nh_, lidar_topic_, 10);
-    yolo_result_sub_.subscribe(nh_, yolo_result_topic_, 10);
+    const auto qos = rclcpp::QoS(10).get_rmw_qos_profile();
+    camera_info_sub_.subscribe(nh_, camera_info_topic_, qos);
+    lidar_sub_.subscribe(nh_, lidar_topic_, qos);
+    yolo_result_sub_.subscribe(nh_, yolo_result_topic_, qos);
 
     // Configure synchronization
-    sync_ = boost::make_shared<Sync>(SyncPolicy(10), camera_info_sub_,
-                                     lidar_sub_, yolo_result_sub_);
-    sync_->registerCallback(
-        boost::bind(&ProcessTrackerWithCloud::syncCallback, this, _1, _2, _3));
+    sync_ = std::make_shared<Sync>(SyncPolicy(10), camera_info_sub_, lidar_sub_,
+                                   yolo_result_sub_);
+    sync_->registerCallback(std::bind(
+        &ProcessTrackerWithCloud::syncCallback, this, std::placeholders::_1,
+        std::placeholders::_2, std::placeholders::_3));
 
     // Create TF broadcaster
-    tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
-    pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_,
-                            "taluy/camera_depth_optical_frame");
-    pnh_.param<std::string>("base_link_frame", base_link_frame_,
-                            "taluy/base_link");
+    tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster(nh_));
+    camera_optical_frame_ = nh_->declare_parameter<std::string>(
+        "camera_optical_frame", "taluy/camera_depth_optical_frame");
+    base_link_frame_ = nh_->declare_parameter<std::string>("base_link_frame",
+                                                           "taluy/base_link");
   }
 
-  bool enableCallback(std_srvs::SetBool::Request& req,
-                      std_srvs::SetBool::Response& res) {
+  // Synchronous SetBool call; needs the client's callback group to be spun by
+  // another executor thread than the caller's.
+  bool callSetBool(const rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr& client,
+                   bool enabled, std_srvs::srv::SetBool::Response& response) {
+    auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+    request->data = enabled;
+    auto future = client->async_send_request(request);
+    if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready) {
+      return false;
+    }
+    response = *future.get();
+    return true;
+  }
+
+  bool enableCallback(std_srvs::srv::SetBool::Request& req,
+                      std_srvs::srv::SetBool::Response& res) {
     enabled_ = req.data;
     bool tracker_updated = setTrackerEnabled(enabled_);
     res.success = true;
@@ -165,7 +191,7 @@ class ProcessTrackerWithCloud {
     if (!tracker_updated) {
       res.message += "; YOLO tracker state was not updated";
     }
-    ROS_INFO_STREAM(res.message);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), res.message);
     return true;
   }
 
@@ -174,25 +200,24 @@ class ProcessTrackerWithCloud {
       return true;
     }
 
-    if (!tracker_enable_client_.exists()) {
-      ROS_WARN_STREAM("Could not set YOLO tracker via "
+    if (!tracker_enable_client_->service_is_ready()) {
+      RCLCPP_WARN_STREAM(nh_->get_logger(), "Could not set YOLO tracker via "
                       << tracker_enable_service_
                       << ": service is not available");
       return false;
     }
 
-    std_srvs::SetBool tracker_enable_srv;
-    tracker_enable_srv.request.data = enabled;
-    if (!tracker_enable_client_.call(tracker_enable_srv)) {
-      ROS_WARN_STREAM("Failed to call YOLO tracker enable service "
+    std_srvs::srv::SetBool::Response tracker_enable_response;
+    if (!callSetBool(tracker_enable_client_, enabled, tracker_enable_response)) {
+      RCLCPP_WARN_STREAM(nh_->get_logger(), "Failed to call YOLO tracker enable service "
                       << tracker_enable_service_);
       return false;
     }
 
-    if (!tracker_enable_srv.response.success) {
-      ROS_WARN_STREAM("YOLO tracker rejected enable="
+    if (!tracker_enable_response.success) {
+      RCLCPP_WARN_STREAM(nh_->get_logger(), "YOLO tracker rejected enable="
                       << enabled << ": "
-                      << tracker_enable_srv.response.message);
+                      << tracker_enable_response.message);
       return false;
     }
 
@@ -202,9 +227,9 @@ class ProcessTrackerWithCloud {
   // Callback for synchronized messages
   // Callback for synchronized messages
   void syncCallback(
-      const sensor_msgs::CameraInfo::ConstPtr& camera_info_msg,
-      const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
-      const vision_msgs::Detection2DArray::ConstPtr& yolo_result_msg) {
+      const sensor_msgs::msg::CameraInfo::ConstSharedPtr& camera_info_msg,
+      const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
+      const vision_msgs::msg::Detection2DArray::ConstSharedPtr& yolo_result_msg) {
     if (!enabled_) {
       return;
     }
@@ -213,8 +238,8 @@ class ProcessTrackerWithCloud {
     cam_info_ = *camera_info_msg;
 
     // Record call time
-    ros::Time current_call_time = ros::Time::now();
-    ros::Duration callback_interval = current_call_time - last_call_time_;
+    rclcpp::Time current_call_time = nh_->now();
+    rclcpp::Duration callback_interval = current_call_time - last_call_time_;
     last_call_time_ = current_call_time;
 
     // Skip if no YOLO detections
@@ -237,9 +262,9 @@ class ProcessTrackerWithCloud {
         downsampleCloud(cloud);
 
     // Prepare data structures for 3D detections
-    vision_msgs::Detection3DArray detections3d_msg;
-    sensor_msgs::PointCloud2 detection_cloud_msg;
-    visualization_msgs::MarkerArray object_markers, plane_markers;
+    vision_msgs::msg::Detection3DArray detections3d_msg;
+    sensor_msgs::msg::PointCloud2 detection_cloud_msg;
+    visualization_msgs::msg::MarkerArray object_markers, plane_markers;
 
     // Set header information
     detections3d_msg.header = cloud_msg->header;
@@ -257,7 +282,7 @@ class ProcessTrackerWithCloud {
 
       // Check detection ID, skip if it's in the skip list
       if (!detection.results.empty()) {
-        int detection_id = detection.results[0].id;
+        int detection_id = std::stoi(detection.results[0].hypothesis.class_id);
         if (skip_detection_ids.find(detection_id) != skip_detection_ids.end()) {
           continue;  // Skip this detection
         }
@@ -281,7 +306,7 @@ class ProcessTrackerWithCloud {
       // If detection results exist, use the detection class ID directly
       if (!detection.results.empty()) {
         // Get the first (or only) result of the detection
-        detection_id = detection.results[0].id;
+        detection_id = std::stoi(detection.results[0].hypothesis.class_id);
 
         // Convert ID to prop name
         if (detection_id >= 0 &&
@@ -300,7 +325,7 @@ class ProcessTrackerWithCloud {
       }
 
       // Print number of clusters found
-      ROS_INFO("For detection ID %d (%s) found %zu clusters", detection_id,
+      RCLCPP_INFO(nh_->get_logger(), "For detection ID %d (%s) found %zu clusters", detection_id,
                (detection_id >= 0 && id_to_prop_name.find(detection_id) !=
                                          id_to_prop_name.end()
                     ? id_to_prop_name[detection_id].c_str()
@@ -345,7 +370,7 @@ class ProcessTrackerWithCloud {
         }
       }
 
-      ROS_INFO("Closest cluster index: %zu with squared distance: %f",
+      RCLCPP_INFO(nh_->get_logger(), "Closest cluster index: %zu with squared distance: %f",
                closest_cluster_idx, min_squared_distance);
 
       // Now process all clusters and create detections
@@ -369,7 +394,7 @@ class ProcessTrackerWithCloud {
             detections3d_msg, object_markers, plane_markers,
             clusters[cluster_idx], centroids[cluster_idx],
             rotation_matrices[cluster_idx], detection.results,
-            cloud_msg->header, callback_interval.toSec(), frame_id);
+            cloud_msg->header, callback_interval.seconds(), frame_id);
         processed_detection_count++;
 
         // Combine detection points
@@ -387,25 +412,25 @@ class ProcessTrackerWithCloud {
     detection_cloud_msg.header = cloud_msg->header;
 
     // Publish processed data
-    detection_cloud_pub_.publish(detection_cloud_msg);
+    detection_cloud_pub_->publish(detection_cloud_msg);
   }
 
   // Process point cloud using 2D bounding box
   void processPointsWithBbox(
       const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-      const vision_msgs::Detection2D& detection,
+      const vision_msgs::msg::Detection2D& detection,
       pcl::PointCloud<pcl::PointXYZ>::Ptr& detection_cloud) {
     try {
       int points_in_bbox = 0;
 
       // Expand detection box using roi_expansion_factor parameter
-      float min_x = detection.bbox.center.x -
+      float min_x = detection.bbox.center.position.x -
                     (detection.bbox.size_x / 2) * roi_expansion_factor_;
-      float max_x = detection.bbox.center.x +
+      float max_x = detection.bbox.center.position.x +
                     (detection.bbox.size_x / 2) * roi_expansion_factor_;
-      float min_y = detection.bbox.center.y -
+      float min_y = detection.bbox.center.position.y -
                     (detection.bbox.size_y / 2) * roi_expansion_factor_;
-      float max_y = detection.bbox.center.y +
+      float max_y = detection.bbox.center.position.y +
                     (detection.bbox.size_y / 2) * roi_expansion_factor_;
 
       // Check each point in the point cloud
@@ -421,10 +446,10 @@ class ProcessTrackerWithCloud {
         }
 
         // Get camera parameters
-        const double fx = cam_info_.K[0];  // Focal length in x
-        const double fy = cam_info_.K[4];  // Focal length in y
-        const double cx = cam_info_.K[2];  // Center x
-        const double cy = cam_info_.K[5];  // Center y
+        const double fx = cam_info_.k[0];  // Focal length in x
+        const double fy = cam_info_.k[4];  // Focal length in y
+        const double cx = cam_info_.k[2];  // Center x
+        const double cy = cam_info_.k[5];  // Center y
 
         // Manual projection calculation
         double inv_z = 1.0 / point.z;
@@ -437,7 +462,7 @@ class ProcessTrackerWithCloud {
           continue;
         }
 
-        ROS_DEBUG("Point processed successfully");
+        RCLCPP_DEBUG(nh_->get_logger(), "Point processed successfully");
 
         // Check if point is within ROI
         if (point.z > 0 && uv.x >= min_x && uv.x <= max_x && uv.y >= min_y &&
@@ -448,11 +473,11 @@ class ProcessTrackerWithCloud {
       }
 
       if (points_in_bbox < 20) {
-        ROS_DEBUG("Few points (%d) found in bounding box", points_in_bbox);
+        RCLCPP_DEBUG(nh_->get_logger(), "Few points (%d) found in bounding box", points_in_bbox);
       }
 
     } catch (const std::exception& e) {
-      ROS_ERROR_STREAM("Exception in processPointsWithBbox: " << e.what());
+      RCLCPP_ERROR_STREAM(nh_->get_logger(), "Exception in processPointsWithBbox: " << e.what());
       detection_cloud->points.clear();
     }
   }
@@ -581,9 +606,10 @@ class ProcessTrackerWithCloud {
     Eigen::Vector3f x_axis = y_axis.cross(z_axis).normalized();
 
     try {
-      geometry_msgs::TransformStamped tf_msg =
+      geometry_msgs::msg::TransformStamped tf_msg =
           tf_buffer.lookupTransform(camera_optical_frame_, base_link_frame_,
-                                    ros::Time(0), ros::Duration(0.05));
+                                    tf2::TimePointZero,
+                                    tf2::durationFromSec(0.05));
       tf2::Quaternion q(
           tf_msg.transform.rotation.x, tf_msg.transform.rotation.y,
           tf_msg.transform.rotation.z, tf_msg.transform.rotation.w);
@@ -595,7 +621,7 @@ class ProcessTrackerWithCloud {
         x_axis = -x_axis;
       }
     } catch (const tf2::TransformException& ex) {
-      ROS_WARN_STREAM_THROTTLE(5.0, "TF lookup failed: " << ex.what());
+      RCLCPP_WARN_STREAM_THROTTLE(nh_->get_logger(), *nh_->get_clock(), static_cast<int>((5.0) * 1000), "TF lookup failed: " << ex.what());
     }
 
     rotation_matrix.col(0) = x_axis;
@@ -607,13 +633,13 @@ class ProcessTrackerWithCloud {
 
   // Create and publish 3D detection message and marker
   void createAndPublishDetection(
-      vision_msgs::Detection3DArray& detections3d_msg,
-      visualization_msgs::MarkerArray& object_markers,
-      visualization_msgs::MarkerArray& plane_markers,
+      vision_msgs::msg::Detection3DArray& detections3d_msg,
+      visualization_msgs::msg::MarkerArray& object_markers,
+      visualization_msgs::msg::MarkerArray& plane_markers,
       const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
       const Eigen::Vector4f& centroid, const Eigen::Matrix3f& rotation_matrix,
-      const std::vector<vision_msgs::ObjectHypothesisWithPose>& results,
-      const std_msgs::Header& header, const double& duration,
+      const std::vector<vision_msgs::msg::ObjectHypothesisWithPose>& results,
+      const std_msgs::msg::Header& header, const double& duration,
       const std::string& frame_id) {
     if (cloud->points.empty()) {
       return;
@@ -622,7 +648,7 @@ class ProcessTrackerWithCloud {
     Eigen::Quaternionf q(rot);
     // Create TransformStamped message and publish to object_transform_updates
     // topic
-    geometry_msgs::TransformStamped transform_msg;
+    geometry_msgs::msg::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
     transform_msg.header.frame_id = camera_optical_frame_;  // Point cloud frame
     transform_msg.child_frame_id = frame_id;                // Cluster/object ID
@@ -639,7 +665,7 @@ class ProcessTrackerWithCloud {
     transform_msg.transform.rotation.w = q.w();
 
     // Publish TransformStamped message
-    object_transform_pub_.publish(transform_msg);
+    object_transform_pub_->publish(transform_msg);
   }
   // Downsample PointCloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr downsampleCloud(
@@ -664,8 +690,12 @@ class ProcessTrackerWithCloud {
 };
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "process_tracker_with_cloud");
-  ProcessTrackerWithCloud tracker;
-  ros::spin();
+  rclcpp::init(argc, argv);
+  auto nh = std::make_shared<rclcpp::Node>("process_tracker_with_cloud");
+  ProcessTrackerWithCloud node(nh);
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(nh);
+  executor.spin();
+  rclcpp::shutdown();
   return 0;
 }

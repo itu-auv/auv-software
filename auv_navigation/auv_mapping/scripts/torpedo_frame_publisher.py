@@ -1,23 +1,75 @@
 #!/usr/bin/env python3
 import numpy as np
-import tf.transformations
-from tf.transformations import (
+import tf_transformations
+from tf_transformations import (
     quaternion_matrix,
 )
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import tf2_ros
 from geometry_msgs.msg import Pose, TransformStamped
-from std_srvs.srv import SetBool, SetBoolResponse
-from dynamic_reconfigure.server import Server
+from std_srvs.srv import SetBool
+from auv_common_lib.reconfigure import Server
 
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-)
-from auv_mapping.cfg import TorpedoTrajectoryConfig
+from auv_msgs.srv import SetObjectTransform
+
+# name, default, description, min, max
+TorpedoTrajectoryConfig = [
+    ("initial_offset", 2.5, "Initial offset distance (m)", 0.0, 5.0),
+    ("realsense_offset", 1.4, "Realsense offset distance (m)", 0.0, 5.0),
+    ("fire_offset", -0.55, "Fire offset distance (m)", -1.0, 1.0),
+    ("fire_y_offset", 0.0, "Fire Y offset distance (m)", -1.0, 1.0),
+    ("fire_z_offset", 0.0, "Fire Z offset distance (m)", -1.0, 1.0),
+    (
+        "left_fire_offset",
+        0.0,
+        "Left fire X override distance (m), 0 uses fire_offset",
+        -1.0,
+        1.0,
+    ),
+    (
+        "left_fire_y_offset",
+        0.0,
+        "Left fire Y override distance (m), 0 uses fire_y_offset",
+        -1.0,
+        1.0,
+    ),
+    (
+        "left_fire_z_offset",
+        0.0,
+        "Left fire Z override distance (m), 0 uses fire_z_offset",
+        -1.0,
+        1.0,
+    ),
+    (
+        "top_fire_offset",
+        -0.35,
+        "Top fire X override distance (m), 0 uses fire_offset",
+        -1.0,
+        1.0,
+    ),
+    (
+        "top_fire_y_offset",
+        0.0,
+        "Top fire Y override distance (m), 0 uses fire_y_offset",
+        -1.0,
+        1.0,
+    ),
+    (
+        "top_fire_z_offset",
+        0.0,
+        "Top fire Z override distance (m), 0 uses fire_z_offset",
+        -1.0,
+        1.0,
+    ),
+]
 
 
-class TorpedoTransformServiceNode:
+class TorpedoTransformServiceNode(Node):
     HOLE_NAMES = (
         "left",
         "right",
@@ -26,29 +78,29 @@ class TorpedoTransformServiceNode:
     )
 
     def __init__(self):
-        rospy.init_node("create_torpedo_frames_node")
+        super().__init__("create_torpedo_frames_node")
 
         self.enable_target = False
         self.enable_realsense_target = False
         self.enable_torpedo_hole_target = False
 
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_service = service_client(
+            self, SetObjectTransform, "set_object_transform"
         )
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
-        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
+        self.robot_frame = get_param(self, "~robot_frame", "taluy/base_link")
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
 
-        self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
-        self.torpedo_realsense_frame = rospy.get_param(
-            "~torpedo_realsense_frame", "torpedo_map_link_realsense"
+        self.torpedo_frame = get_param(self, "~torpedo_frame", "torpedo_map_link")
+        self.torpedo_realsense_frame = get_param(
+            self, "~torpedo_realsense_frame", "torpedo_map_link_realsense"
         )
         self.hole_fire_configs = [
             self._load_hole_fire_config(hole_name) for hole_name in self.HOLE_NAMES
@@ -65,22 +117,22 @@ class TorpedoTransformServiceNode:
 
         # Dynamic reconfigure server
         self.reconfigure_server = Server(
-            TorpedoTrajectoryConfig, self.reconfigure_callback
+            self, TorpedoTrajectoryConfig, self.reconfigure_callback
         )
 
-        self.set_enable_service = rospy.Service(
-            "set_transform_torpedo_target_frame",
+        self.set_enable_service = self.create_service(
             SetBool,
+            "set_transform_torpedo_target_frame",
             self.handle_enable_target_service,
         )
-        self.set_enable_realsense_service = rospy.Service(
-            "set_transform_torpedo_realsense_target_frame",
+        self.set_enable_realsense_service = self.create_service(
             SetBool,
+            "set_transform_torpedo_realsense_target_frame",
             self.handle_enable_realsense_target_service,
         )
-        self.set_enable_torpedo_hole_service = rospy.Service(
-            "set_transform_torpedo_hole_target_frame",
+        self.set_enable_torpedo_hole_service = self.create_service(
             SetBool,
+            "set_transform_torpedo_hole_target_frame",
             self.handle_enable_torpedo_hole_target_service,
         )
 
@@ -97,7 +149,7 @@ class TorpedoTransformServiceNode:
         self, child_frame_id: str, pose: Pose
     ) -> TransformStamped:
         t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
+        t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.odom_frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
@@ -105,22 +157,24 @@ class TorpedoTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
+        req = SetObjectTransform.Request()
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
         if not resp.success:
-            rospy.logerr(
+            self.get_logger().error(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
     def _load_hole_fire_config(self, hole_name: str) -> dict:
         return {
             "hole_name": hole_name,
-            "hole_frame": rospy.get_param(
+            "hole_frame": get_param(
+                self,
                 f"~torpedo_close_hole_{hole_name}_frame",
                 f"torpedo_close_hole_{hole_name}_link",
             ),
-            "fire_frame": rospy.get_param(
+            "fire_frame": get_param(
+                self,
                 f"~torpedo_{hole_name}_fire_frame",
                 f"torpedo_{hole_name}_fire_frame",
             ),
@@ -159,8 +213,8 @@ class TorpedoTransformServiceNode:
         new_pose.position.z = pose.position.z + rotated_offset[2]
 
         if yaw_offset != 0.0:
-            q_rot = tf.transformations.quaternion_from_euler(0, 0, yaw_offset)
-            new_q = tf.transformations.quaternion_multiply(q, q_rot)
+            q_rot = tf_transformations.quaternion_from_euler(0, 0, yaw_offset)
+            new_q = tf_transformations.quaternion_multiply(q, q_rot)
             new_pose.orientation.x = new_q[0]
             new_pose.orientation.y = new_q[1]
             new_pose.orientation.z = new_q[2]
@@ -173,13 +227,13 @@ class TorpedoTransformServiceNode:
     def create_target_frame(self):
         try:
             robot_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
+                self.odom_frame, self.robot_frame, Time(), Duration(seconds=4.0)
             )
             torpedo_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.torpedo_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
 
         except (
@@ -187,7 +241,7 @@ class TorpedoTransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup failed: {e}")
+            self.get_logger().warning(f"TF lookup failed: {e}")
             return
 
         robot_pose = self.get_pose(robot_tf)
@@ -204,7 +258,7 @@ class TorpedoTransformServiceNode:
         total_distance_2d = np.linalg.norm(direction_vector_2d)
 
         if total_distance_2d == 0:
-            rospy.logwarn(
+            self.get_logger().warning(
                 "Robot and torpedo are at the same XY position! Cannot create frame."
             )
             return
@@ -213,7 +267,7 @@ class TorpedoTransformServiceNode:
 
         # Calculate yaw from the direction vector (robot to torpedo)
         yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
-        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        q = tf_transformations.quaternion_from_euler(0, 0, yaw)
 
         orientation = Pose().orientation
         orientation.x = q[0]
@@ -241,8 +295,8 @@ class TorpedoTransformServiceNode:
             torpedo_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.torpedo_realsense_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
             torpedo_pose = self.get_pose(torpedo_tf)
 
@@ -253,8 +307,8 @@ class TorpedoTransformServiceNode:
                 torpedo_pose.orientation.z,
                 torpedo_pose.orientation.w,
             ]
-            (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-            q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+            (_, _, yaw) = tf_transformations.euler_from_quaternion(q)
+            q = tf_transformations.quaternion_from_euler(0, 0, yaw)
             torpedo_pose.orientation.x = q[0]
             torpedo_pose.orientation.y = q[1]
             torpedo_pose.orientation.z = q[2]
@@ -285,8 +339,8 @@ class TorpedoTransformServiceNode:
             realsense_target_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.realsense_target_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
             realsense_target_pose = self.get_pose(realsense_target_tf)
         except (
@@ -302,16 +356,16 @@ class TorpedoTransformServiceNode:
             realsense_target_pose.orientation.z,
             realsense_target_pose.orientation.w,
         ]
-        (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-        q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        (_, _, yaw) = tf_transformations.euler_from_quaternion(q)
+        q_yaw = tf_transformations.quaternion_from_euler(0, 0, yaw)
 
         for config in self.hole_fire_configs:
             try:
                 torpedo_hole_tf = self.tf_buffer.lookup_transform(
                     self.odom_frame,
                     config["hole_frame"],
-                    rospy.Time.now(),
-                    rospy.Duration(4.0),
+                    self.get_clock().now(),
+                    Duration(seconds=4.0),
                 )
                 torpedo_hole_pose = self.get_pose(torpedo_hole_tf)
 
@@ -335,25 +389,25 @@ class TorpedoTransformServiceNode:
             ):
                 continue
 
-    def handle_enable_target_service(self, req):
+    def handle_enable_target_service(self, req, response):
         self.enable_target = req.data
         message = (
             f"Torpido target frame transform publish is set to: {self.enable_target}"
         )
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
-    def handle_enable_realsense_target_service(self, req):
+    def handle_enable_realsense_target_service(self, req, response):
         self.enable_realsense_target = req.data
         message = f"Torpido realsense target frame transform publish is set to: {self.enable_realsense_target}"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
-    def handle_enable_torpedo_hole_target_service(self, req):
+    def handle_enable_torpedo_hole_target_service(self, req, response):
         self.enable_torpedo_hole_target = req.data
         message = f"Torpido hole target frame transform publish is set to: {self.enable_torpedo_hole_target}"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
     def reconfigure_callback(self, config, level):
         """Callback for dynamic reconfigure parameters"""
@@ -374,12 +428,14 @@ class TorpedoTransformServiceNode:
             config.top_fire_y_offset,
             config.top_fire_z_offset,
         ]
-        rospy.loginfo("Torpedo trajectory parameters updated via dynamic reconfigure")
+        self.get_logger().info(
+            "Torpedo trajectory parameters updated via dynamic reconfigure"
+        )
         return config
 
     def spin(self):
-        rate = rospy.Rate(20)
-        while not rospy.is_shutdown():
+        rate = self.create_rate(20)
+        while rclpy.ok():
             if self.enable_target:
                 self.create_target_frame()
             if self.enable_realsense_target:
@@ -389,9 +445,11 @@ class TorpedoTransformServiceNode:
             rate.sleep()
 
 
+def main():
+    ros.init()
+    node = TorpedoTransformServiceNode()
+    ros.spin(node, node.spin)
+
+
 if __name__ == "__main__":
-    try:
-        node = TorpedoTransformServiceNode()
-        node.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

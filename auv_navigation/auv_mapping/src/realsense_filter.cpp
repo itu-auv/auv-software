@@ -1,11 +1,11 @@
-#include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
 #include <pcl/filters/passthrough.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/point_cloud.h>
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <std_msgs/Float32.h>  // Still used for altitude
+#include <pcl_conversions/pcl_conversions.h>
+#include "rclcpp/rclcpp.hpp"
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/float32.hpp>  // Still used for altitude
 
 #include <cmath>   // For std::sqrt, std::acos, M_PI, std::isfinite
 #include <limits>  // For std::numeric_limits
@@ -14,22 +14,29 @@ using PointCloud = pcl::PointCloud<pcl::PointXYZ>;
 
 class PointCloudFilterNode {
  public:
-  PointCloudFilterNode(ros::NodeHandle& nh) {
+  PointCloudFilterNode(rclcpp::Node::SharedPtr nh) {
     // Hardcoded topic names
     pc_topic_ = "camera/depth/color/points";
     alt_topic_ = "sensors/dvl/altitude";
     odom_topic_ = "odometry";  // Change to your odometry topic name
 
-    ROS_INFO_ONCE("PointCloudFilterNode started.");  // Node start message
+    RCLCPP_INFO_ONCE(nh->get_logger(), "PointCloudFilterNode started.");  // Node start message
 
     // setup subscribers and publisher
-    pc_sub_ =
-        nh.subscribe(pc_topic_, 1, &PointCloudFilterNode::cloudCallback, this);
-    alt_sub_ =
-        nh.subscribe(alt_topic_, 1, &PointCloudFilterNode::altCallback, this);
-    odom_sub_ =
-        nh.subscribe(odom_topic_, 1, &PointCloudFilterNode::odomCallback, this);
-    pc_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/points_filtered", 1);
+    pc_sub_ = nh->create_subscription<sensor_msgs::msg::PointCloud2>(
+        pc_topic_, 1,
+        std::bind(&PointCloudFilterNode::cloudCallback, this,
+                  std::placeholders::_1));
+    alt_sub_ = nh->create_subscription<std_msgs::msg::Float32>(
+        alt_topic_, 1,
+        std::bind(&PointCloudFilterNode::altCallback, this,
+                  std::placeholders::_1));
+    odom_sub_ = nh->create_subscription<nav_msgs::msg::Odometry>(
+        odom_topic_, 1,
+        std::bind(&PointCloudFilterNode::odomCallback, this,
+                  std::placeholders::_1));
+    pc_pub_ = nh->create_publisher<sensor_msgs::msg::PointCloud2>(
+        "/points_filtered", 1);
 
     alt_received_ = false;
     depth_received_ = false;
@@ -40,8 +47,10 @@ class PointCloudFilterNode {
   std::string pc_topic_, alt_topic_, odom_topic_;
 
   // ros interfaces
-  ros::Subscriber pc_sub_, alt_sub_, odom_sub_;
-  ros::Publisher pc_pub_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pc_sub_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr alt_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_pub_;
 
   // latest sensor data
   float altitude_;     // Changed type to float
@@ -49,19 +58,19 @@ class PointCloudFilterNode {
   bool alt_received_, depth_received_;
 
   void altCallback(
-      const std_msgs::Float32::ConstPtr& msg) {  // Changed message type
+      const std_msgs::msg::Float32::ConstSharedPtr& msg) {  // Changed message type
     altitude_ = msg->data;
     alt_received_ = true;
   }
 
-  void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
+  void odomCallback(const nav_msgs::msg::Odometry::ConstSharedPtr& msg) {
     // Use odometry pose z as depth
     depth_value_ = msg->pose.pose.position.z;
-    // ROS_INFO("Depth value from odometry: %f", depth_value_);
+    // RCLCPP_INFO(nh->get_logger(), "Depth value from odometry: %f", depth_value_);
     depth_received_ = true;
   }
 
-  void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg) {
+  void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg) {
     if (!alt_received_ || !depth_received_) {
       return;
     }
@@ -150,20 +159,21 @@ class PointCloudFilterNode {
         false;  // Keep original behavior for the final published cloud
 
     // publish
-    sensor_msgs::PointCloud2 out_msg;
+    sensor_msgs::msg::PointCloud2 out_msg;
     pcl::toROSMsg(*temp_cloud, out_msg);
     out_msg.header = cloud_msg->header;
-    // ROS_INFO("Publishing filtered PointCloud with");
-    pc_pub_.publish(out_msg);
+    // RCLCPP_INFO(nh->get_logger(), "Publishing filtered PointCloud with");
+    pc_pub_->publish(out_msg);
   }
 };
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "pointcloud_filter_node");
-  ros::NodeHandle nh;
+  rclcpp::init(argc, argv);
+  auto nh = std::make_shared<rclcpp::Node>("pointcloud_filter_node");
 
   PointCloudFilterNode node(nh);
-  ros::spin();
+  rclcpp::spin(nh);
+  rclcpp::shutdown();
 
   return 0;
 }

@@ -1,15 +1,20 @@
+#include <thread>
+
 #include "auv_mapping/object_map_tf_server_ros.hpp"
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "object_map_tf_server");
-  auto node_handle = ros::NodeHandle{};
+  rclcpp::init(argc, argv);
+  auto node_handle = std::make_shared<rclcpp::Node>("object_map_tf_server");
   auto server = auv_mapping::ObjectMapTFServerROS{node_handle};
 
-  auto spinner = ros::AsyncSpinner{2};
-  spinner.start();
+  auto executor = rclcpp::executors::MultiThreadedExecutor{
+      rclcpp::ExecutorOptions{}, 2};
+  executor.add_node(node_handle);
+  auto spinner = std::thread{[&executor]() { executor.spin(); }};
 
   server.run();
-  ros::waitForShutdown();
+  rclcpp::shutdown();
+  spinner.join();
 
   return 0;
 }
