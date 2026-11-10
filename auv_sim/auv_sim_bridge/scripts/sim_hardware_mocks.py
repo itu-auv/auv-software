@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Ideal simulation board/task mocks. No battery, actuator or acoustic dynamics."""
 import math
+import random
 import json
 import copy
 from functools import partial
@@ -25,6 +26,9 @@ from std_srvs.srv import SetBool, Trigger
 from ros_gz_interfaces.srv import SpawnEntity, SetEntityPose
 from rclpy.clock import Clock, ClockType
 from tf2_ros import Buffer, TransformListener, TransformException
+
+
+TABLE_OBJECTS = ("pill", "nutbolt", "electric", "bandaid")
 
 
 class SimulationMocks(Node):
@@ -82,7 +86,7 @@ class SimulationMocks(Node):
                 partial(self.torpedo, index),
                 callback_group=self.group,
             )
-        for item in ("bandaid", "electric", "nutbolt", "pill"):
+        for item in TABLE_OBJECTS:
             self.create_service(
                 Trigger,
                 f"actuators/{item}/spawn",
@@ -90,6 +94,17 @@ class SimulationMocks(Node):
                 callback_group=self.group,
             )
         self.create_timer(0.1, self.publish_status)
+        # the ROS 1 mock put the four octagon objects on the table at start-up
+        self.table_center, self.table_spots, self.table_counts = (13.0, -4.25), [], {}
+        if (
+            self.world == "pool"
+            and self.declare_parameter("spawn_table_objects", True).value
+        ):
+            self.table_timer = self.create_timer(
+                1.0,
+                self.spawn_table_objects_once,
+                clock=Clock(clock_type=ClockType.STEADY_TIME),
+            )
         self.get_logger().info(
             "Ideal mocks: 16 V, healthy board, enable=false; sim/set_enabled controls enable. "
             "Gripper is command echo; torpedoes use ideal 1 m/s pose motion, without propulsion/collision dynamics."
@@ -173,7 +188,7 @@ class SimulationMocks(Node):
         ) = (float(v) for v in q)
         return pose
 
-    async def spawn_model(self, relative_path, pose, key):
+    async def spawn_model(self, relative_path, pose, key, name=None):
         if not self.spawn.service_is_ready():
             return False, "Gazebo create service is not ready"
         root = ET.parse(
@@ -190,7 +205,7 @@ class SimulationMocks(Node):
             static.text = "true"
         self.serial += 1
         request = SpawnEntity.Request()
-        request.entity_factory.name = f"mock_{key}_{self.serial}"
+        request.entity_factory.name = name or f"mock_{key}_{self.serial}"
         request.entity_factory.sdf = ET.tostring(root, encoding="unicode")
         request.entity_factory.pose = pose
         future = self.spawn.call_async(request)
@@ -243,14 +258,37 @@ class SimulationMocks(Node):
             response.success, response.message = False, str(error)
         return response
 
-    async def bottle(self, item, request, response):
+    async def spawn_table_object(self, item):
+        """One octagon task object at a random free spot on the table, as the ROS 1
+        mock placed them. The simulated detectors find it by its model name."""
+        for _ in range(1000):
+            x, y = (c + random.uniform(-0.2, 0.2) for c in self.table_center)
+            if all(math.hypot(x - px, y - py) >= 0.15 for px, py in self.table_spots):
+                break
+        self.table_spots.append((x, y))
         pose = Pose()
-        pose.orientation.w = 1.0
-        pose.position.x, pose.position.y, pose.position.z = 13.0, -4.25, -1.3
-        response.success, response.message = await self.spawn_model(
-            f"{item}/model.sdf", pose, item
-        )
+        pose.position.x, pose.position.y, pose.position.z = x, y, -1.3
+        yaw = random.uniform(0.0, 2.0 * math.pi)
+        pose.orientation.z, pose.orientation.w = math.sin(yaw / 2), math.cos(yaw / 2)
+        count = self.table_counts[item] = self.table_counts.get(item, 0) + 1
+        name = item if count == 1 else f"{item}_{count}"
+        return await self.spawn_model(f"{item}/model.sdf", pose, item, name)
+
+    async def bottle(self, item, request, response):
+        response.success, response.message = await self.spawn_table_object(item)
         return response
+
+    def spawn_table_objects_once(self):
+        if not self.spawn.service_is_ready():
+            return
+        self.destroy_timer(self.table_timer)
+
+        async def perform():
+            for item in TABLE_OBJECTS:
+                ok, detail = await self.spawn_table_object(item)
+                self.get_logger().info(f"table object {item}: success={ok} {detail}")
+
+        self.executor.create_task(perform)
 
     def drop(self, message):
         if abs(message.data) <= 1e-3:

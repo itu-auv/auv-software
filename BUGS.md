@@ -341,3 +341,8 @@ Dead or broken leftovers:
   `RESOLVE_TORPEDO_CLOSEST_FRAME`. **Fixed**: an `rgbd_camera` at the RealSense pose,
   bridged to the topics the ROS 1 plugin published (`camera/color/*`, `camera/depth/*`,
   `/points_filtered` via `depth_image_proc`).
+- The Harmonic mock did not put the four octagon objects on the table at start-up (the
+  ROS 1 mock did), spawned them all at one point when asked, and named them
+  `mock_<item>_<n>`, which the simulated detectors do not recognise. **Fixed** in
+  `sim_hardware_mocks.py`: spawned at start-up at random spots on the table, named as
+  before (`pill`, `pill_2`, ...); `spawn_table_objects:=false` turns it off.
