@@ -19,8 +19,9 @@ Not done or not verified:
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
-- In the simulator the gate, torpedo and bin tasks have been run from start to end;
-  octagon, pinger and return have not.
+- In the simulator the gate, torpedo, bin and octagon tasks have each been run from
+  start to end (each from its own start pose, with `premap:=none` except the gate).
+  The pinger and return tasks, and a whole mission in one go, have not.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
 - The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
