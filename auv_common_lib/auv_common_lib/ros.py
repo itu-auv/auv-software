@@ -1,9 +1,12 @@
+import inspect
 import signal
 import threading
+import time
 
 import rclpy
 from rcl_interfaces.msg import ParameterDescriptor
-from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.exceptions import ROSInterruptException
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
@@ -107,6 +110,7 @@ class ServiceProxy:
 
     def __init__(self, node, srv_type, name):
         self.srv_type = srv_type
+        self.created = time.monotonic()
         self.client = node.create_client(
             srv_type, name, callback_group=ReentrantCallbackGroup()
         )
@@ -121,7 +125,12 @@ class ServiceProxy:
         else:
             fields = self.srv_type.Request.get_fields_and_field_types()
             request = self.srv_type.Request(**dict(zip(fields, args)), **kwargs)
-        self.wait_for_service(timeout=1.0)
+        if not self.client.service_is_ready():
+            # a new client needs a moment to discover the server; after that a
+            # missing server fails at once, as it did with rospy
+            self.wait_for_service(
+                timeout=max(0.0, 1.0 - (time.monotonic() - self.created))
+            )
         return self.client.call(request)
 
     __call__ = call
@@ -307,6 +316,27 @@ def init(args=None):
             self, coerce(response), header
         )
         Publisher._auv_lenient = True
+
+    # rospy ran every subscriber, timer and service in its own thread. rclpy puts
+    # all of a node's callbacks in one mutually exclusive group, so one slow callback
+    # stalls the rest. Give each its own group unless the caller chose one.
+    if not getattr(Node, "_auv_own_groups", False):
+        for method in ("create_subscription", "create_timer", "create_service"):
+
+            def with_own_group(
+                self,
+                *args,
+                _create=getattr(Node, method),
+                _signature=inspect.signature(getattr(Node, method)),
+                **kwargs,
+            ):
+                call = _signature.bind(self, *args, **kwargs)
+                if call.arguments.get("callback_group") is None:
+                    call.arguments["callback_group"] = MutuallyExclusiveCallbackGroup()
+                return _create(*call.args, **call.kwargs)
+
+            setattr(Node, method, with_own_group)
+        Node._auv_own_groups = True
 
     # Ctrl-C and SIGTERM end spin() with the node still usable, so shutdown hooks
     # and `finally` blocks can talk to ROS (rclpy's own handlers shut down first).

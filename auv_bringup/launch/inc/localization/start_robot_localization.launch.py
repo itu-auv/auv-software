@@ -39,6 +39,9 @@ def generate_launch_description():
                 remappings=[
                     ("odometry/filtered", "odometry"),
                     ("accel/filtered", "acceleration"),
+                    # ROS 1 served these as private names of the node
+                    ("enable", "auv_localization_node/enable"),
+                    ("toggle", "auv_localization_node/toggle"),
                 ],
                 output="screen",
             ),

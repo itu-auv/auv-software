@@ -71,7 +71,10 @@ written around:
 | `rospy.Rate`, `rospy.on_shutdown`, `rospy.wait_for_message` | `Rate`, `on_shutdown`, `wait_for_message` |
 | latched publisher | `latched_qos()` |
 
-`ros.init()` also makes message fields forgiving again. rclpy aborts the whole
+`ros.init()` also restores two rospy behaviours the code depends on. Every
+subscriber, timer and service runs independently of the others (rclpy would run
+all of a node's callbacks one at a time, so one slow callback stalls the rest).
+And message fields are forgiving again. rclpy aborts the whole
 process when a message with an `int` in a float field, a numpy scalar, or a
 `Vector3` where a `Point` belongs is published; rospy accepted all of those and
 the code relies on it in many places.
@@ -102,5 +105,7 @@ Things ROS 2 does differently that bit during the port:
 - `CameraInfo` fields are lower case (`k`, `d`, `r`, `p`).
 - Service handlers take `(request, response)` and cannot fail the call; report
   through the response.
+- A subscriber only gets a latched message if it also asks for it
+  (`latched_qos()` on both sides).
 - Scripts started by launch files need the executable bit in git.
 - PID integral gains tuned on ROS 1 need rescaling (see BUGS.md, Control).

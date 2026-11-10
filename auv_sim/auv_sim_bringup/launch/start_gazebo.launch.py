@@ -83,7 +83,8 @@ def start(context):
                  'depth_offset': '0.0', 'pool_depth': '20.0', 'imu_calibration_path': str(root / 'imu.yaml'),
                  'dvl_velocity_topic': 'sensors/dvl/velocity_raw', 'dvl_is_valid_topic': 'sensors/dvl/is_valid'}),
         Node(package='robot_localization', executable='ekf_node', name='auv_localization_node', namespace=namespace,
-             parameters=[str(root / 'ekf.yaml')], remappings=[('odometry/filtered', 'odometry'), ('accel/filtered', 'acceleration')], output='screen'),
+             parameters=[str(root / 'ekf.yaml')], remappings=[('odometry/filtered', 'odometry'), ('accel/filtered', 'acceleration'),
+                         ('enable', 'auv_localization_node/enable'), ('toggle', 'auv_localization_node/toggle')], output='screen'),
         include('auv_control', 'start.launch.py',
                 {'namespace': namespace, 'use_sim_time': 'true', 'config_file': str(root / 'control.yaml')}),
     ] + application + [

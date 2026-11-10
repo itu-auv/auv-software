@@ -84,7 +84,7 @@ class ObjectPlaneFitter {
 
     // Camera info subscriber (separate, latched)
     camera_info_sub_ = nh_->create_subscription<sensor_msgs::msg::CameraInfo>(
-        "camera_info", 1,
+        "camera_info", rclcpp::QoS(1).transient_local(),
         std::bind(&ObjectPlaneFitter::cameraInfoCallback, this,
                   std::placeholders::_1));
     original_camera_info_sub_ =

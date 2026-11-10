@@ -94,3 +94,28 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 - `auv_sim/tf_gazebo_debug.py` used the Gazebo Classic spawn/delete/model-state
   services. It now uses the world's `create`/`remove` services and the robot's
   ground-truth odometry; `remove` is not bridged by the sim launch yet.
+
+## Gaps between the ROS 1 and the Harmonic simulator, found by running missions
+
+- The Harmonic sim had no `sensors/dvl/enable` service (the ROS 1 mock had one), so
+  `INITIALIZE` waited forever. **Fixed**: `sim_dvl_adapter.py` serves it and gates
+  validity like the old mock.
+- `sim_hardware_mocks.py` served `map/set_object_transform` as a stand-in while
+  mapping was not ported; with the real `object_map_tf_server_node` running there
+  were two servers for one service. **Fixed**: the stand-in is removed.
+- The ROS 2 `robot_localization` node serves `enable` and `toggle` in its
+  namespace, not under its own name as in ROS 1; missions and the GUI call
+  `auv_localization_node/enable`. **Fixed**: both EKF launch files remap them.
+
+## Small things
+
+- `auv_smach/gate.py` defines `TransformServiceEnableState` and
+  `PublishGateAngleState` twice (identical copies).
+- `reference_pose_publisher.py` imports `normalize_angle` from `angles` and then
+  defines its own.
+- Unused: `legacy_target_selection` in `main_state_machine.py`, `obj_type` in
+  `competition_map_gui.py`, `before_clamp` in `multidof_pid_controller.h`, and in
+  `process_tracker_with_cloud.cpp` the `distance` variable and five parameters of
+  `createAndPublishDetection` (leftovers of removed 3D detection and marker output).
+- `controller_ros.h`: members are initialised in a different order than declared
+  (`-Wreorder`); harmless today, a trap if one initialiser starts using another.

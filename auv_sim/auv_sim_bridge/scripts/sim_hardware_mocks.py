@@ -15,7 +15,6 @@ from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 from ament_index_python.packages import get_package_share_directory
-from auv_msgs.srv import SetObjectTransform
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import BatteryState
@@ -23,7 +22,7 @@ from std_msgs.msg import Bool, Float32, UInt16, String
 from std_srvs.srv import SetBool, Trigger
 from ros_gz_interfaces.srv import SpawnEntity, SetEntityPose
 from rclpy.clock import Clock, ClockType
-from tf2_ros import Buffer, TransformListener, StaticTransformBroadcaster, TransformException
+from tf2_ros import Buffer, TransformListener, TransformException
 
 
 class SimulationMocks(Node):
@@ -45,8 +44,6 @@ class SimulationMocks(Node):
         self.inflight = set()
         self.buffer = Buffer(node=self)
         self.listener = TransformListener(self.buffer, self)
-        self.transforms = StaticTransformBroadcaster(self)
-        self.map_transforms = {}
         self.group = ReentrantCallbackGroup()
         self.spawn = self.create_client(SpawnEntity, f'/world/{self.world}/create', callback_group=self.group)
         self.set_pose = self.create_client(SetEntityPose, f'/world/{self.world}/set_pose', callback_group=self.group)
@@ -57,7 +54,6 @@ class SimulationMocks(Node):
         self.spawn_events = self.create_publisher(String, 'sim/spawn_events', 10)
         self.gripper = self.create_publisher(UInt16, 'sim/gripper_angle', 10)
         self.create_service(SetBool, 'sim/set_enabled', self.set_enabled)
-        self.create_service(SetObjectTransform, 'map/set_object_transform', self.set_transform)
         self.create_subscription(Odometry, f'/model/{self.get_namespace().strip("/")}/odometry', self.on_truth, 10)
         self.create_subscription(Float32, 'actuators/ball_dropper/set_angle', self.drop, 10)
         for topic in ('actuators/gripper/set_angle', 'actuators/gripper1/set_angle'):
@@ -76,18 +72,6 @@ class SimulationMocks(Node):
         self.enabled = request.data
         response.success = True
         response.message = f'simulation enable={self.enabled}'
-        return response
-
-    def set_transform(self, request, response):
-        transform = request.transform
-        if not transform.child_frame_id or not transform.header.frame_id:
-            response.success = False
-            response.message = 'parent and child frames are required'
-            return response
-        self.map_transforms[transform.child_frame_id] = transform
-        self.transforms.sendTransform(list(self.map_transforms.values()))
-        response.success = True
-        response.message = 'simulation static map transform stored'
         return response
 
     def on_truth(self, message):

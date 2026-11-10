@@ -4,7 +4,7 @@ import os
 import sys
 import importlib
 import rclpy
-from auv_common_lib.ros import get_param, service_client
+from auv_common_lib.ros import get_param, latched_qos, service_client
 from auv_common_lib import ros
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -114,7 +114,7 @@ class CameraDetectionNode(Node):
                 Bool,
                 topic,
                 lambda msg, k=cam_key: self._handle_tracker_enabled_status(k, msg),
-                1,
+                latched_qos(),  # the trackers latch their enabled state
             )
             for cam_key, topic in self.tracker_enabled_topics.items()
         }
