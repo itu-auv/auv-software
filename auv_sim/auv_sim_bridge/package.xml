@@ -17,6 +17,7 @@
   <depend>rosgraph_msgs</depend>
   <depend>std_msgs</depend>
   <exec_depend>std_srvs</exec_depend>
+  <exec_depend>auv_common_lib</exec_depend>
   <depend>geometry_msgs</depend>
   <depend>marine_acoustic_msgs</depend>
   <depend>nav_msgs</depend>

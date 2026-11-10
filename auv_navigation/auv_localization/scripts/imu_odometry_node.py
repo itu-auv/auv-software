@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rclpy
+from auv_common_lib import ros
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.duration import Duration
@@ -230,7 +231,7 @@ class ImuToOdom(Node):
 
 
 def main():
-    rclpy.init()
+    ros.init()  # also keeps the multi-threaded executor from spinning hot
     imu_to_odom = ImuToOdom()
     try:
         imu_to_odom.run()

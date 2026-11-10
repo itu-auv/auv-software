@@ -9,6 +9,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import rclpy
+from auv_common_lib import ros
 import tf_transformations as tft
 from rclpy.node import Node
 from rclpy.time import Time
@@ -205,7 +206,7 @@ class SimulationMocks(Node):
 
 
 def main():
-    rclpy.init()
+    ros.init()  # also keeps the multi-threaded executor from spinning hot
     node = SimulationMocks()
     executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(node)
