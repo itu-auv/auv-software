@@ -83,6 +83,12 @@ def start(context):
         ).text = "0"
         sdf = ET.tostring(tree, encoding="unicode")
     entity = ET.fromstring(sdf).find("model")
+    # the conversion from URDF drops <surface>, and with it the bitmask that keeps
+    # the buoyancy sphere from touching things
+    for collision in entity.iter("collision"):
+        if "buoyancy_volume" in collision.get("name", ""):
+            contact = ET.SubElement(ET.SubElement(collision, "surface"), "contact")
+            ET.SubElement(contact, "collide_bitmask").text = "0"
     pose = entity.find("pose")
     if pose is None:
         pose = ET.SubElement(entity, "pose")

@@ -356,3 +356,8 @@ Dead or broken leftovers:
   `mock_<item>_<n>`, which the simulated detectors do not recognise. **Fixed** in
   `sim_hardware_mocks.py`: spawned at start-up at random spots on the table, named as
   before (`pill`, `pill_2`, ...); `spawn_table_objects:=false` turns it off.
+- The vehicle's buoyancy sphere (`base.urdf.xacro`) was meant not to touch anything,
+  but URDF cannot carry `<surface>` and the conversion to SDF dropped the bitmask. The
+  sphere reaches 39 cm above `base_link`, so at the gate depth of 0.7 m it passed
+  1 cm under the plate hanging in the gate, or caught on it and stopped the mission
+  there. **Fixed**: the launch sets the bitmask on the converted model.
