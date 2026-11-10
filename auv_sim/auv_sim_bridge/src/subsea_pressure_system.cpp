@@ -1,9 +1,7 @@
+#include <gz/msgs/fluid_pressure.pb.h>
+
 #include <chrono>
 #include <cmath>
-#include <random>
-#include <string>
-
-#include <gz/msgs/fluid_pressure.pb.h>
 #include <gz/plugin/Register.hh>
 #include <gz/sim/System.hh>
 #include <gz/sim/Util.hh>
@@ -11,6 +9,8 @@
 #include <gz/sim/components/Name.hh>
 #include <gz/sim/components/ParentEntity.hh>
 #include <gz/transport/Node.hh>
+#include <random>
+#include <string>
 
 namespace auv_sim_bridge {
 
@@ -45,20 +45,23 @@ class SubseaPressureSystem : public gz::sim::System,
     if (info.paused || info.simTime - last_update_ < period_) return;
     if (link_ == gz::sim::kNullEntity) {
       link_ = ecm.EntityByComponents(gz::sim::components::Link(),
-          gz::sim::components::Name(link_name_),
-          gz::sim::components::ParentEntity(model_));
+                                     gz::sim::components::Name(link_name_),
+                                     gz::sim::components::ParentEntity(model_));
       if (link_ == gz::sim::kNullEntity) return;
     }
     const auto sensor_pose = gz::sim::worldPose(link_, ecm) * offset_;
     // Preserve UUV's abs(Z), kPa/m coefficient and Gaussian amplitude.
-    const double pressure_kpa = standard_pressure_ +
-        std::abs(sensor_pose.Pos().Z()) * kpa_per_meter_ +
+    const double pressure_kpa =
+        standard_pressure_ + std::abs(sensor_pose.Pos().Z()) * kpa_per_meter_ +
         noise_amplitude_ * noise_(random_);
     gz::msgs::FluidPressure message;
-    const auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        info.simTime).count();
-    message.mutable_header()->mutable_stamp()->set_sec(nanoseconds / 1000000000);
-    message.mutable_header()->mutable_stamp()->set_nsec(nanoseconds % 1000000000);
+    const auto nanoseconds =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(info.simTime)
+            .count();
+    message.mutable_header()->mutable_stamp()->set_sec(nanoseconds /
+                                                       1000000000);
+    message.mutable_header()->mutable_stamp()->set_nsec(nanoseconds %
+                                                        1000000000);
     auto* frame = message.mutable_header()->add_data();
     frame->set_key("frame_id");
     frame->add_value(frame_);
@@ -85,7 +88,6 @@ class SubseaPressureSystem : public gz::sim::System,
 
 }  // namespace auv_sim_bridge
 
-GZ_ADD_PLUGIN(auv_sim_bridge::SubseaPressureSystem,
-              gz::sim::System,
+GZ_ADD_PLUGIN(auv_sim_bridge::SubseaPressureSystem, gz::sim::System,
               auv_sim_bridge::SubseaPressureSystem::ISystemConfigure,
               auv_sim_bridge::SubseaPressureSystem::ISystemPostUpdate)

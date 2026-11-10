@@ -4,23 +4,24 @@
  * Inspired by ultralytics_ros tracker_with_cloud_node
  */
 
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
-#include "rclcpp/rclcpp.hpp"
-#include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <std_srvs/srv/set_bool.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
+
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <opencv2/core/core.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 #include <vision_msgs/msg/detection2_d_array.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
-#include <opencv2/core/core.hpp>
+#include "rclcpp/rclcpp.hpp"
 
 // PCL Libraries
 #include <pcl/common/centroid.h>
@@ -32,6 +33,7 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
+
 #include <pcl_ros/transforms.hpp>
 
 class ProcessTrackerWithCloud {
@@ -48,7 +50,8 @@ class ProcessTrackerWithCloud {
   float roi_expansion_factor_;
 
   // Publishers
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr detection_cloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+      detection_cloud_pub_;
   rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr
       object_transform_pub_;
 
@@ -61,7 +64,8 @@ class ProcessTrackerWithCloud {
   // Subscribers and synchronizers
   message_filters::Subscriber<sensor_msgs::msg::CameraInfo> camera_info_sub_;
   message_filters::Subscriber<sensor_msgs::msg::PointCloud2> lidar_sub_;
-  message_filters::Subscriber<vision_msgs::msg::Detection2DArray> yolo_result_sub_;
+  message_filters::Subscriber<vision_msgs::msg::Detection2DArray>
+      yolo_result_sub_;
 
   typedef message_filters::sync_policies::ApproximateTime<
       sensor_msgs::msg::CameraInfo, sensor_msgs::msg::PointCloud2,
@@ -100,13 +104,14 @@ class ProcessTrackerWithCloud {
         tf_buffer_(nh->get_clock(), tf2::durationFromSec(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Load parameters
-    camera_info_topic_ = nh_->declare_parameter<std::string>(
-        "camera_info_topic", "camera_info");
+    camera_info_topic_ =
+        nh_->declare_parameter<std::string>("camera_info_topic", "camera_info");
     lidar_topic_ =
         nh_->declare_parameter<std::string>("lidar_topic", "points_raw");
-    yolo_result_topic_ = nh_->declare_parameter<std::string>(
-        "yolo_result_topic", "yolo_result");
-    cluster_tolerance_ = nh_->declare_parameter<double>("cluster_tolerance", 0.3);
+    yolo_result_topic_ =
+        nh_->declare_parameter<std::string>("yolo_result_topic", "yolo_result");
+    cluster_tolerance_ =
+        nh_->declare_parameter<double>("cluster_tolerance", 0.3);
     voxel_leaf_size_ = nh_->declare_parameter<double>("voxel_leaf_size", 0.1);
     min_cluster_size_ = nh_->declare_parameter<int>("min_cluster_size", 100);
     max_cluster_size_ = nh_->declare_parameter<int>("max_cluster_size", 10000);
@@ -115,8 +120,9 @@ class ProcessTrackerWithCloud {
     tracker_enable_service_ = nh_->declare_parameter<std::string>(
         "tracker_enable_service", "/tracker_node_realsense/enable");
 
-    std::vector<int64_t> skip_ids = nh_->declare_parameter<std::vector<int64_t>>(
-        "skip_detection_ids", std::vector<int64_t>{});
+    std::vector<int64_t> skip_ids =
+        nh_->declare_parameter<std::vector<int64_t>>("skip_detection_ids",
+                                                     std::vector<int64_t>{});
     if (skip_ids.empty()) {
       // Set default values
       skip_detection_ids = {0, 1, 2, 3, 5, 6, 7};  // torpedo_hole_link
@@ -170,8 +176,9 @@ class ProcessTrackerWithCloud {
 
   // Synchronous SetBool call; needs the client's callback group to be spun by
   // another executor thread than the caller's.
-  bool callSetBool(const rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr& client,
-                   bool enabled, std_srvs::srv::SetBool::Response& response) {
+  bool callSetBool(
+      const rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr& client,
+      bool enabled, std_srvs::srv::SetBool::Response& response) {
     auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
     request->data = enabled;
     auto future = client->async_send_request(request);
@@ -201,23 +208,27 @@ class ProcessTrackerWithCloud {
     }
 
     if (!tracker_enable_client_->service_is_ready()) {
-      RCLCPP_WARN_STREAM(nh_->get_logger(), "Could not set YOLO tracker via "
-                      << tracker_enable_service_
-                      << ": service is not available");
+      RCLCPP_WARN_STREAM(nh_->get_logger(),
+                         "Could not set YOLO tracker via "
+                             << tracker_enable_service_
+                             << ": service is not available");
       return false;
     }
 
     std_srvs::srv::SetBool::Response tracker_enable_response;
-    if (!callSetBool(tracker_enable_client_, enabled, tracker_enable_response)) {
-      RCLCPP_WARN_STREAM(nh_->get_logger(), "Failed to call YOLO tracker enable service "
-                      << tracker_enable_service_);
+    if (!callSetBool(tracker_enable_client_, enabled,
+                     tracker_enable_response)) {
+      RCLCPP_WARN_STREAM(nh_->get_logger(),
+                         "Failed to call YOLO tracker enable service "
+                             << tracker_enable_service_);
       return false;
     }
 
     if (!tracker_enable_response.success) {
-      RCLCPP_WARN_STREAM(nh_->get_logger(), "YOLO tracker rejected enable="
-                      << enabled << ": "
-                      << tracker_enable_response.message);
+      RCLCPP_WARN_STREAM(
+          nh_->get_logger(),
+          "YOLO tracker rejected enable=" << enabled << ": "
+                                          << tracker_enable_response.message);
       return false;
     }
 
@@ -229,7 +240,8 @@ class ProcessTrackerWithCloud {
   void syncCallback(
       const sensor_msgs::msg::CameraInfo::ConstSharedPtr& camera_info_msg,
       const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
-      const vision_msgs::msg::Detection2DArray::ConstSharedPtr& yolo_result_msg) {
+      const vision_msgs::msg::Detection2DArray::ConstSharedPtr&
+          yolo_result_msg) {
     if (!enabled_) {
       return;
     }
@@ -325,12 +337,13 @@ class ProcessTrackerWithCloud {
       }
 
       // Print number of clusters found
-      RCLCPP_INFO(nh_->get_logger(), "For detection ID %d (%s) found %zu clusters", detection_id,
-               (detection_id >= 0 && id_to_prop_name.find(detection_id) !=
-                                         id_to_prop_name.end()
-                    ? id_to_prop_name[detection_id].c_str()
-                    : "unknown"),
-               clusters.size());
+      RCLCPP_INFO(nh_->get_logger(),
+                  "For detection ID %d (%s) found %zu clusters", detection_id,
+                  (detection_id >= 0 && id_to_prop_name.find(detection_id) !=
+                                            id_to_prop_name.end()
+                       ? id_to_prop_name[detection_id].c_str()
+                       : "unknown"),
+                  clusters.size());
 
       // Variables to find the closest cluster
       size_t closest_cluster_idx = 0;
@@ -370,8 +383,9 @@ class ProcessTrackerWithCloud {
         }
       }
 
-      RCLCPP_INFO(nh_->get_logger(), "Closest cluster index: %zu with squared distance: %f",
-               closest_cluster_idx, min_squared_distance);
+      RCLCPP_INFO(nh_->get_logger(),
+                  "Closest cluster index: %zu with squared distance: %f",
+                  closest_cluster_idx, min_squared_distance);
 
       // Now process all clusters and create detections
       for (size_t cluster_idx = 0; cluster_idx < clusters.size();
@@ -473,11 +487,13 @@ class ProcessTrackerWithCloud {
       }
 
       if (points_in_bbox < 20) {
-        RCLCPP_DEBUG(nh_->get_logger(), "Few points (%d) found in bounding box", points_in_bbox);
+        RCLCPP_DEBUG(nh_->get_logger(), "Few points (%d) found in bounding box",
+                     points_in_bbox);
       }
 
     } catch (const std::exception& e) {
-      RCLCPP_ERROR_STREAM(nh_->get_logger(), "Exception in processPointsWithBbox: " << e.what());
+      RCLCPP_ERROR_STREAM(nh_->get_logger(),
+                          "Exception in processPointsWithBbox: " << e.what());
       detection_cloud->points.clear();
     }
   }
@@ -606,10 +622,9 @@ class ProcessTrackerWithCloud {
     Eigen::Vector3f x_axis = y_axis.cross(z_axis).normalized();
 
     try {
-      geometry_msgs::msg::TransformStamped tf_msg =
-          tf_buffer.lookupTransform(camera_optical_frame_, base_link_frame_,
-                                    tf2::TimePointZero,
-                                    tf2::durationFromSec(0.05));
+      geometry_msgs::msg::TransformStamped tf_msg = tf_buffer.lookupTransform(
+          camera_optical_frame_, base_link_frame_, tf2::TimePointZero,
+          tf2::durationFromSec(0.05));
       tf2::Quaternion q(
           tf_msg.transform.rotation.x, tf_msg.transform.rotation.y,
           tf_msg.transform.rotation.z, tf_msg.transform.rotation.w);
@@ -621,7 +636,9 @@ class ProcessTrackerWithCloud {
         x_axis = -x_axis;
       }
     } catch (const tf2::TransformException& ex) {
-      RCLCPP_WARN_STREAM_THROTTLE(nh_->get_logger(), *nh_->get_clock(), static_cast<int>((5.0) * 1000), "TF lookup failed: " << ex.what());
+      RCLCPP_WARN_STREAM_THROTTLE(nh_->get_logger(), *nh_->get_clock(),
+                                  static_cast<int>((5.0) * 1000),
+                                  "TF lookup failed: " << ex.what());
     }
 
     rotation_matrix.col(0) = x_axis;

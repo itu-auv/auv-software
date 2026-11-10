@@ -11,13 +11,15 @@ inline Eigen::Matrix<T, N, M> get_parameter_as_matrix(
   Matrix matrix;
   const auto values = param.as_double_array();
   if (values.size() != N * M) {
-    throw std::invalid_argument("Invalid matrix parameter length: " + param.get_name());
+    throw std::invalid_argument("Invalid matrix parameter length: " +
+                                param.get_name());
   }
   for (size_t i = 0; i < N; i++) {
     for (size_t j = 0; j < M; j++) {
       const auto value = values[i * M + j];
       if (!std::isfinite(value)) {
-        throw std::invalid_argument("Non-finite matrix parameter: " + param.get_name());
+        throw std::invalid_argument("Non-finite matrix parameter: " +
+                                    param.get_name());
       }
       matrix(i, j) = value;
     }

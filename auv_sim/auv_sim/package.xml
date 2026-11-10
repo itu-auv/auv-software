@@ -7,17 +7,17 @@
   <maintainer email="nalicilevent@gmail.com">Levent Emre Nalici</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>auv_common_lib</exec_depend>
+  <exec_depend>auv_msgs</exec_depend>
   <exec_depend>auv_sim_bridge</exec_depend>
   <exec_depend>auv_sim_bringup</exec_depend>
   <exec_depend>auv_sim_description</exec_depend>
   <exec_depend>auv_sim_vision</exec_depend>
-  <exec_depend>auv_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>ros_gz_interfaces</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
-  <exec_depend>auv_common_lib</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

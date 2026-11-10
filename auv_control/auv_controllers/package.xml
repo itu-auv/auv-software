@@ -7,12 +7,12 @@
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <depend>rclcpp</depend>
-  <test_depend>ament_cmake_gtest</test_depend>
   <depend>angles</depend>
   <depend>auv_common_lib</depend>
   <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
   <depend>tf2</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

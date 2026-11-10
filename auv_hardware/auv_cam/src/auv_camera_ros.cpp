@@ -90,7 +90,8 @@ USBGStreamerCameraROS::USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh)
      << " ! videoconvert ! video/x-raw, format=(string)BGR ! appsink drop=1";
   const std::string default_gst_device = ss.str();
   if (verbose_) {
-    RCLCPP_INFO_STREAM(nh_->get_logger(), "gstreamer pipeline:" << default_gst_device);
+    RCLCPP_INFO_STREAM(nh_->get_logger(),
+                       "gstreamer pipeline:" << default_gst_device);
   }
 
   // open device

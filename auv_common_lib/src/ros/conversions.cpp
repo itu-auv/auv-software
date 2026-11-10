@@ -52,9 +52,10 @@ geometry_msgs::msg::Vector3 convert(const Eigen::Vector3d& from) {
 template <>
 Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::msg::Pose& from) {
   Eigen::Matrix<double, 6, 1> to;
-  to.head<3>() = convert<geometry_msgs::msg::Point, Eigen::Vector3d>(from.position);
-  to.tail<3>() =
-      convert<geometry_msgs::msg::Quaternion, Eigen::Vector3d>(from.orientation);
+  to.head<3>() =
+      convert<geometry_msgs::msg::Point, Eigen::Vector3d>(from.position);
+  to.tail<3>() = convert<geometry_msgs::msg::Quaternion, Eigen::Vector3d>(
+      from.orientation);
 
   return to;
 }
@@ -62,14 +63,17 @@ Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::msg::Pose& from) {
 template <>
 Eigen::Matrix<double, 6, 1> convert(
     const geometry_msgs::msg::PoseWithCovariance& from) {
-  return convert<geometry_msgs::msg::Pose, Eigen::Matrix<double, 6, 1>>(from.pose);
+  return convert<geometry_msgs::msg::Pose, Eigen::Matrix<double, 6, 1>>(
+      from.pose);
 }
 
 template <>
 Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::msg::Twist& from) {
   Eigen::Matrix<double, 6, 1> to;
-  to.head<3>() = convert<geometry_msgs::msg::Vector3, Eigen::Vector3d>(from.linear);
-  to.tail<3>() = convert<geometry_msgs::msg::Vector3, Eigen::Vector3d>(from.angular);
+  to.head<3>() =
+      convert<geometry_msgs::msg::Vector3, Eigen::Vector3d>(from.linear);
+  to.tail<3>() =
+      convert<geometry_msgs::msg::Vector3, Eigen::Vector3d>(from.angular);
 
   return to;
 }
@@ -77,8 +81,10 @@ Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::msg::Twist& from) {
 template <>
 geometry_msgs::msg::Twist convert(const Eigen::Matrix<double, 6, 1>& from) {
   geometry_msgs::msg::Twist to;
-  to.linear = convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.head<3>());
-  to.angular = convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.tail<3>());
+  to.linear =
+      convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.head<3>());
+  to.angular =
+      convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.tail<3>());
 
   return to;
 }
@@ -86,16 +92,18 @@ geometry_msgs::msg::Twist convert(const Eigen::Matrix<double, 6, 1>& from) {
 template <>
 Eigen::Matrix<double, 6, 1> convert(
     const geometry_msgs::msg::TwistWithCovariance& from) {
-  return convert<geometry_msgs::msg::Twist, Eigen::Matrix<double, 6, 1>>(from.twist);
+  return convert<geometry_msgs::msg::Twist, Eigen::Matrix<double, 6, 1>>(
+      from.twist);
 }
 
 template <>
 Eigen::Matrix<double, 12, 1> convert(const nav_msgs::msg::Odometry& from) {
   Eigen::Matrix<double, 12, 1> to;
-  to.head<6>() =
-      convert<geometry_msgs::msg::Pose, Eigen::Matrix<double, 6, 1>>(from.pose.pose);
-  to.tail<6>() = convert<geometry_msgs::msg::Twist, Eigen::Matrix<double, 6, 1>>(
-      from.twist.twist);
+  to.head<6>() = convert<geometry_msgs::msg::Pose, Eigen::Matrix<double, 6, 1>>(
+      from.pose.pose);
+  to.tail<6>() =
+      convert<geometry_msgs::msg::Twist, Eigen::Matrix<double, 6, 1>>(
+          from.twist.twist);
 
   return to;
 }
@@ -103,8 +111,10 @@ Eigen::Matrix<double, 12, 1> convert(const nav_msgs::msg::Odometry& from) {
 template <>
 geometry_msgs::msg::Wrench convert(const Eigen::Matrix<double, 6, 1>& from) {
   geometry_msgs::msg::Wrench to;
-  to.force = convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.head<3>());
-  to.torque = convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.tail<3>());
+  to.force =
+      convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.head<3>());
+  to.torque =
+      convert<Eigen::Vector3d, geometry_msgs::msg::Vector3>(from.tail<3>());
 
   return to;
 }

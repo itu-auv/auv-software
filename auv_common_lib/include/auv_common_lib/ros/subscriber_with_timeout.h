@@ -1,8 +1,9 @@
 #pragma once
-#include "auv_common_lib/ros/subscriber_with_buffer.h"
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp/create_timer.hpp"
 #include <optional>
+
+#include "auv_common_lib/ros/subscriber_with_buffer.h"
+#include "rclcpp/create_timer.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 namespace auv {
 namespace common {

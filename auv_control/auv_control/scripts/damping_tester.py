@@ -11,7 +11,13 @@ from typing import Optional
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
-from auv_control.control_clients import ControlClients, ControllerParameters, log, parameter, init_ros
+from auv_control.control_clients import (
+    ControlClients,
+    ControllerParameters,
+    log,
+    parameter,
+    init_ros,
+)
 import message_filters
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
@@ -23,6 +29,7 @@ from std_srvs.srv import Trigger
 
 def TriggerResponse(success, message):
     return Trigger.Response(success=success, message=message)
+
 
 from auv_msgs.srv import SetDampingTarget
 
@@ -75,7 +82,7 @@ class DampingStepWrenchLogger(Node):
     def __init__(self):
         super().__init__("damping_step_wrench_logger")
         self._control_clients = ControlClients(self.get_namespace())
-        log(self, 'info', "damping_step_wrench_logger started")
+        log(self, "info", "damping_step_wrench_logger started")
 
         self.cmd_wrench_topic = parameter(self, "~cmd_wrench_topic", "cmd_wrench")
         self.odom_topic = parameter(self, "~odom_topic", "odometry")
@@ -98,7 +105,9 @@ class DampingStepWrenchLogger(Node):
         os.makedirs(self.log_dir, exist_ok=True)
 
         self.log_only_record = bool(parameter(self, "~log_only_record", True))
-        self.controller_reconfigure_server = parameter(self, "controller_reconfigure_server", "auv_control_node")
+        self.controller_reconfigure_server = parameter(
+            self, "controller_reconfigure_server", "auv_control_node"
+        )
 
         self._lock = threading.RLock()
         self.active: Optional[ActiveTest] = None
@@ -125,25 +134,43 @@ class DampingStepWrenchLogger(Node):
         )
 
         self.odom_sub = message_filters.Subscriber(self, Odometry, self.odom_topic)
-        self.wrench_sub = message_filters.Subscriber(self, WrenchStamped, self.wrench_topic)
+        self.wrench_sub = message_filters.Subscriber(
+            self, WrenchStamped, self.wrench_topic
+        )
 
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.odom_sub, self.wrench_sub], queue_size=50, slop=0.05
         )
         self.ts.registerCallback(self._sync_cb)
 
-        self._reset_odom_srv = lambda: self._control_clients.service(Trigger, self.resolve_service_name("reset_odometry"), Trigger.Request())
+        self._reset_odom_srv = lambda: self._control_clients.service(
+            Trigger, self.resolve_service_name("reset_odometry"), Trigger.Request()
+        )
 
-        self.create_service(SetDampingTarget, "~/surge", lambda req, res: self._srv_surge(req))  # linear.x
-        self.create_service(SetDampingTarget, "~/sway", lambda req, res: self._srv_sway(req))  # linear.y
-        self.create_service(SetDampingTarget, "~/yaw", lambda req, res: self._srv_yaw(req))  # angular.z
-        log(self, 'info', "Services: ~surge ~sway ~yaw  (enable, target)")
+        self.create_service(
+            SetDampingTarget, "~/surge", lambda req, res: self._srv_surge(req)
+        )  # linear.x
+        self.create_service(
+            SetDampingTarget, "~/sway", lambda req, res: self._srv_sway(req)
+        )  # linear.y
+        self.create_service(
+            SetDampingTarget, "~/yaw", lambda req, res: self._srv_yaw(req)
+        )  # angular.z
+        log(self, "info", "Services: ~surge ~sway ~yaw  (enable, target)")
 
-        self.create_service(Trigger, "~/surge_seq", lambda req, res: self._srv_surge_seq(req))
-        self.create_service(Trigger, "~/sway_seq", lambda req, res: self._srv_sway_seq(req))
-        self.create_service(Trigger, "~/yaw_seq", lambda req, res: self._srv_yaw_seq(req))
-        self.create_service(Trigger, "~/stop_seq", lambda req, res: self._srv_stop_seq(req))
-        log(self, 'info', "Sequence Services: ~surge_seq ~sway_seq ~yaw_seq ~stop_seq")
+        self.create_service(
+            Trigger, "~/surge_seq", lambda req, res: self._srv_surge_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/sway_seq", lambda req, res: self._srv_sway_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/yaw_seq", lambda req, res: self._srv_yaw_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/stop_seq", lambda req, res: self._srv_stop_seq(req)
+        )
+        log(self, "info", "Sequence Services: ~surge_seq ~sway_seq ~yaw_seq ~stop_seq")
 
         self.create_timer(1.0 / self.cmd_rate, self._cmd_timer_cb)
 
@@ -174,7 +201,7 @@ class DampingStepWrenchLogger(Node):
     def _srv_stop_seq(self, req):
         with self._lock:
             if self.sequence_state != "IDLE":
-                log(self, 'info', "Stopping sequence...")
+                log(self, "info", "Stopping sequence...")
                 self.sequence_state = "IDLE"
             if self.active is not None:
                 self.stop_requested = True
@@ -208,7 +235,7 @@ class DampingStepWrenchLogger(Node):
             self.sequence_timer = self.get_clock().now()
 
             msg = f"Started '{axis_name}' sequence. Stabilizing for {self.stabilize_time}s..."
-            log(self, 'info', msg)
+            log(self, "info", msg)
             return TriggerResponse(True, msg)
 
     def _handle(self, axis_name: str, enable: bool, target: float):
@@ -251,7 +278,7 @@ class DampingStepWrenchLogger(Node):
             self.curr_cmd = WrenchStamped()
 
             msg = f"Started {axis_name} target={target}. CSV={csv_path}"
-            log(self, 'info', msg)
+            log(self, "info", msg)
             return SetDampingTargetResponse(True, msg)
 
     # --- Timers
@@ -259,18 +286,24 @@ class DampingStepWrenchLogger(Node):
         with self._lock:
             # 1) SEQUENCE MANAGER
             if self.sequence_state == "STABILIZING":
-                dt_stab = (self.get_clock().now() - self.sequence_timer).nanoseconds / 1e9
+                dt_stab = (
+                    self.get_clock().now() - self.sequence_timer
+                ).nanoseconds / 1e9
                 if dt_stab >= self.stabilize_time:
                     if self.sequence_idx >= len(self.sequence_targets):
-                        log(self, 'info',
-                            f"*** Sequence for {self.sequence_axis} COMPLETED ***"
+                        log(
+                            self,
+                            "info",
+                            f"*** Sequence for {self.sequence_axis} COMPLETED ***",
                         )
                         self.sequence_state = "IDLE"
                     else:
                         target = self.sequence_targets[self.sequence_idx]
                         self.sequence_idx += 1
-                        log(self, 'info',
-                            f"Sequence -> Starting {self.sequence_axis} target: {target}"
+                        log(
+                            self,
+                            "info",
+                            f"Sequence -> Starting {self.sequence_axis} target: {target}",
                         )
 
                         self._handle(self.sequence_axis, enable=True, target=target)
@@ -375,7 +408,7 @@ class DampingStepWrenchLogger(Node):
             self.csv_writer.writerow(row)
             self.csv_file.flush()
         except Exception as e:
-            log(self, 'error', f"CSV write failed: {e}")
+            log(self, "error", f"CSV write failed: {e}")
             self._finish_locked("CSV_WRITE_ERROR")
 
     def _make_cmd(self, axis_name: str, target: float) -> WrenchStamped:
@@ -398,7 +431,9 @@ class DampingStepWrenchLogger(Node):
             )
             return True
         except Exception as exc:
-            log(self, 'warning',
+            log(
+                self,
+                "warning",
                 "Failed to connect to controller reconfigure server %s: %s",
                 self.controller_reconfigure_server,
                 exc,
@@ -415,11 +450,11 @@ class DampingStepWrenchLogger(Node):
         try:
             current_cfg = self.reconfigure_client.get_configuration()
         except Exception as exc:
-            log(self, 'warning', "Failed to read controller configuration: %s", exc)
+            log(self, "warning", "Failed to read controller configuration: %s", exc)
             return False
 
         if not current_cfg:
-            log(self, 'warning', "Controller configuration is empty")
+            log(self, "warning", "Controller configuration is empty")
             return False
 
         gain_updates = {name: list(current_cfg[name]) for name in ("kp", "ki", "kd")}
@@ -435,7 +470,7 @@ class DampingStepWrenchLogger(Node):
         try:
             self.reconfigure_client.update_configuration(gain_updates)
         except Exception as exc:
-            log(self, 'warning', "Failed to zero PID gains for %s: %s", axis_name, exc)
+            log(self, "warning", "Failed to zero PID gains for %s: %s", axis_name, exc)
             self.saved_pid_gains = None
             self.saved_pid_axis = None
             return False
@@ -449,7 +484,7 @@ class DampingStepWrenchLogger(Node):
         try:
             self._reset_odom_srv()
         except Exception as exc:
-            log(self, 'warning', "Failed to call odometry reset service: %s", exc)
+            log(self, "warning", "Failed to call odometry reset service: %s", exc)
 
         try:
             current_cfg = self.reconfigure_client.get_configuration()
@@ -460,7 +495,9 @@ class DampingStepWrenchLogger(Node):
                     gain_updates[name][idx] = value
             self.reconfigure_client.update_configuration(gain_updates)
         except Exception as exc:
-            log(self, 'warning',
+            log(
+                self,
+                "warning",
                 "Failed to restore PID gains for %s: %s",
                 self.saved_pid_axis,
                 exc,
@@ -521,20 +558,22 @@ class DampingStepWrenchLogger(Node):
 
         axis = self.active.axis_name if self.active else "none"
         path = self.active.csv_path if self.active else ""
-        log(self, 'info', f"Test finished: reason={reason} axis={axis} csv={path}")
+        log(self, "info", f"Test finished: reason={reason} axis={axis} csv={path}")
 
         self.active = None
         self.stop_requested = False
 
         if self.sequence_state == "TESTING":
             if reason == "COMPLETED":
-                log(self, 'info',
-                    f"Sequence -> Test completed. Stabilizing for {self.stabilize_time}s."
+                log(
+                    self,
+                    "info",
+                    f"Sequence -> Test completed. Stabilizing for {self.stabilize_time}s.",
                 )
                 self.sequence_state = "STABILIZING"
                 self.sequence_timer = self.get_clock().now()
             else:
-                log(self, 'warning', f"Sequence aborted due to condition: {reason}")
+                log(self, "warning", f"Sequence aborted due to condition: {reason}")
                 self.sequence_state = "IDLE"
 
 

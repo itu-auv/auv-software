@@ -30,14 +30,18 @@ class ImuToOdom(Node):
             "imu_calibration_path", "config/imu_calibration_data.yaml"
         ).value
 
-        self.base_frame = self.declare_parameter("base_frame", f"{self.namespace}/base_link").value
+        self.base_frame = self.declare_parameter(
+            "base_frame", f"{self.namespace}/base_link"
+        ).value
         self.imu_frame = self.declare_parameter(
             "imu_frame", f"{self.namespace}/base_link/imu"
         ).value
 
         self.tf_node = Node("imu_tf_listener", use_global_arguments=False)
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self.tf_node, spin_thread=True
+        )
 
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
 
@@ -73,7 +77,10 @@ class ImuToOdom(Node):
 
         # Service for IMU calibration
         self.calibration_service = self.create_service(
-            CalibrateIMU, "calibrate_imu", self.calibrate_imu, callback_group=self.callback_group
+            CalibrateIMU,
+            "calibrate_imu",
+            self.calibrate_imu,
+            callback_group=self.callback_group,
         )
 
     def get_frame_rotation(self, frame_id):

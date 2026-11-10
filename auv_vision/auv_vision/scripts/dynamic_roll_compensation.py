@@ -188,7 +188,6 @@ class CameraRollStabilizer(Node):
         return 0.5 < norm < 2.0  # loose sanity bounds
 
 
-
 def main():
     ros.init()
     node = CameraRollStabilizer()

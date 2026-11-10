@@ -9,7 +9,14 @@ import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.time import Time
-from auv_control.control_clients import ControlClients, ControllerParameters, log, log_throttle, parameter, init_ros
+from auv_control.control_clients import (
+    ControlClients,
+    ControllerParameters,
+    log,
+    log_throttle,
+    parameter,
+    init_ros,
+)
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, Float64, String
@@ -24,17 +31,19 @@ class GravityCompensationEstimatorNode(Node):
         self._control_clients = ControlClients(self.get_namespace())
         self.lock = Lock()
 
-        self.controller_reconfigure_server = parameter(self, "controller_reconfigure_server", "auv_control_node")
+        self.controller_reconfigure_server = parameter(
+            self, "controller_reconfigure_server", "auv_control_node"
+        )
         self.status_rate = float(parameter(self, "~status_rate", 1.0))
 
         self.active_min_z = float(parameter(self, "~active_min_z", -1.60))
         self.active_max_z = float(parameter(self, "~active_max_z", -0.35))
 
-        self.stable_window = Duration(seconds=
-            float(parameter(self, "~stable_window", 5.0))
+        self.stable_window = Duration(
+            seconds=float(parameter(self, "~stable_window", 5.0))
         )
-        self.sample_window_slack = Duration(seconds=
-            float(parameter(self, "~sample_window_slack", 1.0))
+        self.sample_window_slack = Duration(
+            seconds=float(parameter(self, "~sample_window_slack", 1.0))
         )
         self.min_samples = int(parameter(self, "~min_samples", 80))
         self.z_stability_threshold = float(
@@ -52,8 +61,8 @@ class GravityCompensationEstimatorNode(Node):
         )
         self.use_odometry_twist = self._get_bool_param("~use_odometry_twist", False)
 
-        self.min_update_interval = Duration(seconds=
-            float(parameter(self, "~min_update_interval", 2.0))
+        self.min_update_interval = Duration(
+            seconds=float(parameter(self, "~min_update_interval", 2.0))
         )
         self.update_alpha = float(parameter(self, "~update_alpha", 0.8))
         self.max_update_step = float(parameter(self, "~max_update_step", 5.0))
@@ -99,14 +108,18 @@ class GravityCompensationEstimatorNode(Node):
             Float64, "gravity_compensation_estimator/current_z", 1
         )
         self.set_apply_updates_srv = self.create_service(
-            SetBool, "~/set_apply_updates", lambda req, res: self.set_apply_updates_callback(req)
+            SetBool,
+            "~/set_apply_updates",
+            lambda req, res: self.set_apply_updates_callback(req),
         )
 
         self.status_timer = self.create_timer(
             1.0 / max(self.status_rate, 0.1), self.status_timer_callback
         )
 
-        log(self, 'info',
+        log(
+            self,
+            "info",
             "Gravity compensation estimator started: active z range [%.3f, %.3f], "
             "controller reconfigure server %s",
             self.active_min_z,
@@ -296,7 +309,9 @@ class GravityCompensationEstimatorNode(Node):
 
         if not self.apply_updates:
             self.status_reason = "dry_run_update_ready"
-            log_throttle(self, 'info',
+            log_throttle(
+                self,
+                "info",
                 5.0,
                 "Gravity compensation dry-run update ready: current %.3f, "
                 "estimated %.3f, proposed %.3f",
@@ -310,7 +325,9 @@ class GravityCompensationEstimatorNode(Node):
             self.last_update_time = now
             self.samples.clear()
             self.status_reason = "updated"
-            log(self, 'info',
+            log(
+                self,
+                "info",
                 "Updated gravity_compensation_z: %.3f -> %.3f "
                 "(estimated %.3f, stddev %.3f, z range %.3f)",
                 current,
@@ -330,13 +347,17 @@ class GravityCompensationEstimatorNode(Node):
             self.reconfigure_client = ControllerParameters(
                 self._control_clients, self.controller_reconfigure_server, timeout=5
             )
-            log(self, 'info',
+            log(
+                self,
+                "info",
                 "Connected to dynamic reconfigure server: %s",
                 self.controller_reconfigure_server,
             )
             return True
         except Exception as exc:
-            log_throttle(self, 'warning',
+            log_throttle(
+                self,
+                "warning",
                 5.0,
                 "Failed to connect to controller reconfigure server %s: %s",
                 self.controller_reconfigure_server,
@@ -355,8 +376,12 @@ class GravityCompensationEstimatorNode(Node):
             )
             return self.current_gravity_compensation_z
         except Exception as exc:
-            log_throttle(self, 'warning',
-                5.0, "Failed to read gravity compensation configuration: %s", exc
+            log_throttle(
+                self,
+                "warning",
+                5.0,
+                "Failed to read gravity compensation configuration: %s",
+                exc,
             )
             self.reconfigure_client = None
             return None
@@ -374,8 +399,12 @@ class GravityCompensationEstimatorNode(Node):
             )
             return True
         except Exception as exc:
-            log_throttle(self, 'warning',
-                5.0, "Failed to update gravity compensation configuration: %s", exc
+            log_throttle(
+                self,
+                "warning",
+                5.0,
+                "Failed to update gravity compensation configuration: %s",
+                exc,
             )
             self.reconfigure_client = None
             return False
@@ -385,7 +414,10 @@ class GravityCompensationEstimatorNode(Node):
         self.samples.clear()
 
     def _prune_samples_locked(self, now: Time) -> None:
-        max_sample_age = Duration(nanoseconds=self.stable_window.nanoseconds + self.sample_window_slack.nanoseconds)
+        max_sample_age = Duration(
+            nanoseconds=self.stable_window.nanoseconds
+            + self.sample_window_slack.nanoseconds
+        )
         while self.samples and now - self.samples[0]["stamp"] > max_sample_age:
             self.samples.popleft()
 

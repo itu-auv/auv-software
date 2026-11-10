@@ -35,12 +35,16 @@ class PressureToOdom(Node):
         ).value
         self.pool_depth = self.declare_parameter("env.pool_depth", 2.2).value
         self.min_valid_depth = self.declare_parameter("min_valid_depth", 0.1).value
-        self.max_valid_depth = self.declare_parameter("max_valid_depth", -self.pool_depth).value
+        self.max_valid_depth = self.declare_parameter(
+            "max_valid_depth", -self.pool_depth
+        ).value
 
         # tf transformer
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_node = Node("pressure_tf_listener", use_global_arguments=False)
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self.tf_node, spin_thread=True
+        )
 
         # publishers and subscribers
         self.odom_publisher = self.create_publisher(Odometry, "odom_pressure", 10)
@@ -58,7 +62,9 @@ class PressureToOdom(Node):
         self.odom_msg.pose.covariance[14] = self.depth_calibration_covariance
 
         self.get_logger().info("[PressureToOdom] Node initialized with parameters:")
-        self.get_logger().info(f"  depth_calibration_offset: {self.depth_calibration_offset}")
+        self.get_logger().info(
+            f"  depth_calibration_offset: {self.depth_calibration_offset}"
+        )
         self.get_logger().info(
             f"  depth_calibration_covariance: {self.depth_calibration_covariance}"
         )
@@ -113,7 +119,9 @@ class PressureToOdom(Node):
 
     def process_pressure_depth(self):
         if self.depth_data is None:
-            self.get_logger().warning("Waiting for depth data...", throttle_duration_sec=5.0)
+            self.get_logger().warning(
+                "Waiting for depth data...", throttle_duration_sec=5.0
+            )
             return
 
         pressure_depth_calibrated = self.depth_data + self.depth_calibration_offset
@@ -126,7 +134,8 @@ class PressureToOdom(Node):
 
         if not is_pressure_valid:
             self.get_logger().warning(
-                f"Pressure depth out of valid range [{self.max_valid_depth:.3f}, {self.min_valid_depth:.3f}]: {pressure_depth:.3f}; publishing clamped value {clamped_pressure_depth:.3f}", throttle_duration_sec=3.0
+                f"Pressure depth out of valid range [{self.max_valid_depth:.3f}, {self.min_valid_depth:.3f}]: {pressure_depth:.3f}; publishing clamped value {clamped_pressure_depth:.3f}",
+                throttle_duration_sec=3.0,
             )
 
         self.publish_odometry(clamped_pressure_depth)

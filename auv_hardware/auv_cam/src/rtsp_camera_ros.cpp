@@ -36,7 +36,8 @@
 
 namespace auv_cam {
 
-RTSPCameraROS::RTSPCameraROS(const rclcpp::Node::SharedPtr &nh) : nh_(nh), it_(nh_) {
+RTSPCameraROS::RTSPCameraROS(const rclcpp::Node::SharedPtr &nh)
+    : nh_(nh), it_(nh_) {
   width_ = nh_->declare_parameter<int>("width", 640);
   height_ = nh_->declare_parameter<int>("height", 480);
   fps_ = nh_->declare_parameter<int>("fps", 30);
@@ -44,7 +45,8 @@ RTSPCameraROS::RTSPCameraROS(const rclcpp::Node::SharedPtr &nh) : nh_(nh), it_(n
   pub_camera_info_ = nh_->declare_parameter<bool>("pub_camera_info", false);
 
   // RTSP parameters
-  rtsp_url_ = nh_->declare_parameter<std::string>("rtsp_url", "rtsp://192.168.1.65:554/");
+  rtsp_url_ = nh_->declare_parameter<std::string>("rtsp_url",
+                                                  "rtsp://192.168.1.65:554/");
   latency_ = nh_->declare_parameter<int>("latency", 200);
 
   // Load camera info if needed
@@ -100,14 +102,16 @@ RTSPCameraROS::RTSPCameraROS(const rclcpp::Node::SharedPtr &nh) : nh_(nh), it_(n
   const std::string gst_pipeline = ss.str();
 
   if (verbose_) {
-    RCLCPP_INFO_STREAM(nh_->get_logger(), "GStreamer pipeline: " << gst_pipeline);
+    RCLCPP_INFO_STREAM(nh_->get_logger(),
+                       "GStreamer pipeline: " << gst_pipeline);
   }
 
   // Open device
   capture_ = cv::VideoCapture(gst_pipeline, cv::CAP_GSTREAMER);
 
   if (!capture_.isOpened()) {
-    RCLCPP_ERROR_STREAM(nh_->get_logger(), "RTSP camera is not opened: " << rtsp_url_);
+    RCLCPP_ERROR_STREAM(nh_->get_logger(),
+                        "RTSP camera is not opened: " << rtsp_url_);
     throw std::runtime_error("RTSP camera is not opened.");
   }
 

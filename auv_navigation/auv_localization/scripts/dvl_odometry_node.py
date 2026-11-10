@@ -29,14 +29,18 @@ class DvlToOdom(Node):
         )
 
         self.namespace = self.declare_parameter("namespace", "taluy").value
-        self.base_frame = self.declare_parameter("base_frame", f"{self.namespace}/base_link").value
+        self.base_frame = self.declare_parameter(
+            "base_frame", f"{self.namespace}/base_link"
+        ).value
         self.dvl_frame = self.declare_parameter(
             "dvl_frame", f"{self.namespace}/base_link/dvl_link"
         ).value
 
         self.tf_node = Node("dvl_tf_listener", use_global_arguments=False)
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self.tf_node, spin_thread=True
+        )
         self.dvl_yaw = self.get_dvl_yaw()
 
         self.cmdvel_tau = self.declare_parameter("cmdvel_tau", 0.1).value
@@ -79,17 +83,29 @@ class DvlToOdom(Node):
         self.valid_arrival_filter = message_filters.SimpleFilter()
         self.dvl_velocity_subscriber.registerCallback(
             lambda msg: self.velocity_arrival_filter.signalMessage(
-                SimpleNamespace(header=SimpleNamespace(stamp=self.get_clock().now().to_msg()), message=msg)))
+                SimpleNamespace(
+                    header=SimpleNamespace(stamp=self.get_clock().now().to_msg()),
+                    message=msg,
+                )
+            )
+        )
         self.is_valid_subscriber.registerCallback(
             lambda msg: self.valid_arrival_filter.signalMessage(
-                SimpleNamespace(header=SimpleNamespace(stamp=self.get_clock().now().to_msg()), message=msg)))
+                SimpleNamespace(
+                    header=SimpleNamespace(stamp=self.get_clock().now().to_msg()),
+                    message=msg,
+                )
+            )
+        )
         self.sync = message_filters.ApproximateTimeSynchronizer(
             [self.velocity_arrival_filter, self.valid_arrival_filter],
             queue_size=10,
             slop=0.1,
             allow_headerless=True,
         )
-        self.sync.registerCallback(lambda velocity, valid: self.dvl_callback(velocity.message, valid.message))
+        self.sync.registerCallback(
+            lambda velocity, valid: self.dvl_callback(velocity.message, valid.message)
+        )
 
         self.odom_publisher = self.create_publisher(Odometry, "odom_dvl", 10)
 
@@ -104,7 +120,9 @@ class DvlToOdom(Node):
         self.update_twist_covariance(False)
 
         # Logging
-        self.get_logger().info("\033[38;5;110mDVL Odometry Calibration data loaded\033[0m:")
+        self.get_logger().info(
+            "\033[38;5;110mDVL Odometry Calibration data loaded\033[0m:"
+        )
         self.get_logger().info(f"\tcmdvel_tau: {self.cmdvel_tau}")
         self.get_logger().info(f"\tlinear x covariance: {self.linear_x_covariance}")
         self.get_logger().info(f"\tlinear y covariance: {self.linear_y_covariance}")
@@ -130,28 +148,43 @@ class DvlToOdom(Node):
     def load_dynamic_model(self):
         try:
             # Mass-inertia matrix
-            M_list = self.declare_parameter("model.mass_inertia_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY).value
+            M_list = self.declare_parameter(
+                "model.mass_inertia_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
             self.M = np.array(M_list).reshape(6, 6)
             self.M_inv = np.linalg.inv(self.M)
 
             # Damping matrices
-            D_linear_list = self.declare_parameter("model.linear_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY).value
+            D_linear_list = self.declare_parameter(
+                "model.linear_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
             self.D_linear = np.array(D_linear_list).reshape(6, 6)
 
-            D_quad_list = self.declare_parameter("model.quadratic_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY).value
+            D_quad_list = self.declare_parameter(
+                "model.quadratic_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
             self.D_quadratic = np.array(D_quad_list).reshape(6, 6)
-            if not all(np.isfinite(matrix).all() for matrix in (self.M, self.D_linear, self.D_quadratic)):
+            if not all(
+                np.isfinite(matrix).all()
+                for matrix in (self.M, self.D_linear, self.D_quadratic)
+            ):
                 raise ValueError("dynamic model matrices must be finite")
 
             self.dynamic_model_available = True
 
-            self.get_logger().info("\033[38;5;157mDynamic model loaded successfully\033[0m")
+            self.get_logger().info(
+                "\033[38;5;157mDynamic model loaded successfully\033[0m"
+            )
             self.get_logger().info(f"Mass matrix diagonal: {np.diag(self.M)}")
             self.get_logger().info(f"Linear damping diagonal: {np.diag(self.D_linear)}")
-            self.get_logger().info(f"Quadratic damping diagonal: {np.diag(self.D_quadratic)}")
+            self.get_logger().info(
+                f"Quadratic damping diagonal: {np.diag(self.D_quadratic)}"
+            )
 
         except Exception as e:
-            self.get_logger().error(f"\033[38;5;203mFailed to load dynamic model: {e}\033[0m")
+            self.get_logger().error(
+                f"\033[38;5;203mFailed to load dynamic model: {e}\033[0m"
+            )
             self.get_logger().warning("Using identity/zero matrices as fallback")
             # Fallback to safe defaults
             self.M = np.eye(6)
@@ -187,7 +220,9 @@ class DvlToOdom(Node):
             rot = (q.x, q.y, q.z, q.w)
             euler = tf_transformations.euler_from_quaternion(rot)
             yaw = euler[2]
-            self.get_logger().info(f"Loaded {self.dvl_frame} yaw from TF: {yaw} radians")
+            self.get_logger().info(
+                f"Loaded {self.dvl_frame} yaw from TF: {yaw} radians"
+            )
             return yaw
         except Exception as e:
             self.get_logger().warning(
@@ -352,7 +387,8 @@ class DvlToOdom(Node):
 
             if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
                 self.get_logger().info(
-                    "DVL invalid: Using dynamic model for velocity estimation", throttle_duration_sec=1.0
+                    "DVL invalid: Using dynamic model for velocity estimation",
+                    throttle_duration_sec=1.0,
                 )
                 model_vel = self.compute_model_based_velocity(dt)
 
@@ -367,7 +403,8 @@ class DvlToOdom(Node):
 
             else:
                 self.get_logger().warning(
-                    "DVL invalid and model unavailable/timeout: Using desired_velocity fallback", throttle_duration_sec=1.0
+                    "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
+                    throttle_duration_sec=1.0,
                 )
                 velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
                 velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
@@ -395,6 +432,7 @@ class DvlToOdom(Node):
                 self.odom_msg.header.stamp = self.get_clock().now().to_msg()
                 self.odom_msg.twist.twist = Twist()
                 self.odom_publisher.publish(self.odom_msg)
+
         self.timer = self.create_timer(0.05, publish_initial)
         rclpy.spin(self)
 

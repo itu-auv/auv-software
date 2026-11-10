@@ -1,11 +1,11 @@
-// Simulation time for ROS, at a chosen rate. Gazebo publishes its clock every physics
-// step (1 kHz); every rclpy node wakes up for each tick, and with forty Python nodes
-// that alone saturates the machine. This forwards a tick every `period` seconds of
-// simulation time instead.
-#include <memory>
-
+// Simulation time for ROS, at a chosen rate. Gazebo publishes its clock every
+// physics step (1 kHz); every rclpy node wakes up for each tick, and with forty
+// Python nodes that alone saturates the machine. This forwards a tick every
+// `period` seconds of simulation time instead.
 #include <gz/msgs/clock.pb.h>
+
 #include <gz/transport/Node.hh>
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <rosgraph_msgs/msg/clock.hpp>
 

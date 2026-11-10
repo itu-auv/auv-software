@@ -27,9 +27,10 @@ class SubscriberWithBuffer {
                  CallbackT&& callback) {
     message_callback_ = callback;
 
-    subscriber_ =
-        nh_->create_subscription<MessageT>(topic, queue_size,
-                      std::bind(&SubscriberWithBuffer<MessageT>::message_callback, this, std::placeholders::_1));
+    subscriber_ = nh_->create_subscription<MessageT>(
+        topic, queue_size,
+        std::bind(&SubscriberWithBuffer<MessageT>::message_callback, this,
+                  std::placeholders::_1));
   }
 
   void subscribe(const std::string& topic, uint32_t queue_size) {

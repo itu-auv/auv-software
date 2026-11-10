@@ -45,23 +45,43 @@ def convert(src):
             value = yaml.safe_load(body)
         except Exception:
             value = None
-        if isinstance(value, list) and all(isinstance(v, (str, int, float)) for v in value):
-            return '<param name="%s" value="[%s]" />' % (name, ", ".join(str(v) for v in value))
+        if isinstance(value, list) and all(
+            isinstance(v, (str, int, float)) for v in value
+        ):
+            return '<param name="%s" value="[%s]" />' % (
+                name,
+                ", ".join(str(v) for v in value),
+            )
         if isinstance(value, (str, int, float, bool)):
             return '<param name="%s" value="%s" />' % (name, value)
         notes.append("inline rosparam %s: convert by hand" % name)
         return m.group(0)
 
-    src = re.sub(r'<rosparam\s+param="([^"]+)"\s*>(.*?)</rosparam>', rosparam_inline, src, flags=re.S)
+    src = re.sub(
+        r'<rosparam\s+param="([^"]+)"\s*>(.*?)</rosparam>',
+        rosparam_inline,
+        src,
+        flags=re.S,
+    )
 
     # groups with ns
     def group(m):
         indent, attrs = m.group(1), m.group(2)
         ns = re.search(r'\bns="([^"]+)"', attrs).group(1)
         rest = re.sub(r'\s*\bns="[^"]+"', "", attrs)
-        return '%s<group%s>\n%s  <push_ros_namespace namespace="%s" />' % (indent, rest, indent, ns)
+        return '%s<group%s>\n%s  <push_ros_namespace namespace="%s" />' % (
+            indent,
+            rest,
+            indent,
+            ns,
+        )
 
-    src = re.sub(r'^([ \t]*)<group((?:\s+[\w-]+="[^"]*")*\s+ns="[^"]+"(?:\s+[\w-]+="[^"]*")*)\s*>', group, src, flags=re.M)
+    src = re.sub(
+        r'^([ \t]*)<group((?:\s+[\w-]+="[^"]*")*\s+ns="[^"]+"(?:\s+[\w-]+="[^"]*")*)\s*>',
+        group,
+        src,
+        flags=re.M,
+    )
 
     # nodes
     def node(m):
@@ -75,7 +95,9 @@ def convert(src):
         if 'pkg="nodelet"' in tag or 'exec="nodelet"' in tag:
             notes.append("nodelet: %s" % tag[:100])
         if 'pkg="rviz"' in tag:
-            tag = tag.replace('pkg="rviz"', 'pkg="rviz2"').replace('exec="rviz"', 'exec="rviz2"')
+            tag = tag.replace('pkg="rviz"', 'pkg="rviz2"').replace(
+                'exec="rviz"', 'exec="rviz2"'
+            )
         return tag
 
     src = re.sub(r"<node\b[^>]*>", node, src, flags=re.S)
@@ -87,7 +109,11 @@ def convert(src):
     for line in src.split("\n"):
         if re.search(r"<include\b", line) and not re.search(r"/>\s*$", line):
             depth += 1
-        if depth == 0 and re.search(r"<arg\b[^>]*\bvalue=", line) and "default=" not in line:
+        if (
+            depth == 0
+            and re.search(r"<arg\b[^>]*\bvalue=", line)
+            and "default=" not in line
+        ):
             line = re.sub(r"<arg\b", "<let", line)
         if "</include>" in line:
             depth -= 1
@@ -99,7 +125,12 @@ def convert(src):
         pkg, rel = m.group(1), m.group(2)
         d = PKG_DIR.get(pkg)
         if d and not os.path.exists(os.path.join(d, rel)):
-            for alt in (rel + ".py", rel + ".xml", rel.replace(".launch.xml", ".launch.py"), rel.replace(".launch.xml", ".launch")):
+            for alt in (
+                rel + ".py",
+                rel + ".xml",
+                rel.replace(".launch.xml", ".launch.py"),
+                rel.replace(".launch.xml", ".launch"),
+            ):
                 if os.path.exists(os.path.join(d, alt)):
                     return "$(find-pkg-share %s)/%s" % (pkg, alt)
             notes.append("include target missing: %s/%s" % (pkg, rel))
@@ -107,10 +138,15 @@ def convert(src):
             notes.append("include from external package: %s/%s" % (pkg, rel))
         return m.group(0)
 
-    src = re.sub(r"\$\(find-pkg-share ([\w-]+)\)/([\w/.-]+\.launch(?:\.xml|\.py)?)", include, src)
+    src = re.sub(
+        r"\$\(find-pkg-share ([\w-]+)\)/([\w/.-]+\.launch(?:\.xml|\.py)?)", include, src
+    )
 
     for i, line in enumerate(src.split("\n"), 1):
-        if re.search(r"<rosparam|<machine|<test\b|textfile=|command=|\$\(anon|\$\(dirname|launch-prefix|<param[^>]*\btype=\"(double|yaml)\"", line):
+        if re.search(
+            r"<rosparam|<machine|<test\b|textfile=|command=|\$\(anon|\$\(dirname|launch-prefix|<param[^>]*\btype=\"(double|yaml)\"",
+            line,
+        ):
             notes.append("L%d: %s" % (i, line.strip()[:120]))
     src = re.sub(r'(<param\b[^>]*\btype=")double"', r'\1float"', src)
     return src, notes

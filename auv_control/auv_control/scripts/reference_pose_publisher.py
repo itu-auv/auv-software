@@ -7,7 +7,14 @@ from auv_common_lib import ros
 from rclpy.time import Time
 from rclpy.duration import Duration
 from rcl_interfaces.msg import ParameterDescriptor, FloatingPointRange
-from auv_control.control_clients import ControlClients, ControllerParameters, log, log_throttle, parameter, init_ros
+from auv_control.control_clients import (
+    ControlClients,
+    ControllerParameters,
+    log,
+    log_throttle,
+    parameter,
+    init_ros,
+)
 import tf2_ros
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import (
@@ -18,6 +25,7 @@ from geometry_msgs.msg import (
     TransformStamped,
 )
 from std_srvs.srv import Trigger
+
 TriggerResponse = Trigger.Response
 from std_msgs.msg import Bool
 from auv_msgs.srv import (
@@ -26,6 +34,7 @@ from auv_msgs.srv import (
     SetObjectTransform,
 )
 from robot_localization.srv import SetPose
+
 SetDepthRequest = SetDepth.Request
 SetDepthResponse = SetDepth.Response
 AlignFrameControllerResponse = AlignFrameController.Response
@@ -74,7 +83,9 @@ class ControlEnableHandler:
         self.enable = False
         self.timeout_duration = Duration(seconds=timeout_duration)
         self.last_enable_time = self.node.get_clock().now()
-        self.subscription = node.create_subscription(Bool, "enable", self._enable_callback, 10)
+        self.subscription = node.create_subscription(
+            Bool, "enable", self._enable_callback, 10
+        )
 
     def _enable_callback(self, msg):
         self.enable = msg.data
@@ -94,14 +105,23 @@ class ReferencePosePublisherNode(Node):
     def __init__(self):
         super().__init__("reference_pose_publisher_node")
         self._control_clients = ControlClients(self.get_namespace())
-        for name, value in (("linear_kp", 1.0), ("linear_kd", 0.7),
-                            ("angular_kp", 0.8), ("angular_kd", 0.3)):
-            descriptor = ParameterDescriptor(floating_point_range=[
-                FloatingPointRange(from_value=0.0, to_value=10.0, step=0.0)])
+        for name, value in (
+            ("linear_kp", 1.0),
+            ("linear_kd", 0.7),
+            ("angular_kp", 0.8),
+            ("angular_kd", 0.3),
+        ):
+            descriptor = ParameterDescriptor(
+                floating_point_range=[
+                    FloatingPointRange(from_value=0.0, to_value=10.0, step=0.0)
+                ]
+            )
             self.declare_parameter(name, value, descriptor)
         self.tf_node = Node("reference_tf_listener", use_global_arguments=False)
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.tf_node, spin_thread=True)
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self.tf_node, spin_thread=True
+        )
 
         # subscribers
         self.odometry_sub = self.create_subscription(
@@ -119,22 +139,34 @@ class ReferencePosePublisherNode(Node):
             Trigger, "reset_odometry", lambda req, res: self.reset_odometry_handler(req)
         )
         self.align_frame_service = self.create_service(
-            AlignFrameController, "align_frame/start", lambda req, res: self.handle_align_request(req)
+            AlignFrameController,
+            "align_frame/start",
+            lambda req, res: self.handle_align_request(req),
         )
         self.cancel_control_service = self.create_service(
-            Trigger, "align_frame/cancel", lambda req, res: self.handle_cancel_request(req)
+            Trigger,
+            "align_frame/cancel",
+            lambda req, res: self.handle_cancel_request(req),
         )
         self.reset_orientation_service = self.create_service(
-            Trigger, "reset_command_orientation", lambda req, res: self.handle_reset_orientation_request(req)
+            Trigger,
+            "reset_command_orientation",
+            lambda req, res: self.handle_reset_orientation_request(req),
         )
         self.sync_cmd_pose_service = self.create_service(
-            Trigger, "sync_cmd_pose", lambda req, res: self.handle_sync_cmd_pose_request(req)
+            Trigger,
+            "sync_cmd_pose",
+            lambda req, res: self.handle_sync_cmd_pose_request(req),
         )
         self.control_enable_handler = ControlEnableHandler(self, 1.0)
-        self.set_pose_client = lambda req: self._control_clients.service(SetPose, self.resolve_service_name("set_pose"), req)
+        self.set_pose_client = lambda req: self._control_clients.service(
+            SetPose, self.resolve_service_name("set_pose"), req
+        )
 
         # Service to broadcast cmd_pose as a frame
-        self.set_object_transform_service = lambda req: self._control_clients.service(SetObjectTransform, self.resolve_service_name("set_object_transform"), req)
+        self.set_object_transform_service = lambda req: self._control_clients.service(
+            SetObjectTransform, self.resolve_service_name("set_object_transform"), req
+        )
 
         # publishers
         self.cmd_pose_pub = self.create_publisher(PoseStamped, "cmd_pose", 10)
@@ -175,11 +207,11 @@ class ReferencePosePublisherNode(Node):
         self.max_z = parameter(self, "~max_z", 0.0)
         self.min_z = parameter(self, "~min_z", -2.0)
         self.max_yaw_offset = parameter(self, "~max_yaw_offset", np.pi / 18.0)
-        self.tf_lookup_timeout = Duration(seconds=
-            parameter(self, "~tf_lookup_timeout", 0.2)
+        self.tf_lookup_timeout = Duration(
+            seconds=parameter(self, "~tf_lookup_timeout", 0.2)
         )
-        self.tf_freshness_threshold = Duration(seconds=
-            parameter(self, "~tf_freshness_threshold", 0.4)
+        self.tf_freshness_threshold = Duration(
+            seconds=parameter(self, "~tf_freshness_threshold", 0.4)
         )
 
         self.killswitch_sub = self.create_subscription(
@@ -188,26 +220,38 @@ class ReferencePosePublisherNode(Node):
 
         try:
             # Prefer a configurable server name; resolve relative names via ROS
-            server_param = parameter(self,
-                "~controller_reconfigure_server", "auv_control_node"
+            server_param = parameter(
+                self, "~controller_reconfigure_server", "auv_control_node"
             )
             target_server = self.resolve_topic_name(server_param)
             self.reconfigure_client = ControllerParameters(
                 self._control_clients, target_server, timeout=5
             )
-            log(self, 'info', f"Connected to controller parameter services: {target_server}")
+            log(
+                self,
+                "info",
+                f"Connected to controller parameter services: {target_server}",
+            )
 
             # Capture current max velocity configuration as defaults to restore later
             current_cfg = self._read_controller_cfg()
             if current_cfg is not None:
                 self.default_max_velocity = list(current_cfg["max_velocity"])
             else:
-                log(self, 'warning',
-                    "Failed to read initial controller configuration; using params/fallback"
+                log(
+                    self,
+                    "warning",
+                    "Failed to read initial controller configuration; using params/fallback",
                 )
-                self.default_max_velocity = self.reconfigure_client.get_parameter("max_velocity") or [1.0] * 6
+                self.default_max_velocity = (
+                    self.reconfigure_client.get_parameter("max_velocity") or [1.0] * 6
+                )
         except Exception as e:
-            log(self, 'warning', f"Failed to connect to controller parameter services: {e}")
+            log(
+                self,
+                "warning",
+                f"Failed to connect to controller parameter services: {e}",
+            )
             self.reconfigure_client = None
             self.default_max_velocity = [1.0] * 6
 
@@ -216,8 +260,8 @@ class ReferencePosePublisherNode(Node):
             with self.state_lock:
                 if self.align_frame_active:
                     self.cancel_align_controller()
-                    log_throttle(self, 'info',
-                        1.0, "Killswitch inactive; alignment deactivated"
+                    log_throttle(
+                        self, "info", 1.0, "Killswitch inactive; alignment deactivated"
                     )
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
@@ -247,7 +291,9 @@ class ReferencePosePublisherNode(Node):
             # Update max velocity for Z axis
             if self.reconfigure_client:
                 try:
-                    max_velocity = list(self.reconfigure_client.get_parameter("max_velocity"))
+                    max_velocity = list(
+                        self.reconfigure_client.get_parameter("max_velocity")
+                    )
                     if req.max_velocity > 0:
                         self.set_depth_velocity = req.max_velocity
                         max_velocity[2] = req.max_velocity
@@ -255,9 +301,11 @@ class ReferencePosePublisherNode(Node):
                         # Restore default Z velocity
                         self.set_depth_velocity = None
                         max_velocity[2] = self.default_max_velocity[2]
-                    self.reconfigure_client.update_configuration({"max_velocity": max_velocity})
+                    self.reconfigure_client.update_configuration(
+                        {"max_velocity": max_velocity}
+                    )
                 except Exception as e:
-                    log(self, 'warning', f"Failed to update max velocity: {e}")
+                    log(self, "warning", f"Failed to update max velocity: {e}")
 
             return SetDepthResponse(
                 success=True,
@@ -453,8 +501,10 @@ class ReferencePosePublisherNode(Node):
                 )
                 self._update_controller_cfg(linear_vel, angular_vel, req.use_depth)
 
-        log(self, 'info',
-            f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
+        log(
+            self,
+            "info",
+            f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}",
         )
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
@@ -467,7 +517,7 @@ class ReferencePosePublisherNode(Node):
 
             self.cancel_align_controller()
 
-        log(self, 'info', "Align frame control canceled")
+        log(self, "info", "Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
 
     def handle_reset_orientation_request(self, req) -> TriggerResponse:
@@ -481,14 +531,14 @@ class ReferencePosePublisherNode(Node):
             self.target_roll = 0.0
             self.target_pitch = 0.0
 
-        log(self, 'info', "Roll and pitch reset to zero")
+        log(self, "info", "Roll and pitch reset to zero")
         return TriggerResponse(success=True, message="Orientation reset successfully")
 
     def handle_sync_cmd_pose_request(self, req) -> TriggerResponse:
         """Sync cmd_pose to current robot position (odometry)."""
         with self.state_lock:
             self.set_target_to_odometry()
-        log(self, 'info', "cmd_pose synced to current odometry")
+        log(self, "info", "cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
 
     def cancel_align_controller(self):
@@ -507,7 +557,7 @@ class ReferencePosePublisherNode(Node):
         try:
             return self.reconfigure_client.get_configuration()
         except Exception as e:
-            log(self, 'warning', f"Failed to read controller configuration: {e}")
+            log(self, "warning", f"Failed to read controller configuration: {e}")
             return None
 
     def _update_controller_cfg(
@@ -524,12 +574,18 @@ class ReferencePosePublisherNode(Node):
 
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity": [linear_vel, linear_vel, z_vel,
-                                     angular_vel, angular_vel, angular_vel],
+                    "max_velocity": [
+                        linear_vel,
+                        linear_vel,
+                        z_vel,
+                        angular_vel,
+                        angular_vel,
+                        angular_vel,
+                    ],
                 }
             )
         except Exception as e:
-            log(self, 'warning', f"Failed to update controller configuration: {e}")
+            log(self, "warning", f"Failed to update controller configuration: {e}")
 
     def _restore_controller_cfg(self):
         try:
@@ -541,12 +597,15 @@ class ReferencePosePublisherNode(Node):
             )
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity": [*self.default_max_velocity[:2], z_vel,
-                                     *self.default_max_velocity[3:]],
+                    "max_velocity": [
+                        *self.default_max_velocity[:2],
+                        z_vel,
+                        *self.default_max_velocity[3:],
+                    ],
                 }
             )
         except Exception as e:
-            log(self, 'warning', f"Failed to reset controller configuration: {e}")
+            log(self, "warning", f"Failed to reset controller configuration: {e}")
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -555,21 +614,21 @@ class ReferencePosePublisherNode(Node):
             )
 
         self.is_resetting = True
-        log(self, 'debug', "Starting odometry reset.")
+        log(self, "debug", "Starting odometry reset.")
 
         try:
             self.set_pose_client(self.set_pose_req)
-            log(self, 'debug', "Called set_pose service.")
+            log(self, "debug", "Called set_pose service.")
         except Exception as e:
-            log(self, 'error', f"Service call failed: {e}")
+            log(self, "error", f"Service call failed: {e}")
             self.is_resetting = False
             return TriggerResponse(success=False, message=f"Service call failed: {e}")
 
-        log(self, 'debug', "Waiting for heading to settle.")
+        log(self, "debug", "Waiting for heading to settle.")
         self.get_clock().sleep_for(Duration(seconds=2.0))
 
         self.is_resetting = False
-        log(self, 'debug', "Odometry reset finished.")
+        log(self, "debug", "Odometry reset finished.")
         return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
@@ -770,8 +829,15 @@ class ReferencePosePublisherNode(Node):
             if time.nanoseconds == 0 and not is_transform_fresh(
                 transform, self, self.tf_freshness_threshold
             ):
-                age = abs((self.get_clock().now() - Time.from_msg(transform.header.stamp)).nanoseconds / 1e9)
-                log_throttle(self, 'warning',
+                age = abs(
+                    (
+                        self.get_clock().now() - Time.from_msg(transform.header.stamp)
+                    ).nanoseconds
+                    / 1e9
+                )
+                log_throttle(
+                    self,
+                    "warning",
                     1.0,
                     f"TF lookup from {source_frame} to {target_frame} returned stale data "
                     f"({age:.3f}s > {self.tf_freshness_threshold.nanoseconds / 1e9:.3f}s)",
@@ -783,8 +849,11 @@ class ReferencePosePublisherNode(Node):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            log_throttle(self, 'warning',
-                1.0, f"TF lookup failed from {source_frame} to {target_frame}: {e}"
+            log_throttle(
+                self,
+                "warning",
+                1.0,
+                f"TF lookup failed from {source_frame} to {target_frame}: {e}",
             )
             return None
 
@@ -802,7 +871,7 @@ class ReferencePosePublisherNode(Node):
             req.transform = transform
             self.set_object_transform_service(req)
         except Exception as e:
-            log_throttle(self, 'warning', 5.0, f"Failed to publish cmd_pose frame: {e}")
+            log_throttle(self, "warning", 5.0, f"Failed to publish cmd_pose frame: {e}")
 
     def control_loop(self):
         with self.state_lock:
@@ -831,8 +900,8 @@ class ReferencePosePublisherNode(Node):
                 self.tf_lookup_timeout,
             )
             if target_to_odom is None:
-                log_throttle(self, 'warning',
-                    1.0, f"Failed to lookup target frame '{frame_id}'"
+                log_throttle(
+                    self, "warning", 1.0, f"Failed to lookup target frame '{frame_id}'"
                 )
                 return
             cmd_pose_stamp = Time.from_msg(target_to_odom.header.stamp)
@@ -850,7 +919,7 @@ class ReferencePosePublisherNode(Node):
                 cmd_pose_stamp,
             )
             if transformed_depth is None:
-                log_throttle(self, 'error', 1.0, "Failed to transform target depth")
+                log_throttle(self, "error", 1.0, "Failed to transform target depth")
                 return
             cmd_pose_stamped.pose.position.z = transformed_depth
         else:
@@ -866,7 +935,9 @@ class ReferencePosePublisherNode(Node):
                 cmd_pose_stamp,
             )
             if transformed_rpy is None:
-                log_throttle(self, 'error', 1.0, "Failed to transform target orientation")
+                log_throttle(
+                    self, "error", 1.0, "Failed to transform target orientation"
+                )
                 return
             roll, pitch, yaw = transformed_rpy
         else:

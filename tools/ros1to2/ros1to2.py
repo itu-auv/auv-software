@@ -7,7 +7,13 @@ usage: ros1to2.py [--node EXPR] file.py [file.py ...]
 import re
 import sys
 
-LOG = {"info": "info", "warn": "warning", "err": "error", "debug": "debug", "fatal": "fatal"}
+LOG = {
+    "info": "info",
+    "warn": "warning",
+    "err": "error",
+    "debug": "debug",
+    "fatal": "fatal",
+}
 
 
 def split_args(s):
@@ -45,7 +51,11 @@ def split_args(s):
         out.append(cur)
     merged = []
     for a in out:  # a lambda's own parameter commas are not argument separators
-        if merged and merged[-1].lstrip().startswith("lambda") and ":" not in merged[-1]:
+        if (
+            merged
+            and merged[-1].lstrip().startswith("lambda")
+            and ":" not in merged[-1]
+        ):
             merged[-1] += "," + a
         else:
             merged.append(a)
@@ -128,26 +138,53 @@ def convert(src, node):
     def fix_srv_import(m):
         head, body = m.group(1), m.group(2)
         paren = body.startswith("(")
-        names = [n for n in re.findall(r"[A-Za-z_]\w*", body) if not (n.endswith(("Request", "Response")) and n[: -7 if n.endswith("Request") else -8] in srv)]
+        names = [
+            n
+            for n in re.findall(r"[A-Za-z_]\w*", body)
+            if not (
+                n.endswith(("Request", "Response"))
+                and n[: -7 if n.endswith("Request") else -8] in srv
+            )
+        ]
         names = list(dict.fromkeys(names))
         if paren and len(names) > 3:
             return head + "(\n" + "".join("    %s,\n" % n for n in names) + ")"
         return head + ", ".join(names)
 
-    src = re.sub(r"(from\s+[\w.]+\.srv\s+import\s+)(\([^)]*\)|[^\n]+)", fix_srv_import, src)
+    src = re.sub(
+        r"(from\s+[\w.]+\.srv\s+import\s+)(\([^)]*\)|[^\n]+)", fix_srv_import, src
+    )
     for s in sorted(srv, key=len, reverse=True):
         src = re.sub(r"\b%sRequest\b" % s, s + ".Request", src)
         src = re.sub(r"\b%sResponse\b" % s, s + ".Response", src)
 
     # --- tf.transformations
-    src = re.sub(r"import tf\.transformations as (\w+)", r"import tf_transformations as \1", src)
-    src = re.sub(r"from tf\.transformations import", "from tf_transformations import", src)
-    src = re.sub(r"^import tf\.transformations$", "import tf_transformations", src, flags=re.M)
-    src = re.sub(r"^from tf import transformations as (\w+)$", r"import tf_transformations as \1", src, flags=re.M)
-    src = re.sub(r"^from tf import transformations$", "import tf_transformations as transformations", src, flags=re.M)
+    src = re.sub(
+        r"import tf\.transformations as (\w+)", r"import tf_transformations as \1", src
+    )
+    src = re.sub(
+        r"from tf\.transformations import", "from tf_transformations import", src
+    )
+    src = re.sub(
+        r"^import tf\.transformations$", "import tf_transformations", src, flags=re.M
+    )
+    src = re.sub(
+        r"^from tf import transformations as (\w+)$",
+        r"import tf_transformations as \1",
+        src,
+        flags=re.M,
+    )
+    src = re.sub(
+        r"^from tf import transformations$",
+        "import tf_transformations as transformations",
+        src,
+        flags=re.M,
+    )
     src = re.sub(r"\btf\.transformations\.", "tf_transformations.", src)
     src = re.sub(r"\btf_conversions\.transformations\.", "tf_transformations.", src)
-    src = re.sub(r"^import tf_conversions$", "import tf_transformations", src, flags=re.M)
+    src = re.sub(
+        r"^import tf_conversions$", "import tf_transformations", src, flags=re.M
+    )
 
     # --- logging
     def log(m, args, kwargs):
@@ -158,12 +195,17 @@ def convert(src, node):
         elif kind == "_once":
             extra = ", once=True"
         if len(args) > 1:
-            msg = "%s %% (%s)" % (args[0], ", ".join(args[1:]) + ("," if len(args) == 2 else ""))
+            msg = "%s %% (%s)" % (
+                args[0],
+                ", ".join(args[1:]) + ("," if len(args) == 2 else ""),
+            )
         else:
             msg = args[0] if args else '""'
         return "%s.get_logger().%s(%s%s)" % (node, level, msg, extra)
 
-    src = rewrite_calls(src, r"rospy\.log(info|warn|err|debug|fatal)(_throttle|_once)?\(", log)
+    src = rewrite_calls(
+        src, r"rospy\.log(info|warn|err|debug|fatal)(_throttle|_once)?\(", log
+    )
 
     # --- params
     src = re.sub(r"rospy\.get_param\(", "get_param(%s, " % node, src)
@@ -191,74 +233,165 @@ def convert(src, node):
         cb = args[2] if len(args) > 2 else kwargs.get("callback")
         if extra or len(args) > 3 or cb is None:
             notes.append("Subscriber with unusual args: %s %s" % (args, kwargs))
-        return "%s.create_subscription(%s, %s, %s, %s)" % (node, args[1], args[0], cb, qos(kwargs))
+        return "%s.create_subscription(%s, %s, %s, %s)" % (
+            node,
+            args[1],
+            args[0],
+            cb,
+            qos(kwargs),
+        )
 
     src = rewrite_calls(src, r"rospy\.Subscriber\(", sub)
-    src = rewrite_calls(src, r"rospy\.Service\(", lambda m, a, k: "%s.create_service(%s, %s, %s)" % (node, a[1], a[0], a[2]))
-    src = rewrite_calls(src, r"rospy\.ServiceProxy\(", lambda m, a, k: "service_client(%s, %s, %s)" % (node, a[1], a[0]))
+    src = rewrite_calls(
+        src,
+        r"rospy\.Service\(",
+        lambda m, a, k: "%s.create_service(%s, %s, %s)" % (node, a[1], a[0], a[2]),
+    )
+    src = rewrite_calls(
+        src,
+        r"rospy\.ServiceProxy\(",
+        lambda m, a, k: "service_client(%s, %s, %s)" % (node, a[1], a[0]),
+    )
     src = rewrite_calls(
         src,
         r"rospy\.Timer\(",
-        lambda m, a, k: "%s.create_timer(%s, %s)" % (node, re.sub(r"^rospy\.Duration\((.*)\)$", r"\1", a[0]), a[1]),
+        lambda m, a, k: "%s.create_timer(%s, %s)"
+        % (node, re.sub(r"^rospy\.Duration\((.*)\)$", r"\1", a[0]), a[1]),
     )
 
     def mf_sub(m, args, kwargs):
         q = kwargs.get("queue_size")
-        return "message_filters.Subscriber(%s, %s, %s%s)" % (node, args[1], args[0], ", qos_profile=%s" % q if q else "")
+        return "message_filters.Subscriber(%s, %s, %s%s)" % (
+            node,
+            args[1],
+            args[0],
+            ", qos_profile=%s" % q if q else "",
+        )
 
     src = rewrite_calls(src, r"message_filters\.Subscriber\(", mf_sub)
 
     # --- time
     src = re.sub(r"rospy\.Time\.now\(\)", "%s.get_clock().now()" % node, src)
     src = re.sub(r"rospy\.get_rostime\(\)", "%s.get_clock().now()" % node, src)
-    src = re.sub(r"rospy\.get_time\(\)", "(%s.get_clock().now().nanoseconds / 1e9)" % node, src)
+    src = re.sub(
+        r"rospy\.get_time\(\)", "(%s.get_clock().now().nanoseconds / 1e9)" % node, src
+    )
     src = re.sub(r"rospy\.Time\(0\)|rospy\.Time\(\)", "Time()", src)
-    src = rewrite_calls(src, r"rospy\.Duration\(", lambda m, a, k: "Duration(seconds=%s)" % a[0] if len(a) == 1 and not k else None)
-    src = rewrite_calls(src, r"rospy\.Duration\.from_sec\(", lambda m, a, k: "Duration(seconds=%s)" % a[0])
-    src = re.sub(r"(stamp\s*=\s*[^\n#]*get_clock\(\)\.now\(\))(?!\.)", r"\1.to_msg()", src)
+    src = rewrite_calls(
+        src,
+        r"rospy\.Duration\(",
+        lambda m, a, k: (
+            "Duration(seconds=%s)" % a[0] if len(a) == 1 and not k else None
+        ),
+    )
+    src = rewrite_calls(
+        src,
+        r"rospy\.Duration\.from_sec\(",
+        lambda m, a, k: "Duration(seconds=%s)" % a[0],
+    )
+    src = re.sub(
+        r"(stamp\s*=\s*[^\n#]*get_clock\(\)\.now\(\))(?!\.)", r"\1.to_msg()", src
+    )
     src = re.sub(r"\.to_sec\(\)", ".nanoseconds / 1e9", src)
-    src = rewrite_calls(src, r"rospy\.Rate\(", lambda m, a, k: "Rate(%s, %s)" % (node, a[0]))
-    src = rewrite_calls(src, r"rospy\.sleep\(", lambda m, a, k: "%s.get_clock().sleep_for(%s)" % (node, a[0] if "Duration" in a[0] else "Duration(seconds=%s)" % a[0]))
+    src = rewrite_calls(
+        src, r"rospy\.Rate\(", lambda m, a, k: "Rate(%s, %s)" % (node, a[0])
+    )
+    src = rewrite_calls(
+        src,
+        r"rospy\.sleep\(",
+        lambda m, a, k: "%s.get_clock().sleep_for(%s)"
+        % (node, a[0] if "Duration" in a[0] else "Duration(seconds=%s)" % a[0]),
+    )
     src = re.sub(r"not rospy\.is_shutdown\(\)", "rclpy.ok()", src)
     src = re.sub(r"rospy\.is_shutdown\(\)", "not rclpy.ok()", src)
     src = re.sub(r"rospy\.spin\(\)", "rclpy.spin(%s)" % node, src)
     src = re.sub(r"rospy\.ROSInterruptException", "ROSInterruptException", src)
-    src = rewrite_calls(src, r"rospy\.signal_shutdown\(", lambda m, a, k: "rclpy.try_shutdown()")
-    src = re.sub(r"smach_ros\.ServiceState\.__init__\(\s*self,", "smach_ros.ServiceState.__init__(\n            self,\n            %s," % node, src)
-    src = re.sub(r"((?:self\.)?\w+)\.unregister\(\)", r"%s.destroy_subscription(\1)" % node, src)
+    src = rewrite_calls(
+        src, r"rospy\.signal_shutdown\(", lambda m, a, k: "rclpy.try_shutdown()"
+    )
+    src = re.sub(
+        r"smach_ros\.ServiceState\.__init__\(\s*self,",
+        "smach_ros.ServiceState.__init__(\n            self,\n            %s," % node,
+        src,
+    )
+    src = re.sub(
+        r"((?:self\.)?\w+)\.unregister\(\)", r"%s.destroy_subscription(\1)" % node, src
+    )
     src = re.sub(r"rospy\.ServiceException", "Exception", src)
     src = re.sub(r"rospy\.(exceptions\.)?ROSException", "ROSException", src)
     src = re.sub(r"rospy\.wait_for_message\(", "wait_for_message(%s, " % node, src)
     src = re.sub(r"rospy\.on_shutdown\(", "on_shutdown(", src)
 
     # private names are "~/name" in ROS 2
-    src = re.sub(r'((?:create_publisher|create_subscription|create_service|service_client)\([^)\n]*?)"~(\w)', r'\1"~/\2', src)
+    src = re.sub(
+        r'((?:create_publisher|create_subscription|create_service|service_client)\([^)\n]*?)"~(\w)',
+        r'\1"~/\2',
+        src,
+    )
 
     # --- tf2
-    src = re.sub(r"tf2_ros\.TransformListener\(([^(),]+)\)", r"tf2_ros.TransformListener(\1, %s)" % node, src)
-    src = re.sub(r"tf2_ros\.(Static)?TransformBroadcaster\(\)", r"tf2_ros.\1TransformBroadcaster(%s)" % node, src)
+    src = re.sub(
+        r"tf2_ros\.TransformListener\(([^(),]+)\)",
+        r"tf2_ros.TransformListener(\1, %s)" % node,
+        src,
+    )
+    src = re.sub(
+        r"tf2_ros\.(Static)?TransformBroadcaster\(\)",
+        r"tf2_ros.\1TransformBroadcaster(%s)" % node,
+        src,
+    )
     src = re.sub(r"\.get_num_connections\(\)", ".get_subscription_count()", src)
 
-    if re.search(r"^import tf$", src, flags=re.M) and not re.search(r"\btf\.(?!transformations)", src):
-        rep = "" if re.search(r"^import tf_transformations", src, flags=re.M) or "tf_transformations." not in src else "import tf_transformations"
-        src = re.sub(r"^import tf\n", rep + "\n" if rep else "", src, count=1, flags=re.M)
+    if re.search(r"^import tf$", src, flags=re.M) and not re.search(
+        r"\btf\.(?!transformations)", src
+    ):
+        rep = (
+            ""
+            if re.search(r"^import tf_transformations", src, flags=re.M)
+            or "tf_transformations." not in src
+            else "import tf_transformations"
+        )
+        src = re.sub(
+            r"^import tf\n", rep + "\n" if rep else "", src, count=1, flags=re.M
+        )
     src = re.sub(r"\bdo_transform_pose\(", "do_transform_pose_stamped(", src)
 
     # --- message field renames
-    src = re.sub(r"\b(\w*(?:calib|info|cam)\w*)\.(K|D|R|P)\b(?!\()", lambda m: "%s.%s" % (m.group(1), m.group(2).lower()), src)
+    src = re.sub(
+        r"\b(\w*(?:calib|info|cam)\w*)\.(K|D|R|P)\b(?!\()",
+        lambda m: "%s.%s" % (m.group(1), m.group(2).lower()),
+        src,
+    )
     src = re.sub(r"\bbbox\.center\.(x|y)\b", r"bbox.center.position.\1", src)
 
     # --- imports
     imports = ["import rclpy"]
     if re.search(r"\(Node\)|\bNode\(", src):
         imports.append("from rclpy.node import Node")
-    if re.search(r"\bDuration\(", src) and "from rclpy.duration import Duration" not in src:
+    if (
+        re.search(r"\bDuration\(", src)
+        and "from rclpy.duration import Duration" not in src
+    ):
         imports.append("from rclpy.duration import Duration")
     if re.search(r"\bTime\(", src) and "from rclpy.time import Time" not in src:
         imports.append("from rclpy.time import Time")
     if "ROSInterruptException" in src:
         imports.append("from rclpy.exceptions import ROSInterruptException")
-    helpers = [h for h in ("get_param", "has_param", "latched_qos", "service_client", "get_node", "wait_for_message", "ROSException", "Rate", "on_shutdown") if re.search(r"\b%s\(" % h, src)]
+    helpers = [
+        h
+        for h in (
+            "get_param",
+            "has_param",
+            "latched_qos",
+            "service_client",
+            "get_node",
+            "wait_for_message",
+            "ROSException",
+            "Rate",
+            "on_shutdown",
+        )
+        if re.search(r"\b%s\(" % h, src)
+    ]
     if helpers:
         imports.append("from auv_common_lib.ros import %s" % ", ".join(helpers))
     if re.search(r"^import rospy$", src, flags=re.M):
@@ -279,17 +412,28 @@ def convert(src, node):
             why.append("client: call sites")
         if ".nanoseconds / 1e9" in line and "get_clock" not in line:
             why.append("to_sec: msg stamp or rclpy Time?")
-        if re.search(r"\bimport tf$|\btf\.Transform|actionlib|dynamic_reconfigure|rospkg|rosnode|roslaunch", line):
+        if re.search(
+            r"\bimport tf$|\btf\.Transform|actionlib|dynamic_reconfigure|rospkg|rosnode|roslaunch",
+            line,
+        ):
             why.append("ROS 1 lib")
-        if re.search(r"\.results\[|\.results\b.*\.(id|score)\b|\.(id|score)\b", line) and "hypothesis" not in line:
+        if (
+            re.search(r"\.results\[|\.results\b.*\.(id|score)\b|\.(id|score)\b", line)
+            and "hypothesis" not in line
+        ):
             why.append("vision_msgs: results[i].hypothesis.class_id (str) / .score ?")
         if re.search(r"\.[KDRP]\[", line):
             why.append("CameraInfo field? (k d r p)")
         if "do_transform_pose_stamped(" in line:
-            why.append("do_transform_pose: PoseStamped (ok) or Pose (use do_transform_pose)?")
+            why.append(
+                "do_transform_pose: PoseStamped (ok) or Pose (use do_transform_pose)?"
+            )
         if re.search(r"create_timer\(", line):
             why.append("timer cb takes no event")
-        if re.search(r"\b(Point|Vector3|Quaternion|ColorRGBA|Header|Pose|Twist|Transform|PoseStamped|PointStamped|Float32|Float64|Bool|String|Int32|UInt16)\((?!\))[^=)]*\)", line):
+        if re.search(
+            r"\b(Point|Vector3|Quaternion|ColorRGBA|Header|Pose|Twist|Transform|PoseStamped|PointStamped|Float32|Float64|Bool|String|Int32|UInt16)\((?!\))[^=)]*\)",
+            line,
+        ):
             why.append("positional msg ctor?")
         if why:
             notes.append("L%d: %s | %s" % (i, "; ".join(why), line.strip()[:110]))

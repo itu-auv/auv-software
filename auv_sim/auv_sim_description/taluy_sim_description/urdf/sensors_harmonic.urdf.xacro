@@ -10,8 +10,15 @@
         <topic>/model/${namespace}/front_camera/image</topic>
         <camera>
           <horizontal_fov>1.3962634</horizontal_fov>
-          <image><width>640</width><height>480</height><format>R8G8B8</format></image>
-          <clip><near>0.1</near><far>20</far></clip>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20</far>
+          </clip>
         </camera>
       </sensor>
       <sensor name="bottom_camera" type="camera">
@@ -22,8 +29,15 @@
         <topic>/model/${namespace}/bottom_camera/image</topic>
         <camera>
           <horizontal_fov>1.3962634</horizontal_fov>
-          <image><width>1920</width><height>1080</height><format>R8G8B8</format></image>
-          <clip><near>0.1</near><far>20</far></clip>
+          <image>
+            <width>1920</width>
+            <height>1080</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20</far>
+          </clip>
         </camera>
       </sensor>
       <sensor name="torpedo_camera" type="camera">
@@ -34,8 +48,15 @@
         <topic>/model/${namespace}/torpedo_camera/image</topic>
         <camera>
           <horizontal_fov>1.3962634</horizontal_fov>
-          <image><width>640</width><height>480</height><format>R8G8B8</format></image>
-          <clip><near>0.1</near><far>20</far></clip>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>20</far>
+          </clip>
         </camera>
       </sensor>
       <!-- the RealSense next to the torpedo tubes: colour, depth and (from depth) a cloud -->
@@ -47,8 +68,15 @@
         <topic>/model/${namespace}/realsense</topic>
         <camera>
           <horizontal_fov>1.487</horizontal_fov>
-          <image><width>640</width><height>480</height><format>R8G8B8</format></image>
-          <clip><near>0.1</near><far>10</far></clip>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>10</far>
+          </clip>
         </camera>
       </sensor>
       <sensor name="imu" type="imu">
@@ -58,16 +86,48 @@
         <topic>/model/${namespace}/imu</topic>
         <gz_frame_id>${namespace}/base_link/imu_link</gz_frame_id>
         <imu>
-          <orientation_reference_frame><localization>ENU</localization></orientation_reference_frame>
+          <orientation_reference_frame>
+            <localization>ENU</localization>
+          </orientation_reference_frame>
           <angular_velocity>
-            <x><noise type="gaussian"><mean>0</mean><stddev>0.0002514074</stddev></noise></x>
-            <y><noise type="gaussian"><mean>0</mean><stddev>0.0002514074</stddev></noise></y>
-            <z><noise type="gaussian"><mean>0</mean><stddev>0.0002514074</stddev></noise></z>
+            <x>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0002514074</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0002514074</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.0002514074</stddev>
+              </noise>
+            </z>
           </angular_velocity>
           <linear_acceleration>
-            <x><noise type="gaussian"><mean>0</mean><stddev>0.00104347826</stddev></noise></x>
-            <y><noise type="gaussian"><mean>0</mean><stddev>0.00104347826</stddev></noise></y>
-            <z><noise type="gaussian"><mean>0</mean><stddev>0.00104347826</stddev></noise></z>
+            <x>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.00104347826</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.00104347826</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0</mean>
+                <stddev>0.00104347826</stddev>
+              </noise>
+            </z>
           </linear_acceleration>
         </imu>
       </sensor>
@@ -81,13 +141,32 @@
         <gz:dvl>
           <type>phased_array</type>
           <arrangement degrees="true">
-            <beam id="1"><aperture>2</aperture><rotation>45</rotation><tilt>30</tilt></beam>
-            <beam><aperture>2</aperture><rotation>135</rotation><tilt>30</tilt></beam>
-            <beam><aperture>2</aperture><rotation>-45</rotation><tilt>30</tilt></beam>
-            <beam><aperture>2</aperture><rotation>-135</rotation><tilt>30</tilt></beam>
+            <beam id="1">
+              <aperture>2</aperture>
+              <rotation>45</rotation>
+              <tilt>30</tilt>
+            </beam>
+            <beam>
+              <aperture>2</aperture>
+              <rotation>135</rotation>
+              <tilt>30</tilt>
+            </beam>
+            <beam>
+              <aperture>2</aperture>
+              <rotation>-45</rotation>
+              <tilt>30</tilt>
+            </beam>
+            <beam>
+              <aperture>2</aperture>
+              <rotation>-135</rotation>
+              <tilt>30</tilt>
+            </beam>
           </arrangement>
           <tracking>
-            <bottom_mode><when>best</when><visualize>false</visualize></bottom_mode>
+            <bottom_mode>
+              <when>best</when>
+              <visualize>false</visualize>
+            </bottom_mode>
           </tracking>
           <resolution>0.01</resolution>
           <maximum_range>100</maximum_range>

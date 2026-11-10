@@ -1,12 +1,13 @@
-// World entity poses for ROS, with their names (what /gazebo/model_states was in
-// Gazebo Classic). ros_gz_bridge converts gz.msgs.Pose_V to TFMessage without the
-// entity names, so this node does it: child_frame_id is the entity name.
-#include <memory>
-#include <string>
-
+// World entity poses for ROS, with their names (what /gazebo/model_states was
+// in Gazebo Classic). ros_gz_bridge converts gz.msgs.Pose_V to TFMessage
+// without the entity names, so this node does it: child_frame_id is the entity
+// name.
 #include <gz/msgs/pose_v.pb.h>
+
 #include <gz/transport/Node.hh>
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
+#include <string>
 #include <tf2_msgs/msg/tf_message.hpp>
 
 int main(int argc, char** argv) {
@@ -14,8 +15,8 @@ int main(int argc, char** argv) {
   auto node = std::make_shared<rclcpp::Node>("world_pose_bridge");
   const auto world = node->declare_parameter<std::string>("world", "pool");
   const auto topic = "/world/" + world + "/pose/info";
-  // Unpacking sixty transforms per message is slow in Python; 20 Hz of simulation
-  // time is plenty for projecting objects into camera images.
+  // Unpacking sixty transforms per message is slow in Python; 20 Hz of
+  // simulation time is plenty for projecting objects into camera images.
   const auto period = node->declare_parameter<double>("period", 0.05);
   auto publisher = node->create_publisher<tf2_msgs::msg::TFMessage>(topic, 1);
   double last = -1.0;
@@ -23,8 +24,8 @@ int main(int argc, char** argv) {
   gz::transport::Node gz_node;
   std::function<void(const gz::msgs::Pose_V&)> callback =
       [&](const gz::msgs::Pose_V& poses) {
-        const double sim_time = poses.header().stamp().sec() +
-                                1e-9 * poses.header().stamp().nsec();
+        const double sim_time =
+            poses.header().stamp().sec() + 1e-9 * poses.header().stamp().nsec();
         if (sim_time >= last && sim_time - last < period) {
           return;
         }

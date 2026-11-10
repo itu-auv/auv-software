@@ -29,14 +29,14 @@ from tf2_ros import Buffer, TransformListener, TransformException
 
 class SimulationMocks(Node):
     def __init__(self):
-        super().__init__('sim_hardware_mocks')
-        self.declare_parameter('world', 'pool')
-        self.declare_parameter('pinger_mode', 'torpedo')
-        self.world = self.get_parameter('world').value
-        mode = self.get_parameter('pinger_mode').value
-        if mode not in ('torpedo', 'octagon'):
-            raise ValueError('pinger_mode must be torpedo or octagon')
-        self.target = (5.25, -1.0) if mode == 'torpedo' else (13.0, -4.25)
+        super().__init__("sim_hardware_mocks")
+        self.declare_parameter("world", "pool")
+        self.declare_parameter("pinger_mode", "torpedo")
+        self.world = self.get_parameter("world").value
+        mode = self.get_parameter("pinger_mode").value
+        if mode not in ("torpedo", "octagon"):
+            raise ValueError("pinger_mode must be torpedo or octagon")
+        self.target = (5.25, -1.0) if mode == "torpedo" else (13.0, -4.25)
         self.enabled = False
         self.truth = None
         self.serial = 0
@@ -47,33 +47,58 @@ class SimulationMocks(Node):
         self.buffer = Buffer(node=self)
         self.listener = TransformListener(self.buffer, self)
         self.group = ReentrantCallbackGroup()
-        self.spawn = self.create_client(SpawnEntity, f'/world/{self.world}/create', callback_group=self.group)
-        self.set_pose = self.create_client(SetEntityPose, f'/world/{self.world}/set_pose', callback_group=self.group)
-        self.power = self.create_publisher(BatteryState, 'mainboard/power_sensor/power', 10)
-        self.board = self.create_publisher(Bool, 'propulsion_board/status', 10)
-        self.enable = self.create_publisher(Bool, 'enable', 10)
-        self.angle = self.create_publisher(Float32, 'acoustic/hydrophone/base_angle', 10)
-        self.spawn_events = self.create_publisher(String, 'sim/spawn_events', 10)
-        self.gripper = self.create_publisher(UInt16, 'sim/gripper_angle', 10)
-        self.create_service(SetBool, 'sim/set_enabled', self.set_enabled)
-        self.create_subscription(Odometry, f'/model/{self.get_namespace().strip("/")}/odometry', self.on_truth, 10)
-        self.create_subscription(Float32, 'actuators/ball_dropper/set_angle', self.drop, 10)
-        for topic in ('actuators/gripper/set_angle', 'actuators/gripper1/set_angle'):
+        self.spawn = self.create_client(
+            SpawnEntity, f"/world/{self.world}/create", callback_group=self.group
+        )
+        self.set_pose = self.create_client(
+            SetEntityPose, f"/world/{self.world}/set_pose", callback_group=self.group
+        )
+        self.power = self.create_publisher(
+            BatteryState, "mainboard/power_sensor/power", 10
+        )
+        self.board = self.create_publisher(Bool, "propulsion_board/status", 10)
+        self.enable = self.create_publisher(Bool, "enable", 10)
+        self.angle = self.create_publisher(
+            Float32, "acoustic/hydrophone/base_angle", 10
+        )
+        self.spawn_events = self.create_publisher(String, "sim/spawn_events", 10)
+        self.gripper = self.create_publisher(UInt16, "sim/gripper_angle", 10)
+        self.create_service(SetBool, "sim/set_enabled", self.set_enabled)
+        self.create_subscription(
+            Odometry,
+            f'/model/{self.get_namespace().strip("/")}/odometry',
+            self.on_truth,
+            10,
+        )
+        self.create_subscription(
+            Float32, "actuators/ball_dropper/set_angle", self.drop, 10
+        )
+        for topic in ("actuators/gripper/set_angle", "actuators/gripper1/set_angle"):
             self.create_subscription(UInt16, topic, self.gripper.publish, 10)
         for index in (1, 2):
-            self.create_service(Trigger, f'actuators/torpedo_{index}/launch',
-                                partial(self.torpedo, index), callback_group=self.group)
-        for item in ('bandaid', 'electric', 'nutbolt', 'pill'):
-            self.create_service(Trigger, f'actuators/{item}/spawn',
-                                partial(self.bottle, item), callback_group=self.group)
+            self.create_service(
+                Trigger,
+                f"actuators/torpedo_{index}/launch",
+                partial(self.torpedo, index),
+                callback_group=self.group,
+            )
+        for item in ("bandaid", "electric", "nutbolt", "pill"):
+            self.create_service(
+                Trigger,
+                f"actuators/{item}/spawn",
+                partial(self.bottle, item),
+                callback_group=self.group,
+            )
         self.create_timer(0.1, self.publish_status)
-        self.get_logger().info('Ideal mocks: 16 V, healthy board, enable=false; sim/set_enabled controls enable. '
-                               'Gripper is command echo; torpedoes use ideal 1 m/s pose motion, without propulsion/collision dynamics.')
+        self.get_logger().info(
+            "Ideal mocks: 16 V, healthy board, enable=false; sim/set_enabled controls enable. "
+            "Gripper is command echo; torpedoes use ideal 1 m/s pose motion, without propulsion/collision dynamics."
+        )
 
     def set_enabled(self, request, response):
         self.enabled = request.data
         response.success = True
-        response.message = f'simulation enable={self.enabled}'
+        response.message = f"simulation enable={self.enabled}"
         return response
 
     def on_truth(self, message):
@@ -85,15 +110,25 @@ class SimulationMocks(Node):
         self.enable.publish(Bool(data=self.enabled))
         if self.truth:
             p, q = self.truth.position, self.truth.orientation
-            dx, dy, dz = self.target[0]-p.x, self.target[1]-p.y, -1.95-p.z
-            local_x = (1-2*(q.y*q.y+q.z*q.z))*dx + 2*(q.x*q.y+q.w*q.z)*dy + 2*(q.x*q.z-q.w*q.y)*dz
-            local_y = 2*(q.x*q.y-q.w*q.z)*dx + (1-2*(q.x*q.x+q.z*q.z))*dy + 2*(q.y*q.z+q.w*q.x)*dz
+            dx, dy, dz = self.target[0] - p.x, self.target[1] - p.y, -1.95 - p.z
+            local_x = (
+                (1 - 2 * (q.y * q.y + q.z * q.z)) * dx
+                + 2 * (q.x * q.y + q.w * q.z) * dy
+                + 2 * (q.x * q.z - q.w * q.y) * dz
+            )
+            local_y = (
+                2 * (q.x * q.y - q.w * q.z) * dx
+                + (1 - 2 * (q.x * q.x + q.z * q.z)) * dy
+                + 2 * (q.y * q.z + q.w * q.x) * dz
+            )
             angle = math.atan2(local_y, local_x)
-            self.angle.publish(Float32(data=math.atan2(math.sin(angle), math.cos(angle))))
+            self.angle.publish(
+                Float32(data=math.atan2(math.sin(angle), math.cos(angle)))
+            )
 
         now = self.get_clock().now().nanoseconds * 1e-9
         for name, (initial, born) in list(self.projectiles.items()):
-            age = now-born
+            age = now - born
             if age > 20.0 or age < 0:
                 self.projectiles.pop(name, None)
                 continue
@@ -104,73 +139,106 @@ class SimulationMocks(Node):
             request.entity.type = request.entity.MODEL
             request.pose = copy.deepcopy(initial)
             q = initial.orientation
-            request.pose.position.x += age*(1-2*(q.y*q.y+q.z*q.z))
-            request.pose.position.y += age*2*(q.x*q.y+q.w*q.z)
-            request.pose.position.z += age*2*(q.x*q.z-q.w*q.y)
+            request.pose.position.x += age * (1 - 2 * (q.y * q.y + q.z * q.z))
+            request.pose.position.y += age * 2 * (q.x * q.y + q.w * q.z)
+            request.pose.position.z += age * 2 * (q.x * q.z - q.w * q.y)
             if self.set_pose.service_is_ready():
                 self.pose_pending[name] = self.set_pose.call_async(request)
 
     def frame_pose(self, frame):
         """World pose of a frame on the vehicle (odom is not the world: the vehicle does not start at the origin)."""
         if self.truth is None:
-            raise TransformException('no ground-truth pose of the vehicle yet')
-        base = self.get_namespace().strip('/') + '/base_link'
+            raise TransformException("no ground-truth pose of the vehicle yet")
+        base = self.get_namespace().strip("/") + "/base_link"
         on_vehicle = self.buffer.lookup_transform(base, frame, Time()).transform
 
         def matrix(position, rotation):
             m = tft.quaternion_matrix([rotation.x, rotation.y, rotation.z, rotation.w])
             m[:3, 3] = [position.x, position.y, position.z]
             return m
-        world = matrix(self.truth.position, self.truth.orientation) @ matrix(on_vehicle.translation, on_vehicle.rotation)
+
+        world = matrix(self.truth.position, self.truth.orientation) @ matrix(
+            on_vehicle.translation, on_vehicle.rotation
+        )
         pose = Pose()
-        pose.position.x, pose.position.y, pose.position.z = (float(v) for v in world[:3, 3])
+        pose.position.x, pose.position.y, pose.position.z = (
+            float(v) for v in world[:3, 3]
+        )
         q = tft.quaternion_from_matrix(world)
-        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = (float(v) for v in q)
+        (
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ) = (float(v) for v in q)
         return pose
 
     async def spawn_model(self, relative_path, pose, key):
         if not self.spawn.service_is_ready():
-            return False, 'Gazebo create service is not ready'
-        root = ET.parse(Path(get_package_share_directory('auv_sim_description')) / 'models' / relative_path).getroot()
+            return False, "Gazebo create service is not ready"
+        root = ET.parse(
+            Path(get_package_share_directory("auv_sim_description"))
+            / "models"
+            / relative_path
+        ).getroot()
         # Resolve package-local mesh URIs via GZ_SIM_RESOURCE_PATH. Keep source model untouched.
-        if key.startswith('torpedo'):
-            model = root.find('model')
-            static = model.find('static')
+        if key.startswith("torpedo"):
+            model = root.find("model")
+            static = model.find("static")
             if static is None:
-                static = ET.SubElement(model, 'static')
-            static.text = 'true'
+                static = ET.SubElement(model, "static")
+            static.text = "true"
         self.serial += 1
         request = SpawnEntity.Request()
-        request.entity_factory.name = f'mock_{key}_{self.serial}'
-        request.entity_factory.sdf = ET.tostring(root, encoding='unicode')
+        request.entity_factory.name = f"mock_{key}_{self.serial}"
+        request.entity_factory.sdf = ET.tostring(root, encoding="unicode")
         request.entity_factory.pose = pose
         future = self.spawn.call_async(request)
         # rclpy futures are awaitable within executor tasks.
-        timer = self.create_timer(5.0, lambda: future.cancel() if not future.done() else None,
-                                  clock=Clock(clock_type=ClockType.STEADY_TIME), callback_group=self.group)
+        timer = self.create_timer(
+            5.0,
+            lambda: future.cancel() if not future.done() else None,
+            clock=Clock(clock_type=ClockType.STEADY_TIME),
+            callback_group=self.group,
+        )
         try:
             response = await future
             if response is None:
-                return False, 'Gazebo create timed out; creation state unknown'
-            self.spawn_events.publish(String(data=json.dumps({'key': key, 'name': request.entity_factory.name, 'success': response.success})))
+                return False, "Gazebo create timed out; creation state unknown"
+            self.spawn_events.publish(
+                String(
+                    data=json.dumps(
+                        {
+                            "key": key,
+                            "name": request.entity_factory.name,
+                            "success": response.success,
+                        }
+                    )
+                )
+            )
             return response.success, request.entity_factory.name
         except CancelledError:
-            return False, 'Gazebo create timed out; creation state unknown'
+            return False, "Gazebo create timed out; creation state unknown"
         finally:
             self.destroy_timer(timer)
 
     async def torpedo(self, index, request, response):
-        namespace = self.get_namespace().strip('/')
-        if namespace == 'taluy_mini':
+        namespace = self.get_namespace().strip("/")
+        if namespace == "taluy_mini":
             response.success = False
-            response.message = 'Mini has no torpedo launcher frames'
+            response.message = "Mini has no torpedo launcher frames"
             return response
-        frame = 'torpedo_upper_link' if index == 1 else 'torpedo_bottom_link'
+        frame = "torpedo_upper_link" if index == 1 else "torpedo_bottom_link"
         try:
-            pose = self.frame_pose(f'{namespace}/base_link/{frame}')
-            response.success, response.message = await self.spawn_model('robosub_torpedo/torpedo.sdf', pose, f'torpedo{index}')
+            pose = self.frame_pose(f"{namespace}/base_link/{frame}")
+            response.success, response.message = await self.spawn_model(
+                "robosub_torpedo/torpedo.sdf", pose, f"torpedo{index}"
+            )
             if response.success:
-                self.projectiles[response.message] = (copy.deepcopy(pose), self.get_clock().now().nanoseconds * 1e-9)
+                self.projectiles[response.message] = (
+                    copy.deepcopy(pose),
+                    self.get_clock().now().nanoseconds * 1e-9,
+                )
         except TransformException as error:
             response.success, response.message = False, str(error)
         return response
@@ -179,7 +247,9 @@ class SimulationMocks(Node):
         pose = Pose()
         pose.orientation.w = 1.0
         pose.position.x, pose.position.y, pose.position.z = 13.0, -4.25, -1.3
-        response.success, response.message = await self.spawn_model(f'{item}/model.sdf', pose, item)
+        response.success, response.message = await self.spawn_model(
+            f"{item}/model.sdf", pose, item
+        )
         return response
 
     def drop(self, message):
@@ -189,19 +259,25 @@ class SimulationMocks(Node):
         if index in self.dropped or index in self.inflight:
             return
         try:
-            pose = self.frame_pose(f'{self.get_namespace().strip("/")}/base_link/ball_dropper_{index}_link')
+            pose = self.frame_pose(
+                f'{self.get_namespace().strip("/")}/base_link/ball_dropper_{index}_link'
+            )
         except TransformException as error:
             self.get_logger().warning(str(error))
             return
         self.inflight.add(index)
+
         async def perform():
             try:
-                ok, detail = await self.spawn_model('robosub_bin/ball.sdf', pose, f'ball{index}')
+                ok, detail = await self.spawn_model(
+                    "robosub_bin/ball.sdf", pose, f"ball{index}"
+                )
                 if ok:
                     self.dropped.add(index)
-                self.get_logger().info(f'ball drop success={ok}: {detail}')
+                self.get_logger().info(f"ball drop success={ok}: {detail}")
             finally:
                 self.inflight.discard(index)
+
         self.executor.create_task(perform)
 
 
@@ -221,5 +297,5 @@ def main():
             rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

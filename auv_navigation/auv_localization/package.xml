@@ -9,21 +9,23 @@
   <depend>angles</depend>
   <depend>auv_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>message_filters</depend>
   <depend>nav_msgs</depend>
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tf2_ros</depend>
   <depend>tf_transformations</depend>
-  <depend>message_filters</depend>
-  <depend>std_srvs</depend>
-  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>auv_common_lib</exec_depend>
-  <exec_depend>python3-yaml</exec_depend>
-  <exec_depend>auv_controllers</exec_depend>
   <exec_depend>auv_control</exec_depend>
-  <exec_depend>sensor_msgs</exec_depend>
-  <export><build_type>ament_python</build_type></export>
+  <exec_depend>auv_controllers</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
 </package>

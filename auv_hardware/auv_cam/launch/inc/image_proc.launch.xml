@@ -5,7 +5,7 @@
   <arg name="publish_monochrome" default="false"/>
   <arg name="debayer" default="false"/>
   <group>
-    <push_ros_namespace namespace="$(var camera_namespace)" />
+    <push_ros_namespace namespace="$(var camera_namespace)"/>
     <let if="$(var debayer)" name="rectify_input" value="image_color"/>
     <let unless="$(var debayer)" name="rectify_input" value="image_raw"/>
     <!-- Debayered images -->

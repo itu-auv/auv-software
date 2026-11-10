@@ -13,8 +13,12 @@ class BatteryMonitorNode(Node):
         super().__init__("battery_monitor_node")
 
         # Parameters
-        self.voltage_threshold = self.declare_parameter("minimum_voltage_threshold", 13.5).value
-        self.voltage_warn_threshold = self.declare_parameter("voltage_warn_threshold", 15.0).value
+        self.voltage_threshold = self.declare_parameter(
+            "minimum_voltage_threshold", 13.5
+        ).value
+        self.voltage_warn_threshold = self.declare_parameter(
+            "voltage_warn_threshold", 15.0
+        ).value
         self.timeout_duration = self.declare_parameter(
             "power_message_timeout", 5
         ).value  # Timeout duration in seconds
@@ -33,7 +37,9 @@ class BatteryMonitorNode(Node):
         self.print_interval = 1.0  # Start with a slow print interval (e.g., 1 seconds)
 
         # Subscribers
-        self.power_sub = self.create_subscription(BatteryState, "power", self.power_callback, 10)
+        self.power_sub = self.create_subscription(
+            BatteryState, "power", self.power_callback, 10
+        )
 
         # Timers
         self.voltage_print_timer = self.create_timer(
@@ -66,7 +72,9 @@ class BatteryMonitorNode(Node):
             self.get_logger().warning("No voltage received.")
             return
 
-        self.is_timeouted = self.get_clock().now() - self.last_msg_time > Duration(seconds=self.timeout_duration)
+        self.is_timeouted = self.get_clock().now() - self.last_msg_time > Duration(
+            seconds=self.timeout_duration
+        )
         if self.is_timeouted:
             self.reset_timer_with_new_interval(1.0)
             self.get_logger().error(
@@ -113,7 +121,9 @@ class BatteryMonitorNode(Node):
         self.print_voltage()
 
     def check_timeout_and_low_voltage_callback(self, event):
-        new_timeout = self.get_clock().now() - self.last_msg_time > Duration(seconds=self.timeout_duration)
+        new_timeout = self.get_clock().now() - self.last_msg_time > Duration(
+            seconds=self.timeout_duration
+        )
         self.is_undervoltage = self.voltage < self.voltage_threshold
 
         if new_timeout != self.is_timeouted and self.voltage != None:

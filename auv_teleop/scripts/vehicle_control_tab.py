@@ -145,7 +145,13 @@ class VehicleControlTab(QWidget):
         return self.angular_speed_spinbox.value()
 
     def start_teleop(self):
-        cmd = ["ros2", "launch", "auv_teleop", "start_teleop.launch", sim_time_arg(get_node())]
+        cmd = [
+            "ros2",
+            "launch",
+            "auv_teleop",
+            "start_teleop.launch",
+            sim_time_arg(get_node()),
+        ]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")

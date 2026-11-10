@@ -29,9 +29,8 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "rclcpp/rclcpp.hpp"
-
 #include "auv_cam/rtsp_camera_ros.h"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);

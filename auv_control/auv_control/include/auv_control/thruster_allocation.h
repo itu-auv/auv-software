@@ -25,10 +25,14 @@ class ThrusterAllocator {
   using WrenchStampedVector =
       std::array<geometry_msgs::msg::WrenchStamped, kThrusterCount>;
 
-  ThrusterAllocator(const rclcpp::Node::SharedPtr &nh) : nh_{nh}, tf_buffer_{nh->get_clock()}, tf_listener_{tf_buffer_} {
-    frame_prefix_ = nh_->declare_parameter<std::string>("frame_prefix", "taluy");
-    base_frame_ = nh_->declare_parameter<std::string>("base_frame", "base_link");
-    thruster_frame_ = nh_->declare_parameter<std::string>("thruster_frame", "thruster_{}_link");
+  ThrusterAllocator(const rclcpp::Node::SharedPtr &nh)
+      : nh_{nh}, tf_buffer_{nh->get_clock()}, tf_listener_{tf_buffer_} {
+    frame_prefix_ =
+        nh_->declare_parameter<std::string>("frame_prefix", "taluy");
+    base_frame_ =
+        nh_->declare_parameter<std::string>("base_frame", "base_link");
+    thruster_frame_ = nh_->declare_parameter<std::string>("thruster_frame",
+                                                          "thruster_{}_link");
 
     if (!frame_prefix_.empty()) {
       base_frame_ = frame_prefix_ + "/" + base_frame_;
@@ -44,8 +48,9 @@ class ThrusterAllocator {
 
     inverted_allocation_matrix_ = pseudo_inverse(allocation_matrix.value());
     RCLCPP_INFO(nh_->get_logger(), "ThrusterAllocator initialized");
-    RCLCPP_INFO_STREAM(nh_->get_logger(), "Inverted allocation matrix:\n"
-                    << inverted_allocation_matrix_.value());
+    RCLCPP_INFO_STREAM(nh_->get_logger(),
+                       "Inverted allocation matrix:\n"
+                           << inverted_allocation_matrix_.value());
   }
 
   std::optional<ThrusterEffortVector> allocate(const WrenchVector &wrench) {
@@ -76,7 +81,8 @@ class ThrusterAllocator {
                                          const std::string &target_frame) {
     try {
       const auto transform = tf_buffer_.lookupTransform(
-          target_frame, source_frame, tf2::TimePointZero, tf2::durationFromSec(1.0));
+          target_frame, source_frame, tf2::TimePointZero,
+          tf2::durationFromSec(1.0));
 
       const auto translation = Eigen::Vector3d{
           transform.transform.translation.x, transform.transform.translation.y,

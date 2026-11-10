@@ -1,14 +1,15 @@
 #pragma once
 
-#include <geometry_msgs/msg/transform_stamped.hpp>
-#include "rclcpp/rclcpp.hpp"
 #include <tf2/LinearMath/Quaternion.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <memory>
 #include <opencv2/core/core.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <string>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace auv_mapping {
 
@@ -26,8 +27,9 @@ class ObjectPositionFilter {
    * @param initial_transform The initial transform message.
    * @param dt The initial time step.
    */
-  ObjectPositionFilter(const geometry_msgs::msg::TransformStamped &initial_transform,
-                       const double dt, rclcpp::Clock::SharedPtr clock);
+  ObjectPositionFilter(
+      const geometry_msgs::msg::TransformStamped &initial_transform,
+      const double dt, rclcpp::Clock::SharedPtr clock);
 
   ~ObjectPositionFilter() = default;
 

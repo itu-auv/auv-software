@@ -1,14 +1,14 @@
-#include <nav_msgs/msg/odometry.hpp>
 #include <pcl/filters/passthrough.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include "rclcpp/rclcpp.hpp"
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <std_msgs/msg/float32.hpp>  // Still used for altitude
 
 #include <cmath>   // For std::sqrt, std::acos, M_PI, std::isfinite
 #include <limits>  // For std::numeric_limits
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/float32.hpp>  // Still used for altitude
+
+#include "rclcpp/rclcpp.hpp"
 
 using PointCloud = pcl::PointCloud<pcl::PointXYZ>;
 
@@ -20,7 +20,8 @@ class PointCloudFilterNode {
     alt_topic_ = "sensors/dvl/altitude";
     odom_topic_ = "odometry";  // Change to your odometry topic name
 
-    RCLCPP_INFO_ONCE(nh->get_logger(), "PointCloudFilterNode started.");  // Node start message
+    RCLCPP_INFO_ONCE(nh->get_logger(),
+                     "PointCloudFilterNode started.");  // Node start message
 
     // setup subscribers and publisher
     pc_sub_ = nh->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -57,8 +58,8 @@ class PointCloudFilterNode {
   float depth_value_;  // Changed from depth_array_ to single float
   bool alt_received_, depth_received_;
 
-  void altCallback(
-      const std_msgs::msg::Float32::ConstSharedPtr& msg) {  // Changed message type
+  void altCallback(const std_msgs::msg::Float32::ConstSharedPtr&
+                       msg) {  // Changed message type
     altitude_ = msg->data;
     alt_received_ = true;
   }
@@ -66,11 +67,13 @@ class PointCloudFilterNode {
   void odomCallback(const nav_msgs::msg::Odometry::ConstSharedPtr& msg) {
     // Use odometry pose z as depth
     depth_value_ = msg->pose.pose.position.z;
-    // RCLCPP_INFO(nh->get_logger(), "Depth value from odometry: %f", depth_value_);
+    // RCLCPP_INFO(nh->get_logger(), "Depth value from odometry: %f",
+    // depth_value_);
     depth_received_ = true;
   }
 
-  void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg) {
+  void cloudCallback(
+      const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg) {
     if (!alt_received_ || !depth_received_) {
       return;
     }

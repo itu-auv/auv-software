@@ -9,78 +9,136 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    package_share = Path(get_package_share_directory('auv_sim_bridge'))
-    curve_path = package_share / 'config' / 'taluy' / 't200_pwm_force.yaml'
-    curve = yaml.safe_load(curve_path.read_text())['pwm_to_force']
-    environment = yaml.safe_load((Path(get_package_share_directory('auv_sim_description')) / 'config' / 'environment.yaml').read_text())
-    namespace = LaunchConfiguration('namespace')
-    world = LaunchConfiguration('world')
+    package_share = Path(get_package_share_directory("auv_sim_bridge"))
+    curve_path = package_share / "config" / "taluy" / "t200_pwm_force.yaml"
+    curve = yaml.safe_load(curve_path.read_text())["pwm_to_force"]
+    environment = yaml.safe_load(
+        (
+            Path(get_package_share_directory("auv_sim_description"))
+            / "config"
+            / "environment.yaml"
+        ).read_text()
+    )
+    namespace = LaunchConfiguration("namespace")
+    world = LaunchConfiguration("world")
 
     def bridge_arg(*parts):
-        return [TextSubstitution(text=part) if isinstance(part, str) else part for part in parts]
+        return [
+            TextSubstitution(text=part) if isinstance(part, str) else part
+            for part in parts
+        ]
 
     bridge = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        name='taluy_sensor_bridge',
+        package="ros_gz_bridge",
+        executable="parameter_bridge",
+        name="taluy_sensor_bridge",
         arguments=[
-            bridge_arg('/model/', namespace, '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU'),
-            bridge_arg('/model/', namespace, '/pressure@sensor_msgs/msg/FluidPressure[gz.msgs.FluidPressure'),
-            bridge_arg('/model/', namespace, '/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry'),
-            bridge_arg('/model/', namespace, '/dvl/velocity@marine_acoustic_msgs/msg/Dvl[gz.msgs.DVLVelocityTracking'),
-            bridge_arg('/model/', namespace, '/front_camera/image@sensor_msgs/msg/Image[gz.msgs.Image'),
-            bridge_arg('/model/', namespace, '/front_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'),
-            bridge_arg('/model/', namespace, '/bottom_camera/image@sensor_msgs/msg/Image[gz.msgs.Image'),
-            bridge_arg('/model/', namespace, '/bottom_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'),
-            bridge_arg('/model/', namespace, '/torpedo_camera/image@sensor_msgs/msg/Image[gz.msgs.Image'),
-            bridge_arg('/model/', namespace, '/torpedo_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo'),
-            bridge_arg('/world/', world, '/control@ros_gz_interfaces/srv/ControlWorld'),
+            bridge_arg("/model/", namespace, "/imu@sensor_msgs/msg/Imu[gz.msgs.IMU"),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/pressure@sensor_msgs/msg/FluidPressure[gz.msgs.FluidPressure",
+            ),
+            bridge_arg(
+                "/model/", namespace, "/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry"
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/dvl/velocity@marine_acoustic_msgs/msg/Dvl[gz.msgs.DVLVelocityTracking",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/front_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/front_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/bottom_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/bottom_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/torpedo_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+            ),
+            bridge_arg(
+                "/model/",
+                namespace,
+                "/torpedo_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            ),
+            bridge_arg("/world/", world, "/control@ros_gz_interfaces/srv/ControlWorld"),
         ]
         + [
             bridge_arg(
-                '/model/', namespace, '/joint/', namespace,
-                f'/thruster_{index}_propeller_joint/cmd_thrust@std_msgs/msg/Float64]gz.msgs.Double',
+                "/model/",
+                namespace,
+                "/joint/",
+                namespace,
+                f"/thruster_{index}_propeller_joint/cmd_thrust@std_msgs/msg/Float64]gz.msgs.Double",
             )
             for index in range(8)
         ],
-        remappings=[(bridge_arg('/model/', namespace, '/imu'), bridge_arg('/', namespace, '/sensors/imu/data'))],
-        output='screen',
+        remappings=[
+            (
+                bridge_arg("/model/", namespace, "/imu"),
+                bridge_arg("/", namespace, "/sensors/imu/data"),
+            )
+        ],
+        output="screen",
     )
     pwm_adapter = Node(
-        package='auv_sim_bridge',
-        executable='sim_pwm_to_force.py',
-        name='sim_pwm_to_force',
+        package="auv_sim_bridge",
+        executable="sim_pwm_to_force.py",
+        name="sim_pwm_to_force",
         parameters=[
             {
-                'namespace': namespace,
-                'use_sim_time': True,
-                'pwm_curve': curve['pwm'],
-                'force_curve': curve['force'],
+                "namespace": namespace,
+                "use_sim_time": True,
+                "pwm_curve": curve["pwm"],
+                "force_curve": curve["force"],
             }
         ],
-        output='screen',
+        output="screen",
     )
     dvl_adapter = Node(
-        package='auv_sim_bridge',
-        executable='sim_dvl_adapter.py',
-        name='sim_dvl_adapter',
-        parameters=[{'namespace': namespace}],
-        output='screen',
+        package="auv_sim_bridge",
+        executable="sim_dvl_adapter.py",
+        name="sim_dvl_adapter",
+        parameters=[{"namespace": namespace}],
+        output="screen",
     )
     pressure_adapter = Node(
-        package='auv_sim_bridge',
-        executable='sim_pressure_depth_adapter.py',
-        name='sim_pressure_depth_adapter',
-        parameters=[{'namespace': namespace,
-                     'standard_pressure': float(environment['/env/standard_pressure']),
-                     'gravity': float(environment['/env/gravity']),
-                     'density': float(environment['/env/density'])}],
-        output='screen',
+        package="auv_sim_bridge",
+        executable="sim_pressure_depth_adapter.py",
+        name="sim_pressure_depth_adapter",
+        parameters=[
+            {
+                "namespace": namespace,
+                "standard_pressure": float(environment["/env/standard_pressure"]),
+                "gravity": float(environment["/env/gravity"]),
+                "density": float(environment["/env/density"]),
+            }
+        ],
+        output="screen",
     )
     return LaunchDescription(
         [
-            DeclareLaunchArgument('namespace', default_value='taluy'),
-            DeclareLaunchArgument('world', default_value='taluy_harmonic'),
-            bridge, pwm_adapter, dvl_adapter, pressure_adapter,
+            DeclareLaunchArgument("namespace", default_value="taluy"),
+            DeclareLaunchArgument("world", default_value="taluy_harmonic"),
+            bridge,
+            pwm_adapter,
+            dvl_adapter,
+            pressure_adapter,
         ]
     )

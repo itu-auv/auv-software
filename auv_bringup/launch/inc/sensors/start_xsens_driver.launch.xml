@@ -6,7 +6,7 @@
   <arg name="port" default="/dev/auv_imu"/>
   <arg name="baudrate" default="115200"/>
   <group>
-    <push_ros_namespace namespace="$(var namespace)" />
+    <push_ros_namespace namespace="$(var namespace)"/>
     <node name="auv_imu_node" pkg="xsens_mti_driver" exec="xsens_mti_node" output="screen">
       <!-- Topic Remappings -->
       <remap from="temperature" to="sensors/imu/temperature"/>

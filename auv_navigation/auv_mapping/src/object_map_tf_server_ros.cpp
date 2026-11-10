@@ -38,14 +38,14 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const rclcpp::Node::SharedPtr &nh)
       nh_->declare_parameter<double>("distance_threshold", 4.0);
   distance_threshold_squared_ = std::pow(distance_threshold_, 2);
 
-  base_link_frame_ = nh_->declare_parameter<std::string>("base_link_frame",
-                                                         "taluy/base_link");
+  base_link_frame_ =
+      nh_->declare_parameter<std::string>("base_link_frame", "taluy/base_link");
 
   service_ = nh_->create_service<auv_msgs::srv::SetObjectTransform>(
       "set_object_transform",
-      [this](const std::shared_ptr<auv_msgs::srv::SetObjectTransform::Request>
-                 req,
-             std::shared_ptr<auv_msgs::srv::SetObjectTransform::Response> res) {
+      [this](
+          const std::shared_ptr<auv_msgs::srv::SetObjectTransform::Request> req,
+          std::shared_ptr<auv_msgs::srv::SetObjectTransform::Response> res) {
         set_transform_handler(*req, *res);
       });
 
@@ -56,11 +56,10 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const rclcpp::Node::SharedPtr &nh)
         clear_map_handler(*req, *res);
       });
 
-  dynamic_sub_ =
-      nh_->create_subscription<geometry_msgs::msg::TransformStamped>(
-          "object_transform_updates", 10,
-          std::bind(&ObjectMapTFServerROS::dynamic_transform_callback, this,
-                    std::placeholders::_1));
+  dynamic_sub_ = nh_->create_subscription<geometry_msgs::msg::TransformStamped>(
+      "object_transform_updates", 10,
+      std::bind(&ObjectMapTFServerROS::dynamic_transform_callback, this,
+                std::placeholders::_1));
 
   RCLCPP_DEBUG(nh_->get_logger(),
                "ObjectMapTFServerROS initialized. Static frame: %s",
@@ -84,8 +83,9 @@ void ObjectMapTFServerROS::broadcast_transforms() {
   }
 }
 
-bool ObjectMapTFServerROS::clear_map_handler(std_srvs::srv::Trigger::Request &req,
-                                             std_srvs::srv::Trigger::Response &res) {
+bool ObjectMapTFServerROS::clear_map_handler(
+    std_srvs::srv::Trigger::Request &req,
+    std_srvs::srv::Trigger::Response &res) {
   auto lock = std::scoped_lock{mutex_};
   filters_.clear();
 
@@ -116,13 +116,13 @@ bool ObjectMapTFServerROS::set_transform_handler(
       filters_[target_frame].clear();
     }
 
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_,
-                                               nh_->get_clock()));
+    filters_[target_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, nh_->get_clock()));
   }
 
-  RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Stored static transform from " << static_frame_ << " to "
-                                                   << target_frame);
+  RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Stored static transform from "
+                                             << static_frame_ << " to "
+                                             << target_frame);
   res.success = true;
   res.message = "Stored transform for frame: " + target_frame;
   return true;
@@ -148,10 +148,10 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   auto it = filters_.find(object_frame);
   if (it == filters_.end()) {
     // Create first filter for this object
-    filters_[object_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_,
-                                               nh_->get_clock()));
-    RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Created new filter for " << object_frame);
+    filters_[object_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, nh_->get_clock()));
+    RCLCPP_DEBUG_STREAM(nh_->get_logger(),
+                        "Created new filter for " << object_frame);
     return;
   }
 
@@ -167,7 +167,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   double current_distance_threshold_squared = distance_threshold_squared_;
   if (is_slalom_gate || is_bin_bottom) {
     current_distance_threshold_squared = 1.0;  // 1.0 metre'nin karesi
-    RCLCPP_DEBUG_STREAM(nh_->get_logger(), 
+    RCLCPP_DEBUG_STREAM(
+        nh_->get_logger(),
         "Using special distance threshold for object: " << object_frame);
   }
 
@@ -199,16 +200,17 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
       min_distance_squared < current_distance_threshold_squared) {
     closest_filter_ptr->update(*static_transform, dt);
     filter_updated = true;
-    RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Updated closest filter for " << object_frame);
+    RCLCPP_DEBUG_STREAM(nh_->get_logger(),
+                        "Updated closest filter for " << object_frame);
   }
 
   // If no filter was updated, create a new one
   if (!filter_updated) {
-    filters_[object_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_,
-                                               nh_->get_clock()));
-    RCLCPP_DEBUG_STREAM(nh_->get_logger(), "Created new filter for "
-                     << object_frame << " due to distance threshold.");
+    filters_[object_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, nh_->get_clock()));
+    RCLCPP_DEBUG_STREAM(nh_->get_logger(),
+                        "Created new filter for "
+                            << object_frame << " due to distance threshold.");
   }
 
   // Update the frame IDs based on distance from the static frame
@@ -258,7 +260,8 @@ void ObjectMapTFServerROS::update_filter_frame_index(
 
       filter_distances.emplace_back(i, distance);
     } catch (tf2::TransformException &ex) {
-      RCLCPP_WARN_STREAM(nh_->get_logger(), "Transform lookup failed: " << ex.what());
+      RCLCPP_WARN_STREAM(nh_->get_logger(),
+                         "Transform lookup failed: " << ex.what());
       // Fallback: use distance from static frame instead
       const double distance =
           std::sqrt(std::pow(transform.transform.translation.x, 2) +
@@ -295,11 +298,13 @@ ObjectMapTFServerROS::transform_to_static_frame(
     const geometry_msgs::msg::TransformStamped transform) {
   const auto parent_frame = transform.header.frame_id;
   const auto target_frame = transform.child_frame_id;
-  const auto static_to_parent_transform = get_transform(
-      static_frame_, parent_frame, transform.header.stamp, rclcpp::Duration::from_seconds(4.0));
+  const auto static_to_parent_transform =
+      get_transform(static_frame_, parent_frame, transform.header.stamp,
+                    rclcpp::Duration::from_seconds(4.0));
 
   if (!static_to_parent_transform.has_value()) {
-    RCLCPP_ERROR(nh_->get_logger(), "Error occurred while looking up transform");
+    RCLCPP_ERROR(nh_->get_logger(),
+                 "Error occurred while looking up transform");
     return std::nullopt;
   }
 
@@ -359,7 +364,8 @@ ObjectMapTFServerROS::get_transform(const std::string &target_frame,
                                                 lookup_time, timeout);
     return transform;
   } catch (tf2::TransformException &ex) {
-    RCLCPP_WARN_STREAM(nh_->get_logger(), "Transform lookup failed: " << ex.what());
+    RCLCPP_WARN_STREAM(nh_->get_logger(),
+                       "Transform lookup failed: " << ex.what());
     return std::nullopt;
   }
 }

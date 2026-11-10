@@ -5,8 +5,8 @@
 namespace auv_mapping {
 
 ObjectPositionFilter::ObjectPositionFilter(
-    const geometry_msgs::msg::TransformStamped &initial_transform, const double dt,
-    rclcpp::Clock::SharedPtr clock)
+    const geometry_msgs::msg::TransformStamped &initial_transform,
+    const double dt, rclcpp::Clock::SharedPtr clock)
     : kf_(6, 3, 0),
       static_frame_(initial_transform.header.frame_id),
       child_frame_(initial_transform.child_frame_id),
@@ -81,8 +81,8 @@ void ObjectPositionFilter::update(
 void ObjectPositionFilter::updateFrameIndex(const std::string &new_frame_id) {
   child_frame_ = new_frame_id;
 }
-geometry_msgs::msg::TransformStamped ObjectPositionFilter::getFilteredTransform()
-    const {
+geometry_msgs::msg::TransformStamped
+ObjectPositionFilter::getFilteredTransform() const {
   geometry_msgs::msg::TransformStamped out;
   out.header.stamp = clock_->now();
   out.header.frame_id = static_frame_;

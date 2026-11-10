@@ -8,14 +8,16 @@
   <license>BSD-3-Clause</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
   <depend>rclpy</depend>
   <depend>tf2</depend>
-  <exec_depend>tf2_ros_py</exec_depend>
-  <depend>eigen</depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
-  <export><build_type>ament_cmake</build_type></export>
+  <exec_depend>tf2_ros_py</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

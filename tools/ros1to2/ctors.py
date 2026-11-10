@@ -8,12 +8,31 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from ros1to2 import rewrite_calls  # noqa: E402
 
 FIELDS = {
-    "Point": "x y z", "Point32": "x y z", "Vector3": "x y z", "Quaternion": "x y z w",
-    "Pose": "position orientation", "Transform": "translation rotation", "Twist": "linear angular",
-    "Wrench": "force torque", "ColorRGBA": "r g b a", "PoseStamped": "header pose",
-    "PointStamped": "header point", "Vector3Stamped": "header vector", "TransformStamped": "header child_frame_id transform",
-    "Float32": "data", "Float64": "data", "Bool": "data", "String": "data", "Int32": "data", "Int8": "data",
-    "UInt8": "data", "UInt16": "data", "Int16": "data", "UInt32": "data", "Int64": "data", "Empty": "",
+    "Point": "x y z",
+    "Point32": "x y z",
+    "Vector3": "x y z",
+    "Quaternion": "x y z w",
+    "Pose": "position orientation",
+    "Transform": "translation rotation",
+    "Twist": "linear angular",
+    "Wrench": "force torque",
+    "ColorRGBA": "r g b a",
+    "PoseStamped": "header pose",
+    "PointStamped": "header point",
+    "Vector3Stamped": "header vector",
+    "TransformStamped": "header child_frame_id transform",
+    "Float32": "data",
+    "Float64": "data",
+    "Bool": "data",
+    "String": "data",
+    "Int32": "data",
+    "Int8": "data",
+    "UInt8": "data",
+    "UInt16": "data",
+    "Int16": "data",
+    "UInt32": "data",
+    "Int64": "data",
+    "Empty": "",
 }
 
 
