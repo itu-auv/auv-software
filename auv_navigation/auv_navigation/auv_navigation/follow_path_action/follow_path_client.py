@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-import rospy
-import actionlib
-from auv_msgs.msg import FollowPathAction, FollowPathGoal
+from rclpy.action import ActionClient
+from auv_msgs.action import FollowPath
 from typing import List
 from nav_msgs.msg import Path
 
 
 class FollowPathActionClient:
-    def __init__(self):
+    def __init__(self, node):
+        self.node = node
 
-        self.client = actionlib.SimpleActionClient("follow_path", FollowPathAction)
+        self.client = ActionClient(node, FollowPath, "follow_path")
 
-        rospy.logdebug("[follow_path client] waiting for action server...")
+        self.node.get_logger().debug(
+            "[follow_path client] waiting for action server..."
+        )
         self.client.wait_for_server()
-        rospy.logdebug("[follow_path client] action server is up!")
+        self.node.get_logger().debug("[follow_path client] action server is up!")
 
     def execute_paths(self, paths: List[Path]) -> bool:
         """
@@ -24,22 +26,21 @@ class FollowPathActionClient:
             bool: True if execution completes successfully (server returns SUCCESS), False otherwise.
         """
         try:
-            goal = FollowPathGoal()
+            goal = FollowPath.Goal()
             goal.paths = paths
-            rospy.logdebug("[follow_path client] sending paths goal...")
-            self.client.send_goal(goal)
-
-            rospy.logdebug("[follow_path client] Waiting for result...")
-            self.client.wait_for_result()
-            result = self.client.get_result()
+            self.node.get_logger().debug("[follow_path client] sending paths goal...")
+            self.node.get_logger().debug("[follow_path client] Waiting for result...")
+            result = self.client.send_goal(goal).result
 
             if result and result.success:
-                rospy.logdebug("[follow_path client] Task succeeded")
+                self.node.get_logger().debug("[follow_path client] Task succeeded")
                 return True
             else:
-                rospy.logwarn("[follow_path client] Task failed")
+                self.node.get_logger().warning("[follow_path client] Task failed")
                 return False
 
         except Exception as e:
-            rospy.logerr("[follow_path client] Error executing paths: %s", str(e))
+            self.node.get_logger().error(
+                "[follow_path client] Error executing paths: %s" % (str(e),)
+            )
             return False

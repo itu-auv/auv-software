@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import rospy
+import rclpy
+from rclpy.duration import Duration
+from rclpy.time import Time
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 import tf2_geometry_msgs
-from tf.transformations import euler_from_quaternion
+from tf_transformations import euler_from_quaternion
 from typing import Optional, List, Tuple
 
 ZERO_DISTANCE_TOLERANCE: float = (
@@ -14,12 +16,12 @@ ZERO_DISTANCE_TOLERANCE: float = (
 )
 DYNAMIC_TARGET_FRAME: str = "dynamic_target"
 ODOM_FRAME: str = "odom"
-TIME_ZERO: rospy.Time = rospy.Time(0)
-TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(4.0)
+TIME_ZERO: Time = Time()
+TF_LOOKUP_TIMEOUT: Duration = Duration(seconds=4.0)
 
 
 def get_robot_pose(
-    tf_buffer: tf2_ros.Buffer, source_frame: str
+    node, tf_buffer: tf2_ros.Buffer, source_frame: str
 ) -> Optional[PoseStamped]:
     try:
         transform = tf_buffer.lookup_transform(
@@ -36,7 +38,7 @@ def get_robot_pose(
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logerr(f"Failed to get current pose: {e}")
+        node.get_logger().error(f"Failed to get current pose: {e}")
         return None
 
 
@@ -92,6 +94,7 @@ def calculate_dynamic_target(
 
 
 def broadcast_dynamic_target_frame(
+    node,
     tf_broadcaster: tf2_ros.TransformBroadcaster,
     tf_buffer: tf2_ros.Buffer,
     source_frame: str,
@@ -101,12 +104,12 @@ def broadcast_dynamic_target_frame(
         odom_to_source = tf_buffer.lookup_transform(
             source_frame, ODOM_FRAME, TIME_ZERO, TF_LOOKUP_TIMEOUT
         )
-        dynamic_target_in_source = tf2_geometry_msgs.do_transform_pose(
+        dynamic_target_in_source = tf2_geometry_msgs.do_transform_pose_stamped(
             dynamic_target_pose, odom_to_source
         )
 
         t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
+        t.header.stamp = node.get_clock().now().to_msg()
         t.header.frame_id = source_frame
         t.child_frame_id = DYNAMIC_TARGET_FRAME
         t.transform.translation.x = dynamic_target_in_source.pose.position.x
@@ -121,7 +124,7 @@ def broadcast_dynamic_target_frame(
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logerr(f"Failed to broadcast dynamic target frame: {e}")
+        node.get_logger().error(f"Failed to broadcast dynamic target frame: {e}")
 
 
 def find_closest_point_index(path: Path, robot_pose: PoseStamped) -> int:
@@ -241,6 +244,7 @@ def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
 
 
 def check_segment_progress(
+    node,
     path: Path,
     robot_pose: PoseStamped,
     current_segment_index: int,
@@ -281,5 +285,5 @@ def check_segment_progress(
 
         return current_path_progress, overall_progress
     except Exception as e:
-        rospy.logerr(f"Error computing path progress: {e}")
+        node.get_logger().error(f"Error computing path progress: {e}")
         return 0.0, 0.0

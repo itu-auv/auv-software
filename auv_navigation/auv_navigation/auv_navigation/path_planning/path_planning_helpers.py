@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-import rospy
+import rclpy
+from rclpy.duration import Duration
+from rclpy.time import Time
 import tf2_ros
-import tf
+import tf_transformations
 import numpy as np
 
 # ROS message imports
@@ -27,7 +29,7 @@ class PathPlanningHelper:
         Looks up the transform for the given frame and returns its position and quaternion.
         """
         transform = tf_buffer.lookup_transform(
-            fixed_frame, frame, rospy.Time(0), rospy.Duration(4.0)
+            fixed_frame, frame, Time(), Duration(seconds=4.0)
         )
         position = transform.transform.translation
         quaternion = [
@@ -46,8 +48,8 @@ class PathPlanningHelper:
         Returns:
             List[float]: The resulting 4-element quaternion after applying the offset.
         """
-        offset_quat = tf.transformations.quaternion_from_euler(0, 0, angle_offset)
-        return tf.transformations.quaternion_multiply(offset_quat, quaternion)
+        offset_quat = tf_transformations.quaternion_from_euler(0, 0, angle_offset)
+        return tf_transformations.quaternion_multiply(offset_quat, quaternion)
 
     @staticmethod
     def compute_angular_difference(
@@ -130,7 +132,7 @@ class PathPlanningHelper:
             new_yaw = source_euler[2] + t * angular_diff
         else:
             new_yaw = source_euler[2]
-        return tf.transformations.quaternion_from_euler(roll, pitch, new_yaw)
+        return tf_transformations.quaternion_from_euler(roll, pitch, new_yaw)
 
     @staticmethod
     def generate_waypoints(
@@ -205,7 +207,7 @@ class PathPlanningHelper:
 
                 roll = source_euler[0]
                 pitch = source_euler[1]
-                interp_quat = tf.transformations.quaternion_from_euler(
+                interp_quat = tf_transformations.quaternion_from_euler(
                     roll, pitch, final_yaw
                 )
             else:
@@ -222,13 +224,13 @@ class PathPlanningHelper:
         return poses
 
     @staticmethod
-    def create_path_header(frame_id: str) -> rospy.Header:
+    def create_path_header(node, frame_id: str) -> Header:
         """
         Creates header for the Path message.
         """
-        header = rospy.Header()
+        header = Header()
         header.frame_id = frame_id
-        header.stamp = rospy.Time.now()
+        header.stamp = node.get_clock().now().to_msg()
         return header
 
     @staticmethod
