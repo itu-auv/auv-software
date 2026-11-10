@@ -275,7 +275,9 @@ class RandomPingerSelectorState(smach.State):
         return None, "aborted", None
 
     def _angle_to_frame(self, frame):
-        transform = lookup_fresh_transform(self.tf_buffer, self.source_frame, frame)
+        transform = lookup_fresh_transform(
+            self.tf_buffer, get_node(), self.source_frame, frame
+        )
         translation = transform.transform.translation
         return math.atan2(translation.y, translation.x)
 

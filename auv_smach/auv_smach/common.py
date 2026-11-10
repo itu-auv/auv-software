@@ -96,6 +96,47 @@ def concatenate_transforms(transform1, transform2):
 # ------------------- STATES -------------------
 
 
+class Concurrence(smach.Concurrence):
+    """smach.Concurrence with the outcome rules of ROS 1 smach, which the missions rely on.
+
+    When several outcome_map entries match, ROS 1 took the first of those with the most
+    conditions; ROS 2 smach takes the last. ROS 1 also answered "preempted" whenever the
+    container itself was preempted.
+    """
+
+    def __init__(self, outcomes, default_outcome, outcome_map, **kwargs):
+        self._preempted_from_outside = False
+
+        def ros1_outcome(child_outcomes):
+            if self._preempted_from_outside:
+                return "preempted"
+            best, best_size = default_outcome, 0
+            for outcome, wanted in outcome_map.items():
+                if len(wanted) > best_size and all(
+                    child_outcomes[label] == wanted[label] for label in wanted
+                ):
+                    best, best_size = outcome, len(wanted)
+            return best
+
+        super().__init__(
+            outcomes=outcomes,
+            default_outcome=default_outcome,
+            outcome_map=outcome_map,
+            outcome_cb=ros1_outcome,
+            **kwargs,
+        )
+
+    def request_preempt(self):
+        self._preempted_from_outside = True
+        super().request_preempt()
+
+    def execute(self, parent_ud=None):
+        try:
+            return super().execute(parent_ud)
+        finally:
+            self._preempted_from_outside = False
+
+
 class SetDepthState(smach.State):
     """
     Calls /taluy/set_depth with the requested depth and waits until
@@ -949,7 +990,7 @@ class SearchForPropState(smach.StateMachine):
             )
 
 
-class AimToProp(smach.Concurrence):
+class AimToProp(Concurrence):
     """
     Runs SetFrameLookingAtState and AlignFrame concurrently.
     Terminates when AlignFrame finishes.
@@ -1852,7 +1893,7 @@ class CheckForTransformState(smach.State):
         return "aborted"
 
 
-class DynamicPathWithTransformCheck(smach.Concurrence):
+class DynamicPathWithTransformCheck(Concurrence):
 
     def __init__(
         self,
@@ -1904,7 +1945,7 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
             )
 
 
-class AlignFrameWithTransformCheck(smach.Concurrence):
+class AlignFrameWithTransformCheck(Concurrence):
 
     def __init__(
         self,

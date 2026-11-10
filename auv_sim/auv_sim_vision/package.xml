@@ -18,7 +18,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
-  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>auv_sim_bridge</exec_depend>
   <exec_depend>auv_common_lib</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>ultralytics_ros</exec_depend>

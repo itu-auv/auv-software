@@ -57,6 +57,10 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   with `success = false`; callers must check the field.
 - `vision_msgs` detections carry the class as a string (`hypothesis.class_id`). The
   port keeps integer ids and writes them as decimal strings.
+- ROS 2 smach decides the outcome of a `Concurrence` differently: of several matching
+  `outcome_map` entries it takes the last, ROS 1 took the first. With the maps in
+  `common.py` that turns "frame found while driving" from `succeeded` into
+  `preempted`. `auv_smach.common.Concurrence` restores the ROS 1 rule.
 - There is no global parameter server. `waypoint_publisher` publishes the path
   summary it used to store at `/waypoint_gui/paths` as latched JSON on that topic.
 
@@ -80,9 +84,79 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 
 ## Missions (auv_smach)
 
-- `bin.py`, second `__init__` using `bin_search_frame` (around line 436): the name
-  is not a parameter of that constructor, so building that state machine raises
-  `NameError`.
+Mission flow:
+
+- `main_state_machine.py` builds `NavigateReturnThroughGateState` with a
+  `gate_search_frame` argument the class does not take. `NAVIGATE_RETURN_THROUGH_GATE`
+  is in the default `full_mission_states`, so the default full mission dies with a
+  `TypeError` before the first state runs.
+- `main_state_machine.py`: a state that is skipped while building (unknown name, or a
+  `pathN` token with no path drawn in the GUI) is still the transition target of the
+  state before it, so smach refuses to run the whole mission.
+- The wrapper states that run an inner state machine (`InitializeState`,
+  `NavigateThroughGateState`, `BinTaskState`, `OctagonTaskState`,
+  `RandomPingerTaskState`, `NavigateReturnThroughGateState`, `RotateAroundBuoyState`)
+  do not pass a preempt request on to it. Only `TorpedoTaskState` does. Nothing
+  preempts the top-level machine today, so this only bites once something does.
+- `DynamicPathWithTransformCheck` / `AlignFrameWithTransformCheck`: when the wait for
+  the frame times out before the motion finishes, the result is `preempted`, and every
+  caller maps `preempted` to "stop the mission". In `BinSearchSequenceState` both
+  timers are 20 s and the frame wait starts first, so a search leg the vehicle cannot
+  finish in 20 s ends the mission instead of moving to the next leg.
+- `AimToProp`: `LOOK_AT` and `ALIGN_FRAME` get the same timeout and whichever ends
+  first stops the other. If `LOOK_AT` wins the result is `preempted` (mission stops);
+  if `ALIGN_FRAME` wins it is `succeeded`.
+- `CheckAlignmentState` returns `succeeded` on timeout, so `AlignFrame` cannot report
+  that the vehicle never got there (`CANCEL_ALIGNMENT_ON_FAIL` is unreachable).
+  Torpedoes are launched and balls dropped after a timed-out alignment the same as
+  after a good one.
+- `SearchForPropState`: `CreateRotatingFrameState` returns `succeeded` after a full
+  turn without ever seeing the frame, and `AimToProp` then times out into `succeeded`
+  too. A search that finds nothing takes about a minute and looks like a success to
+  the task (seen in the simulator: the gate task carried on without a gate).
+- `SearchForPropState(rotation_speed=...)` only uses the speed to derive a period, and
+  a non-positive speed silently becomes a 15 s turn. `octagon.py` passes `-0.2` to
+  search the other way round and gets a turn in the usual direction at twice the
+  speed.
+- Several states return `preempted` without `service_preempt()`
+  (`CreateRotatingFrameState`, `SetPlanState`, `PlanPathToSingleFrameState`,
+  `PitchCorrection`, `RollTwoTimes`, `CheckBottleLinkState`), which leaves the request
+  set on the state. `WaitForKillswitchEnabledState` and `DelayState` ignore preempts.
+- `PickRemainingOctagonTargetsState._wait_for_fresh_targets` falls back to the last
+  object list it ever received when no fresh one arrives in time.
+- `RandomPingerTaskState` compares the pinger bearing against `torpedo_map_link_kde`
+  and `octagon_link_kde` whatever `ignore_kde` says.
+- `BinTaskState` ends by searching for and driving to the `odom` origin
+  (`find_aim_return_home`, `RETURN_HOME_melih`), so the bin task also does the return
+  home. It disables the bin trajectory publisher twice in a row.
+- `SetRedBuoyRotationStartFrame` computes the facing angle in the buoy frame and
+  publishes it in `odom` unrotated; right only while the buoy frame is aligned with
+  `odom`. (`RotateAroundBuoyState` is not in the state map any more.)
+- `AcousticTransmitter` publishes five times over five seconds and logs "published
+  once".
+
+Hard-coded vehicle names (break `taluy_mini` and any other namespace):
+
+- `BallDropperSetAngleState` publishes on `/taluy/actuators/ball_dropper/set_angle`.
+- `DynamicPathWithTransformCheck` defaults `align_source_frame` to `taluy/base_link`
+  and no caller overrides it.
+- `octagon.py`: `taluy/gripper_link_p2`, `taluy/base_link/dvl_mount_link`.
+  `random_pinger.py`: `taluy/base_link`.
+
+Dead or broken leftovers:
+
+- `bin.py` `BinSecondTrialState`: uses `bin_search_frame`, which is not a parameter of
+  its constructor (`NameError`), and transitions to a state that does not exist. Not
+  used.
+- Unused: `RotateAroundBuoyState` and the rest of `red_buoy.py`, `OctagonSurfaceState`
+  unless `surface_and_return_if_octagon_first`, `CheckBottleLinkState`,
+  `MoveGripperServiceState`, `OpenGripperServiceState`, `DropBallState`,
+  `PlanGatePathsState`, `PublishGateAngleState`, `ResetOdometryPoseState`,
+  `RotationState` outside `TwoYawState`, `NavigateToFrameState` outside `red_buoy.py`;
+  the `torpedo_exit_angle`, `bin_front_look_depth`, `bin_bottom_look_depth`
+  arguments; `legacy_target_selection`.
+- State names left from debugging: `newhat`, `isim_degistir`, `lalala`, `ac_artik`,
+  `yolo_bekle`, `SET_BATUHAN_DEPTH`, `RETURN_HOME_melih`.
 - `smach_monitor_node` used `rosnode kill joystick_node`. ROS 2 cannot kill a node
   by name, so the monitor now calls the `joystick_node/shutdown` service that the
   joystick node offers (see "Behaviour that changed").
@@ -90,7 +164,9 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 ## Simulation tools ported to Gazebo Harmonic
 
 - `auv_sim_vision` read `/gazebo/model_states`. It now reads the world's
-  `/world/<world>/pose/info` topic, bridged by its own launch files.
+  `/world/<world>/pose/info` topic. `ros_gz_bridge` drops the entity names when it
+  converts that topic, so `auv_sim_bridge` has a small node for it
+  (`world_pose_bridge`), started by the `auv_sim_vision` launch files.
 - `auv_sim/tf_gazebo_debug.py` used the Gazebo Classic spawn/delete/model-state
   services. It now uses the world's `create`/`remove` services and the robot's
   ground-truth odometry; `remove` is not bridged by the sim launch yet.
@@ -111,9 +187,10 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 
 - `auv_smach/gate.py` defines `TransformServiceEnableState` and
   `PublishGateAngleState` twice (identical copies).
+- `SetDepthState` documents a 30 s default timeout; it is 20 s.
 - `reference_pose_publisher.py` imports `normalize_angle` from `angles` and then
   defines its own.
-- Unused: `legacy_target_selection` in `main_state_machine.py`, `obj_type` in
+- Unused: `obj_type` in
   `competition_map_gui.py`, `before_clamp` in `multidof_pid_controller.h`, and in
   `process_tracker_with_cloud.cpp` the `distance` variable and five parameters of
   `createAndPublishDetection` (leftovers of removed 3D detection and marker output).

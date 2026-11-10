@@ -345,7 +345,7 @@ class SegmentCameraHandler:
                         "detection_id": detection_id,
                         "prop_name": prop_name,
                         "geometry": geometry,
-                        "bbox_center": detection.bbox.center,
+                        "bbox_center": detection.bbox.center.position,
                         "debug_color": debug_color,
                     }
 
@@ -366,7 +366,7 @@ class SegmentCameraHandler:
                     center_x, center_y = geometry["center"]
                     center = Point(x=center_x, y=center_y, z=0.0)
                 else:
-                    center = detection.bbox.center
+                    center = detection.bbox.center.position
 
                 angles, offset_x, offset_y = calculate_angles_and_offsets(
                     self.calibration, center, distance

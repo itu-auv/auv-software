@@ -11,11 +11,21 @@ find_package(gz_sim_vendor REQUIRED)
 find_package(gz_plugin_vendor REQUIRED)
 find_package(gz-sim8 REQUIRED)
 find_package(gz-plugin2 REQUIRED COMPONENTS register)
+find_package(gz_transport_vendor REQUIRED)
+find_package(gz-transport13 REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(tf2_msgs REQUIRED)
 
 add_library(auv-subsea-pressure-system SHARED src/subsea_pressure_system.cpp)
 target_compile_features(auv-subsea-pressure-system PRIVATE cxx_std_17)
 target_link_libraries(auv-subsea-pressure-system PRIVATE gz-sim8::gz-sim8 gz-plugin2::register)
 install(TARGETS auv-subsea-pressure-system LIBRARY DESTINATION lib)
+
+add_executable(world_pose_bridge src/world_pose_bridge.cpp)
+target_compile_features(world_pose_bridge PRIVATE cxx_std_17)
+target_link_libraries(world_pose_bridge gz-transport13::gz-transport13)
+ament_target_dependencies(world_pose_bridge rclcpp tf2_msgs geometry_msgs)
+install(TARGETS world_pose_bridge DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS
   scripts/sim_hardware_mocks.py

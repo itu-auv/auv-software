@@ -98,7 +98,7 @@ class KdeCameraHandler:
                 continue
 
             _angles, offset_x, offset_y = calculate_angles_and_offsets(
-                self.calibration, detection.bbox.center, distance
+                self.calibration, detection.bbox.center.position, distance
             )
 
             self._transform_and_publish_point(

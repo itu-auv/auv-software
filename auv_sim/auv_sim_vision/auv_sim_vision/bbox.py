@@ -40,7 +40,7 @@ from vision_msgs.msg import (
     ObjectHypothesisWithPose,
     BoundingBox2D,
 )
-from geometry_msgs.msg import Point, Pose, Pose2D, Transform
+from geometry_msgs.msg import Point, Pose, Transform
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 from tf2_msgs.msg import TFMessage
 
@@ -398,7 +398,8 @@ def make_detection(
     hyp.hypothesis.score = 1.0
     det.results.append(hyp)
     det.bbox = BoundingBox2D()
-    det.bbox.center = Pose2D(x=cx, y=cy, theta=0.0)
+    det.bbox.center.position.x = float(cx)
+    det.bbox.center.position.y = float(cy)
     det.bbox.size_x = sx
     det.bbox.size_y = sy
     return det

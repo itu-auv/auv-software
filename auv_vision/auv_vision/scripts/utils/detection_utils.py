@@ -168,7 +168,7 @@ def check_inside_image(
     detection, image_width: int = 640, image_height: int = 480
 ) -> bool:
     """Check if a detection bounding box is fully inside the image."""
-    center = detection.bbox.center
+    center = detection.bbox.center.position
     half_size_x = detection.bbox.size_x * 0.5
     half_size_y = detection.bbox.size_y * 0.5
     deadzone = 5  # pixels
@@ -296,7 +296,7 @@ def check_inside_image_torpedo(
     forbidden_side_masks=None,
 ) -> bool:
     """Check if a torpedo detection bbox is inside the usable image area."""
-    center = detection.bbox.center
+    center = detection.bbox.center.position
     half_size_x = detection.bbox.size_x * 0.5
     half_size_y = detection.bbox.size_y * 0.5
     deadzone = 5  # pixels
@@ -349,7 +349,7 @@ def check_inside_image_bottom(
       - The bbox touches the image edges (within deadzone), OR
       - Any corner of the bbox falls inside a forbidden mask polygon.
     """
-    center = detection.bbox.center
+    center = detection.bbox.center.position
     half_size_x = detection.bbox.size_x * 0.5
     half_size_y = detection.bbox.size_y * 0.5
     deadzone = 5  # pixels
@@ -404,7 +404,7 @@ def check_inside_image_bottom_bin(
     Returns False if:
       - Any corner of the bbox falls inside a forbidden mask polygon.
     """
-    center = detection.bbox.center
+    center = detection.bbox.center.position
     half_size_x = detection.bbox.size_x * 0.5
     half_size_y = detection.bbox.size_y * 0.5
 

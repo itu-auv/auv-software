@@ -7,8 +7,11 @@
 
   <arg name="namespace" default="taluy"/>
   <arg name="world" default="pool"/>
+  <set_parameter name="use_sim_time" value="true"/>
   <!-- ground-truth poses of the simulated objects (was /gazebo/model_states) -->
-  <node name="sim_pose_bridge" pkg="ros_gz_bridge" exec="parameter_bridge" args="/world/$(var world)/pose/info@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V"/>
+  <node name="sim_pose_bridge" pkg="auv_sim_bridge" exec="world_pose_bridge">
+    <param name="world" value="$(var world)"/>
+  </node>
 
   <node name="sim_bbox_node" pkg="auv_sim_vision" exec="bbox_node.py" output="screen">
     <param name="namespace" value="$(var namespace)"/>

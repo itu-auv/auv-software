@@ -11,6 +11,9 @@
   <depend>rclpy</depend>
   <depend>gz_sim_vendor</depend>
   <depend>gz_plugin_vendor</depend>
+  <depend>gz_transport_vendor</depend>
+  <depend>rclcpp</depend>
+  <depend>tf2_msgs</depend>
   <depend>std_msgs</depend>
   <exec_depend>std_srvs</exec_depend>
   <depend>geometry_msgs</depend>

@@ -473,7 +473,7 @@ class PickRemainingOctagonTargetsState(smach.State):
         self.set_role_search_rotation_count = set_role_search_rotation_count
         self.latest_objects = []
         self.latest_remaining_count = 1
-        self.last_update_time = Time()
+        self.last_update_time = Time(clock_type=get_node().get_clock().clock_type)
         self.active_sequence = None
         self.object_list_sub = get_node().create_subscription(
             String, object_list_topic, self._object_list_cb, 1

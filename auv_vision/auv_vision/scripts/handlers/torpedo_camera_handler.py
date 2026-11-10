@@ -135,7 +135,7 @@ class TorpedoCameraHandler:
             return None
 
         _, offset_x, offset_y = calculate_angles_and_offsets(
-            self.calibration, detection.bbox.center, distance
+            self.calibration, detection.bbox.center.position, distance
         )
 
         return self._publish_odom_transform(
@@ -177,7 +177,7 @@ class TorpedoCameraHandler:
             return None
 
         _, offset_x, offset_y = calculate_angles_and_offsets(
-            self.calibration, detection.bbox.center, distance
+            self.calibration, detection.bbox.center.position, distance
         )
         return self._transform_camera_point_to_realsense_target(
             offset_x, offset_y, distance, stamp
