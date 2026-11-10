@@ -20,8 +20,10 @@ Not done or not verified:
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
 - Full competition missions have not been run in the new simulator.
-- `rviz/araba.rviz` files are still RViz 1 configs.
-- `docker/Dockerfile.auv*` and the GitHub workflows still build ROS 1.
+- `rviz/araba.rviz` files were converted to RViz 2 plugin names but have not been
+  opened yet.
+- `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
+  images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
 - The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
   is a rewrite by necessity. The ROS 1 sim files it replaced are still in
   `auv_sim/` for reference and are not installed.
