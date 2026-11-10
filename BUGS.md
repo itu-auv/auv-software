@@ -212,6 +212,12 @@ Dead or broken leftovers:
 - `process_tracker_with_cloud` `planeSegmentationAndPCA`: when the plane fit fails the
   PCA eigenvectors are used as a rotation matrix without the handedness check the
   plane path has; a left-handed set gives a meaningless quaternion.
+- The premap (`config/premaps/premap.yaml`) holds positions in `odom`, so it is only
+  right for one start pose, and `kde_object_mapper` throws away every detection more
+  than `premap_max_distance` (5 m) from it. Started anywhere else, the `*_kde` frames
+  stay at the premap positions however often the object is seen (in the simulator the
+  octagon task drove 14 m to an empty spot). The launch files now take
+  `premap:=none`.
 
 ## Vision
 

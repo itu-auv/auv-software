@@ -81,6 +81,7 @@ def start(context):
                 "namespace": namespace,
                 "control_rate": "20.0",
                 "plane_fitter_sync_queue_size": "90",
+                "premap": LaunchConfiguration("premap"),
             },
         ),
         include(
@@ -299,6 +300,12 @@ def generate_launch_description():
                 "clock_period",
                 default_value="0.01",
                 description="simulation seconds between /clock messages; raise it on a slow machine",
+            ),
+            DeclareLaunchArgument(
+                "premap",
+                default_value="premap",
+                description="expected object positions (auv_mapping/config/premaps); "
+                "they are in odom, so use none unless starting at the gate",
             ),
             DeclareLaunchArgument(
                 "start",
