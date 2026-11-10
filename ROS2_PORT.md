@@ -119,8 +119,9 @@ Things ROS 2 does differently that bit during the port:
 - PID integral gains tuned on ROS 1 need rescaling (see BUGS.md, Control).
 - rclpy's `MultiThreadedExecutor` burns about 5 ms of CPU per message when the default
   QoS event handlers are attached to subscriptions (it spins while the callback waits
-  for a worker thread). `ros.init()` turns those handlers off; the price is that
-  incompatible-QoS warnings are no longer logged by our Python nodes.
+  for a worker thread). `ros.init()` turns those handlers off and `ros.spin()`
+  checks for incompatible publishers itself, so a best-effort driver feeding a
+  reliable subscription still gets a warning.
 - In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
   (`period` parameter). On the vehicle there is no `/clock` and an idle node costs

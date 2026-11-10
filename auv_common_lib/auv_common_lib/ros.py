@@ -13,7 +13,7 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.exceptions import ROSInterruptException
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 
 _UNSET = object()
@@ -228,6 +228,45 @@ def _refuse_mixed_clocks(node):
         time.sleep(0.5)
 
 
+def _warn_incompatible_qos(node):
+    """Say so when a subscription cannot hear a publisher (init() switched rclpy's own
+    QoS warnings off). The usual case is a driver publishing best effort."""
+    warned = set()
+    for wait in (5.0, 15.0, 40.0):
+        time.sleep(wait)
+        if not rclpy.ok():
+            return
+        try:
+            for subscription in list(node.subscriptions):
+                wanted = subscription.qos_profile
+                for publisher in node.get_publishers_info_by_topic(
+                    subscription.topic_name
+                ):
+                    offered = publisher.qos_profile
+                    reasons = []
+                    if (
+                        wanted.reliability == ReliabilityPolicy.RELIABLE
+                        and offered.reliability == ReliabilityPolicy.BEST_EFFORT
+                    ):
+                        reasons.append(
+                            "it is published best effort, we ask for reliable"
+                        )
+                    if (
+                        wanted.durability == DurabilityPolicy.TRANSIENT_LOCAL
+                        and offered.durability == DurabilityPolicy.VOLATILE
+                    ):
+                        reasons.append("it is not latched, we ask for a latched topic")
+                    key = (subscription.topic_name, publisher.node_name)
+                    if reasons and key not in warned:
+                        warned.add(key)
+                        node.get_logger().warning(
+                            f"will not receive {subscription.topic_name} from "
+                            f"{publisher.node_name}: {'; '.join(reasons)}"
+                        )
+        except Exception:
+            return  # the node is being destroyed
+
+
 def spin(node, loop=None):
     """Run a node until shutdown, then clean up.
 
@@ -237,6 +276,7 @@ def spin(node, loop=None):
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     threading.Thread(target=_refuse_mixed_clocks, args=(node,), daemon=True).start()
+    threading.Thread(target=_warn_incompatible_qos, args=(node,), daemon=True).start()
 
     def spin_executor():
         try:
