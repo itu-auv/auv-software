@@ -6,8 +6,12 @@
        Publishes annotated debug images on /yolo_image_front, /yolo_image_bottom, /yolo_image_torpedo. -->
 
   <arg name="namespace" default="taluy"/>
+  <arg name="world" default="pool"/>
+  <!-- ground-truth poses of the simulated objects (was /gazebo/model_states) -->
+  <node name="sim_pose_bridge" pkg="ros_gz_bridge" exec="parameter_bridge" args="/world/$(var world)/pose/info@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V"/>
 
-  <node name="sim_bbox_node" pkg="auv_sim_vision" type="bbox_node.py" output="screen">
-    <param name="namespace" value="$(arg namespace)"/>
+  <node name="sim_bbox_node" pkg="auv_sim_vision" exec="bbox_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
   </node>
 </launch>

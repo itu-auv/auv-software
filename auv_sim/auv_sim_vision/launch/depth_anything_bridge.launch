@@ -8,15 +8,16 @@
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
 
-    <group ns="$(arg namespace)">
-        <node pkg="auv_sim_vision" type="depth_anything_bridge_node.py"
+    <group>
+      <push_ros_namespace namespace="$(var namespace)" />
+        <node pkg="auv_sim_vision" exec="depth_anything_bridge_node.py"
               name="depth_anything_trt_node" output="screen">
-            <param name="enabled" value="$(arg enabled)" />
+            <param name="enabled" value="$(var enabled)" />
 
-            <remap from="input_depth" to="$(arg input_depth_topic)" />
-            <remap from="input_camera_info" to="$(arg input_camera_info_topic)" />
-            <remap from="raw_depth" to="$(arg output_depth_topic)" />
-            <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
+            <remap from="input_depth" to="$(var input_depth_topic)" />
+            <remap from="input_camera_info" to="$(var input_camera_info_topic)" />
+            <remap from="raw_depth" to="$(var output_depth_topic)" />
+            <remap from="scaled_camera_info" to="$(var scaled_camera_info_topic)" />
             <remap from="enable" to="depth_anything_trt_node/enable" />
         </node>
     </group>

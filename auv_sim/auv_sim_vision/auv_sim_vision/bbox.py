@@ -19,7 +19,11 @@ Topics published:
 
 import os
 import threading
-import rospy
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import get_param, get_node, init_node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import cv2
 import numpy as np
 import yaml
@@ -36,15 +40,18 @@ from vision_msgs.msg import (
     ObjectHypothesisWithPose,
     BoundingBox2D,
 )
-from geometry_msgs.msg import Pose, Pose2D, Transform
+from geometry_msgs.msg import Point, Pose, Pose2D, Transform
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo
-from gazebo_msgs.msg import ModelStates
+from tf2_msgs.msg import TFMessage
 
-import rospkg
+from ament_index_python.packages import (
+    PackageNotFoundError,
+    get_package_share_directory,
+)
 import xml.etree.ElementTree as ET
 
 import tf2_ros
-import tf.transformations as tft
+import tf_transformations as tft
 
 
 @dataclass
@@ -127,14 +134,19 @@ def cylinder(half_extents: Tuple[float, float, float], n: int = 8) -> List[np.nd
 
 
 def load_dae_mesh(model_path: str) -> MeshGeometry:
-    rp = rospkg.RosPack()
     try:
-        dae_path = os.path.join(rp.get_path("auv_sim_description"), model_path)
-    except rospkg.ResourceNotFound:
-        rospy.logwarn(f"DAE model not found: {model_path} — mesh disabled")
+        dae_path = os.path.join(
+            get_package_share_directory("auv_sim_description"), model_path
+        )
+    except PackageNotFoundError:
+        get_node().get_logger().warning(
+            f"DAE model not found: {model_path} — mesh disabled"
+        )
         return MeshGeometry(np.empty((0, 4)), np.empty((0, 3), dtype=np.int32))
     if not os.path.isfile(dae_path):
-        rospy.logwarn(f"DAE file not found: {dae_path} — mesh disabled")
+        get_node().get_logger().warning(
+            f"DAE file not found: {dae_path} — mesh disabled"
+        )
         return MeshGeometry(np.empty((0, 4)), np.empty((0, 3), dtype=np.int32))
 
     collada_ns = "http://www.collada.org/2005/11/COLLADASchema"
@@ -382,8 +394,8 @@ def make_detection(
 ) -> Detection2D:
     det = Detection2D()
     hyp = ObjectHypothesisWithPose()
-    hyp.id = class_id
-    hyp.score = 1.0
+    hyp.hypothesis.class_id = str(class_id)
+    hyp.hypothesis.score = 1.0
     det.results.append(hyp)
     det.bbox = BoundingBox2D()
     det.bbox.center = Pose2D(x=cx, y=cy, theta=0.0)
@@ -508,20 +520,34 @@ class GazeboInterface:
         self._pose_buffer: deque = deque(maxlen=self._BUFFER_SIZE)
         self._state_lock = threading.Lock()
 
-        rospy.Subscriber(
-            "/gazebo/model_states", ModelStates, self._model_states_cb, queue_size=1
+        # Gazebo Harmonic publishes entity poses on /world/<world>/pose/info; the
+        # launch files bridge it to ROS as a TFMessage (child_frame_id = entity name).
+        world = get_param(get_node(), "~world", "pool")
+        get_node().create_subscription(
+            TFMessage, f"/world/{world}/pose/info", self._model_states_cb, 1
         )
 
-    def _model_states_cb(self, msg: ModelStates):
-        poses = dict(zip(msg.name, msg.pose))
+    def _model_states_cb(self, msg: TFMessage):
+        poses = {}
+        for transform in msg.transforms:
+            # models are listed before their links; keep the model on a name clash
+            if transform.child_frame_id not in poses:
+                poses[transform.child_frame_id] = Pose(
+                    position=Point(
+                        x=transform.transform.translation.x,
+                        y=transform.transform.translation.y,
+                        z=transform.transform.translation.z,
+                    ),
+                    orientation=transform.transform.rotation,
+                )
         matrices = {name: pose_to_matrix(pose) for name, pose in poses.items()}
         with self._state_lock:
-            self._pose_buffer.append((rospy.Time.now(), poses, matrices))
+            self._pose_buffer.append((get_node().get_clock().now(), poses, matrices))
             self.model_poses = poses
             self.model_matrices = matrices
 
     def snapshot_at_time(
-        self, stamp: rospy.Time
+        self, stamp: Time
     ) -> Tuple[Dict[str, Pose], Dict[str, np.ndarray]]:
         """Return the buffered model snapshot closest to *stamp*."""
         with self._state_lock:
@@ -529,7 +555,9 @@ class GazeboInterface:
                 return self.model_poses, self.model_matrices
             snapshot = min(
                 tuple(self._pose_buffer),
-                key=lambda entry: abs((entry[0] - stamp).to_sec()),
+                key=lambda entry: abs(
+                    (entry[0] - Time.from_msg(stamp)).nanoseconds / 1e9
+                ),
             )
         _, poses, matrices = snapshot
         return poses, matrices
@@ -570,17 +598,15 @@ class SimCamera:
         self._debug_thread: Optional[threading.Thread] = None
         self._debug_lock = threading.Lock()
 
-        self.result_pub = rospy.Publisher(result_topic, YoloResult, queue_size=1)
+        self.result_pub = get_node().create_publisher(YoloResult, result_topic, 1)
         image_msg_type = CompressedImage if compressed_image_output else Image
-        self.image_pub = rospy.Publisher(image_out_topic, image_msg_type, queue_size=1)
+        self.image_pub = get_node().create_publisher(image_msg_type, image_out_topic, 1)
 
-        rospy.Subscriber(camera_info_topic, CameraInfo, self._info_cb, queue_size=1)
-        rospy.Subscriber(
-            image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
-        )
+        get_node().create_subscription(CameraInfo, camera_info_topic, self._info_cb, 1)
+        get_node().create_subscription(Image, image_topic, self._image_cb, 1)
 
     def _info_cb(self, msg: CameraInfo):
-        self.intrinsics = (msg.K[0], msg.K[4], msg.K[2], msg.K[5])
+        self.intrinsics = (msg.k[0], msg.k[4], msg.k[2], msg.k[5])
         self.image_w = msg.width
         self.image_h = msg.height
 
@@ -712,7 +738,7 @@ class SimCamera:
         result_msg.masks = masks
         self.result_pub.publish(result_msg)
 
-        if self.image_pub.get_num_connections() > 0:
+        if self.image_pub.get_subscription_count() > 0:
             self._start_debug_publish(msg, detections, masks, stamp)
 
     def _start_debug_publish(
@@ -720,7 +746,7 @@ class SimCamera:
         msg: Image,
         detections: List[Detection2D],
         masks: List[Image],
-        stamp: rospy.Time,
+        stamp: Time,
     ):
         with self._debug_lock:
             if self._debug_thread is not None and self._debug_thread.is_alive():
@@ -737,7 +763,7 @@ class SimCamera:
         msg: Image,
         detections: List[Detection2D],
         masks: List[Image],
-        stamp: rospy.Time,
+        stamp: Time,
     ):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -753,7 +779,9 @@ class SimCamera:
             out_msg.header.stamp = stamp
             self.image_pub.publish(out_msg)
         except Exception as e:
-            rospy.logwarn_throttle(5, f"[{self.name}] annotation error: {e}")
+            get_node().get_logger().warning(
+                f"[{self.name}] annotation error: {e}", throttle_duration_sec=5
+            )
 
     def _get_base_to_camera(self) -> Optional[np.ndarray]:
         """Look up and cache the static base_link → optical_link transform."""
@@ -762,10 +790,10 @@ class SimCamera:
 
         try:
             tf_msg = self.tf_buffer.lookup_transform(
-                self.optical_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
+                self.optical_frame, self.base_frame, Time(), Duration(seconds=2.0)
             )
             self._base_to_camera = transform_to_matrix(tf_msg.transform)
-            rospy.loginfo(
+            get_node().get_logger().info(
                 f"[{self.name}] cached static TF: {self.base_frame} → {self.optical_frame}"
             )
             return self._base_to_camera
@@ -774,18 +802,24 @@ class SimCamera:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(5, f"[{self.name}] static TF not yet available: {e}")
+            get_node().get_logger().warning(
+                f"[{self.name}] static TF not yet available: {e}",
+                throttle_duration_sec=5,
+            )
             return None
 
     def _draw_detections(self, image: np.ndarray, detections: List[Detection2D]):
         for det in detections:
             if not det.results:
                 continue
-            cx, cy = int(det.bbox.center.x), int(det.bbox.center.y)
+            cx, cy = int(det.bbox.center.position.x), int(det.bbox.center.position.y)
             w, h = int(det.bbox.size_x), int(det.bbox.size_y)
             x1, y1 = cx - w // 2, cy - h // 2
             x2, y2 = cx + w // 2, cy + h // 2
-            label = self.class_names.get(det.results[0].id, str(det.results[0].id))
+            label = self.class_names.get(
+                int(det.results[0].hypothesis.class_id),
+                str(int(det.results[0].hypothesis.class_id)),
+            )
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 image,
@@ -813,7 +847,7 @@ class SimCamera:
             mask = self.bridge.imgmsg_to_cv2(mask_msg, "mono8")
             if mask.shape[:2] != image.shape[:2]:
                 continue
-            class_id = det.results[0].id if det.results else -1
+            class_id = int(det.results[0].hypothesis.class_id) if det.results else -1
             overlay[mask > 127] = seg_colors.get(class_id, (0, 255, 0))
             any_drawn = True
         if any_drawn:
@@ -859,7 +893,7 @@ def load_config(config_path: str, ns: str) -> Tuple[List[SimObject], Dict]:
     for obj_cfg in config["objects"]:
         if "mesh" in obj_cfg:
             mesh = load_dae_mesh(obj_cfg["mesh"])
-            rospy.loginfo(
+            get_node().get_logger().info(
                 "Seg faces loaded — %s: %d" % (obj_cfg["name"], len(mesh.triangles))
             )
             all_objects.append(
@@ -878,7 +912,7 @@ def load_config(config_path: str, ns: str) -> Tuple[List[SimObject], Dict]:
             occ_mesh = None
             if "occlusion_mesh" in obj_cfg:
                 occ_mesh = load_dae_mesh(obj_cfg["occlusion_mesh"])
-                rospy.loginfo(
+                get_node().get_logger().info(
                     "Occlusion mesh loaded — %s: %d faces"
                     % (obj_cfg["name"], len(occ_mesh.triangles))
                 )
@@ -910,16 +944,16 @@ def load_config(config_path: str, ns: str) -> Tuple[List[SimObject], Dict]:
 
 class SimBboxNode:
     def __init__(self):
-        rospy.init_node("sim_bbox_node")
+        init_node("sim_bbox_node")
 
-        ns = rospy.get_param("~namespace", "taluy")
+        ns = get_param(get_node(), "~namespace", "taluy")
         default_config = os.path.join(
-            rospkg.RosPack().get_path("auv_sim_vision"), "config", "bbox_objects.yaml"
+            get_package_share_directory("auv_sim_vision"), "config", "bbox_objects.yaml"
         )
-        config_path = rospy.get_param("~config", default_config)
+        config_path = get_param(get_node(), "~config", default_config)
 
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, get_node())
 
         base_frame = f"{ns}/base_link"
 
@@ -949,9 +983,9 @@ class SimBboxNode:
                 objects=objects_by_camera[cam_name],
             )
 
-        rospy.loginfo(
+        get_node().get_logger().info(
             f"SimBboxNode started — {len(all_objects)} objects, {len(self.cameras)} cameras"
         )
 
     def run(self):
-        rospy.spin()
+        ros.spin(get_node())

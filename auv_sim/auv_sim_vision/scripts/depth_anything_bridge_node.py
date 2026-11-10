@@ -2,31 +2,34 @@
 
 """Relay Gazebo depth data through the Depth Anything ROS interface."""
 
-import rospy
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import get_param, latched_qos, get_node, init_node
 from sensor_msgs.msg import CameraInfo, Image
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool
 
 
 class DepthAnythingSimBridge:
     def __init__(self):
-        self.enabled = rospy.get_param("~enabled", True)
+        self.enabled = get_param(get_node(), "~enabled", True)
 
-        self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
-        self.camera_info_pub = rospy.Publisher(
-            "scaled_camera_info", CameraInfo, queue_size=1, latch=True
+        self.depth_pub = get_node().create_publisher(Image, "raw_depth", 1)
+        self.camera_info_pub = get_node().create_publisher(
+            CameraInfo, "scaled_camera_info", latched_qos()
         )
 
-        self.depth_sub = rospy.Subscriber(
-            "input_depth", Image, self._depth_callback, queue_size=1
+        self.depth_sub = get_node().create_subscription(
+            Image, "input_depth", self._depth_callback, 1
         )
-        self.camera_info_sub = rospy.Subscriber(
-            "input_camera_info", CameraInfo, self._camera_info_callback, queue_size=1
+        self.camera_info_sub = get_node().create_subscription(
+            CameraInfo, "input_camera_info", self._camera_info_callback, 1
         )
-        self.enable_service = rospy.Service("enable", SetBool, self._enable_callback)
+        self.enable_service = get_node().create_service(
+            SetBool, "enable", self._enable_callback
+        )
 
-        rospy.loginfo(
-            "[DA3-SIM] Bridge ready (%s)",
-            "enabled" if self.enabled else "disabled",
+        get_node().get_logger().info(
+            "[DA3-SIM] Bridge ready (%s)" % ("enabled" if self.enabled else "disabled",)
         )
 
     def _depth_callback(self, msg):
@@ -36,19 +39,20 @@ class DepthAnythingSimBridge:
     def _camera_info_callback(self, msg):
         self.camera_info_pub.publish(msg)
 
-    def _enable_callback(self, req):
+    def _enable_callback(self, req, response):
         self.enabled = req.data
         message = "Depth Anything TRT node " + (
             "enabled" if self.enabled else "disabled"
         )
-        rospy.loginfo("[DA3-SIM] %s", message)
-        return SetBoolResponse(success=True, message=message)
+        get_node().get_logger().info("[DA3-SIM] %s" % (message,))
+        return SetBool.Response(success=True, message=message)
+
+
+def main():
+    init_node("depth_anything_trt_node")
+    DepthAnythingSimBridge()
+    ros.spin(get_node())
 
 
 if __name__ == "__main__":
-    try:
-        rospy.init_node("depth_anything_trt_node")
-        DepthAnythingSimBridge()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

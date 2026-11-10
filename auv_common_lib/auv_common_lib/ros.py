@@ -76,6 +76,15 @@ def get_node():
     return _node
 
 
+def init_node(name):
+    """rospy.init_node for code written around rospy's process-wide node: init(),
+    create the node and register it for get_node()."""
+    init()
+    node = rclpy.create_node(name)
+    set_node(node)
+    return node
+
+
 class ROSException(Exception):
     pass
 

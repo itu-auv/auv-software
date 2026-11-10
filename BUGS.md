@@ -86,3 +86,11 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
 - `smach_monitor_node` used `rosnode kill joystick_node`. ROS 2 cannot kill a node
   by name, so the monitor now calls the `joystick_node/shutdown` service that the
   joystick node offers (see "Behaviour that changed").
+
+## Simulation tools ported to Gazebo Harmonic
+
+- `auv_sim_vision` read `/gazebo/model_states`. It now reads the world's
+  `/world/<world>/pose/info` topic, bridged by its own launch files.
+- `auv_sim/tf_gazebo_debug.py` used the Gazebo Classic spawn/delete/model-state
+  services. It now uses the world's `create`/`remove` services and the robot's
+  ground-truth odometry; `remove` is not bridged by the sim launch yet.

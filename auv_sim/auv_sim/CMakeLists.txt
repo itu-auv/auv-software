@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_sim)
 
-find_package(catkin REQUIRED)
+find_package(ament_cmake REQUIRED)
 
-catkin_package()
+install(PROGRAMS
+  scripts/tf_gazebo_debug.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()

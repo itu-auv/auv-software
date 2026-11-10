@@ -4,47 +4,55 @@
 
 import os
 
-import rospy
-import rospkg
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import get_param, latched_qos, get_node, init_node
+from ament_index_python.packages import get_package_share_directory
 import tf2_ros
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool
 
 from auv_sim_vision.bbox import GazeboInterface, SimCamera, load_config
 
 
 class SimTrackerNode:
     def __init__(self):
-        rospy.init_node("sim_tracker_node")
+        init_node("sim_tracker_node")
 
-        namespace = rospy.get_param("~namespace", "taluy")
-        camera = rospy.get_param("~camera")
+        namespace = get_param(get_node(), "~namespace", "taluy")
+        camera = get_param(get_node(), "~camera")
         default_config = os.path.join(
-            rospkg.RosPack().get_path("auv_sim_vision"),
+            get_package_share_directory("auv_sim_vision"),
             "config",
             "bbox_objects.yaml",
         )
-        config_path = rospy.get_param("~config", default_config)
-        self.enabled = rospy.get_param("~enabled", True)
+        config_path = get_param(get_node(), "~config", default_config)
+        self.enabled = get_param(get_node(), "~enabled", True)
 
         objects, camera_configs = load_config(config_path, namespace)
         if camera not in camera_configs:
-            raise rospy.ROSInitException(
+            raise RuntimeError(
                 f"Unknown simulation camera '{camera}'; "
                 f"available cameras: {sorted(camera_configs)}"
             )
 
         camera_config = camera_configs[camera]
-        result_topic = rospy.get_param("~result_topic", camera_config["result_topic"])
-        result_image_topic = rospy.get_param(
-            "~result_image_topic", camera_config["image_out_topic"] + "/compressed"
+        result_topic = get_param(
+            get_node(), "~result_topic", camera_config["result_topic"]
+        )
+        result_image_topic = get_param(
+            get_node(),
+            "~result_image_topic",
+            camera_config["image_out_topic"] + "/compressed",
         )
 
-        self.enabled_pub = rospy.Publisher("~enabled", Bool, queue_size=1, latch=True)
-        self.enable_srv = rospy.Service("~enable", SetBool, self.enable_callback)
+        self.enabled_pub = get_node().create_publisher(Bool, "~/enabled", latched_qos())
+        self.enable_srv = get_node().create_service(
+            SetBool, "~/enable", self.enable_callback
+        )
         ##sim part
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, get_node())
         self.gazebo = GazeboInterface(robot_name=namespace)
         camera_objects = [obj for obj in objects if camera in obj.cameras]
         self.camera = SimCamera(
@@ -63,28 +71,28 @@ class SimTrackerNode:
         )
         ## sim part end
         self._publish_enabled_status()
-        rospy.loginfo(
-            "Simulation tracker '%s' started with %d configured objects",
-            camera,
-            len(camera_objects),
+        get_node().get_logger().info(
+            "Simulation tracker '%s' started with %d configured objects"
+            % (camera, len(camera_objects))
         )
 
-    def enable_callback(self, req):
+    def enable_callback(self, req, response):
         self.enabled = req.data
         self._publish_enabled_status()
         message = "Simulation inference %s" % (
             "enabled" if self.enabled else "disabled"
         )
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        get_node().get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
     def _publish_enabled_status(self):
         self.enabled_pub.publish(Bool(data=self.enabled))
 
 
+def main():
+    SimTrackerNode()
+    ros.spin(get_node())
+
+
 if __name__ == "__main__":
-    try:
-        SimTrackerNode()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()
