@@ -29,7 +29,9 @@ class Config(dict):
 
 
 def _wait(node, future, timeout=None):
-    if node.executor is None:
+    # Before spin() (a constructor) nobody processes the answer, so spin here. rclpy
+    # leaves the global executor set on the node after doing that once.
+    if node.executor is None or node.executor is rclpy.get_global_executor():
         rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
     else:
         done = threading.Event()
@@ -98,6 +100,7 @@ class Client:
     def _connect_later(self):
         while rclpy.ok() and (
             self.node.executor is None
+            or self.node.executor is rclpy.get_global_executor()
             or not self.client.wait_for_services(timeout_sec=1.0)
         ):
             time.sleep(0.2)

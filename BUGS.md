@@ -254,6 +254,9 @@ Dead or broken leftovers:
   none of them.
 - `realsense_camera.launch` forwarded about seventy arguments to the driver at their
   default values. The ROS 2 file keeps only the ones the vehicle changes.
+- `wayfinder_dvl_node`: when the device time cannot be read the node logs the error
+  and then crashes on `htime.ctime()`. On a bad beam it publishes `NaN` as altitude and
+  range. `velocity` and `velocity_stamped` are advertised and never published.
 
 ## Simulation models
 
