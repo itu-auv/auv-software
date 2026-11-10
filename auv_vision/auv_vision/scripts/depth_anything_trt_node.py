@@ -10,7 +10,10 @@ from typing import Tuple
 
 import cv2
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, latched_qos
+from auv_common_lib import ros
+from rclpy.node import Node
 import tensorrt as trt
 import pycuda.driver as cuda
 
@@ -22,7 +25,7 @@ _cuda_context = _cuda_device.make_context()
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool
 
 # ============================================================================
 # Preprocessing Constants (Depth Anything 3 defaults)
@@ -108,59 +111,58 @@ class TensorRTEngine:
         return self.outputs[0]["host"].reshape(self.outputs[0]["shape"])
 
 
-class DepthAnythingTRTNode:
+class DepthAnythingTRTNode(Node):
     """ROS node for Depth Anything 3 using TensorRT."""
 
     def __init__(self) -> None:
+        super().__init__("depth_anything_trt_node")
         self.bridge = CvBridge()
 
         # Parameters
-        engine_path = rospy.get_param("~engine_path")
-        self.rate_hz = rospy.get_param("~rate", 20.0)
-        self.camera_namespace = rospy.get_param(
-            "~camera_namespace", "cameras/cam_torpedo"
+        engine_path = get_param(self, "~engine_path")
+        self.rate_hz = get_param(self, "~rate", 20.0)
+        self.camera_namespace = get_param(
+            self, "~camera_namespace", "cameras/cam_torpedo"
         )
-        self.frame_id = rospy.get_param(
-            "~frame_id", "taluy/base_link/torpedo_camera_optical_link"
+        self.frame_id = get_param(
+            self, "~frame_id", "taluy/base_link/torpedo_camera_optical_link"
         )
-        self.publish_rgb_point_cloud = rospy.get_param(
-            "~publish_rgb_point_cloud", False
+        self.publish_rgb_point_cloud = get_param(
+            self, "~publish_rgb_point_cloud", False
         )
 
         # Validate engine path
         if not Path(engine_path).exists():
-            rospy.logfatal(f"[DA3-TRT] Engine file not found: {engine_path}")
+            self.get_logger().fatal(f"[DA3-TRT] Engine file not found: {engine_path}")
             raise FileNotFoundError(f"Engine file not found: {engine_path}")
 
         # Load TensorRT engine
-        rospy.loginfo(f"[DA3-TRT] Loading engine: {engine_path}")
+        self.get_logger().info(f"[DA3-TRT] Loading engine: {engine_path}")
         self.engine = TensorRTEngine(engine_path)
-        rospy.loginfo("[DA3-TRT] Engine loaded successfully")
+        self.get_logger().info("[DA3-TRT] Engine loaded successfully")
 
         # Camera intrinsics
         camera_info_fetcher = CameraCalibrationFetcher(
-            self.camera_namespace, wait_for_camera_info=True
+            self, self.camera_namespace, wait_for_camera_info=True
         )
         self.camera_info = camera_info_fetcher.get_camera_info()
         self.scaled_intrinsics = self._compute_scaled_intrinsics()
 
         # ROS interface
-        self.enabled = rospy.get_param("~enabled", False)
+        self.enabled = get_param(self, "~enabled", False)
         self.latest_image = None
-        self.image_sub = rospy.Subscriber(
-            "image_raw", Image, self._image_cb, queue_size=1
+        self.image_sub = self.create_subscription(Image, "image_raw", self._image_cb, 1)
+        self.depth_pub = self.create_publisher(Image, "raw_depth", 1)
+        self.camera_info_pub = self.create_publisher(
+            CameraInfo, "scaled_camera_info", latched_qos()
         )
-        self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
-        self.camera_info_pub = rospy.Publisher(
-            "scaled_camera_info", CameraInfo, queue_size=1, latch=True
-        )
-        rospy.Service("enable", SetBool, self._enable_callback)
+        self.create_service(SetBool, "enable", self._enable_callback)
         self.point_cloud_pub = None
         self.point_cloud_fields = None
         self.point_cloud_pixels = None
         if self.publish_rgb_point_cloud:
-            self.point_cloud_pub = rospy.Publisher(
-                "rgb_point_cloud", PointCloud2, queue_size=1
+            self.point_cloud_pub = self.create_publisher(
+                PointCloud2, "rgb_point_cloud", 1
             )
             self.point_cloud_fields = [
                 PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
@@ -173,8 +175,8 @@ class DepthAnythingTRTNode:
         if self.scaled_intrinsics:
             self._publish_scaled_camera_info()
 
-        rospy.on_shutdown(self.cleanup)
-        rospy.loginfo(f"[DA3-TRT] Ready, rate={self.rate_hz}Hz")
+        rclpy.get_default_context().on_shutdown(self.cleanup)
+        self.get_logger().info(f"[DA3-TRT] Ready, rate={self.rate_hz}Hz")
 
     def _compute_scaled_intrinsics(self) -> dict:
         """Pre-compute scaled intrinsics for fixed model input size."""
@@ -185,7 +187,9 @@ class DepthAnythingTRTNode:
         orig_h = self.camera_info.height
 
         if orig_w == 0 or orig_h == 0:
-            rospy.logerr("[DA3-TRT] Camera resolution is 0, cannot scale intrinsics.")
+            self.get_logger().error(
+                "[DA3-TRT] Camera resolution is 0, cannot scale intrinsics."
+            )
             return None
 
         scale_w = MODEL_INPUT_WIDTH / float(orig_w)
@@ -194,12 +198,12 @@ class DepthAnythingTRTNode:
         scaled = {
             "width": MODEL_INPUT_WIDTH,
             "height": MODEL_INPUT_HEIGHT,
-            "fx": self.camera_info.K[0] * scale_w,
-            "fy": self.camera_info.K[4] * scale_h,
-            "cx": self.camera_info.K[2] * scale_w,
-            "cy": self.camera_info.K[5] * scale_h,
+            "fx": self.camera_info.k[0] * scale_w,
+            "fy": self.camera_info.k[4] * scale_h,
+            "cx": self.camera_info.k[2] * scale_w,
+            "cy": self.camera_info.k[5] * scale_h,
         }
-        rospy.loginfo(
+        self.get_logger().info(
             f"[DA3-TRT] Scaled intrinsics: {orig_w}x{orig_h} -> "
             f"{MODEL_INPUT_WIDTH}x{MODEL_INPUT_HEIGHT}"
         )
@@ -215,7 +219,7 @@ class DepthAnythingTRTNode:
         msg.width = self.scaled_intrinsics["width"]
         msg.height = self.scaled_intrinsics["height"]
         msg.distortion_model = self.camera_info.distortion_model
-        msg.D = self.camera_info.D
+        msg.D = self.camera_info.d
 
         fx = self.scaled_intrinsics["fx"]
         fy = self.scaled_intrinsics["fy"]
@@ -228,20 +232,20 @@ class DepthAnythingTRTNode:
 
         self.camera_info_pub.publish(msg)
 
-    def _enable_callback(self, req):
+    def _enable_callback(self, req, response):
         if req.data and self.scaled_intrinsics is None:
             message = "[DA3-TRT] Cannot enable: scaled camera intrinsics unavailable"
-            rospy.logerr(message)
-            return SetBoolResponse(success=False, message=message)
+            self.get_logger().error(message)
+            return SetBool.Response(success=False, message=message)
 
         self.enabled = req.data
         message = "Depth Anything TRT node " + (
             "enabled" if self.enabled else "disabled"
         )
-        rospy.loginfo(message)
+        self.get_logger().info(message)
         if self.enabled:
             self._publish_scaled_camera_info()
-        return SetBoolResponse(success=True, message=message)
+        return SetBool.Response(success=True, message=message)
 
     def _image_cb(self, msg: Image) -> None:
         self.latest_image = msg
@@ -294,22 +298,23 @@ class DepthAnythingTRTNode:
     ) -> None:
         if (
             self.point_cloud_pub is None
-            or self.point_cloud_pub.get_num_connections() == 0
+            or self.point_cloud_pub.get_subscription_count() == 0
         ):
             return
 
         if self.scaled_intrinsics is None:
-            rospy.logwarn_throttle(
-                5.0, "[DA3-TRT] Cannot publish RGB point cloud without intrinsics."
+            self.get_logger().warning(
+                "[DA3-TRT] Cannot publish RGB point cloud without intrinsics.",
+                throttle_duration_sec=5.0,
             )
             return
 
         fx = self.scaled_intrinsics["fx"]
         fy = self.scaled_intrinsics["fy"]
         if fx == 0.0 or fy == 0.0:
-            rospy.logwarn_throttle(
-                5.0,
+            self.get_logger().warning(
                 "[DA3-TRT] Cannot publish RGB point cloud with zero focal length.",
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -363,9 +368,9 @@ class DepthAnythingTRTNode:
 
     def run(self) -> None:
         """Main loop."""
-        rate = rospy.Rate(self.rate_hz)
+        rate = self.create_rate(self.rate_hz)
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if self.latest_image is None:
                 rate.sleep()
                 continue
@@ -406,13 +411,15 @@ class DepthAnythingTRTNode:
                     self._publish_rgb_point_cloud(depth, resized_bgr, msg.header)
 
             except Exception as e:
-                rospy.logerr_throttle(5.0, f"[DA3-TRT] Inference failed: {e}")
+                self.get_logger().error(
+                    f"[DA3-TRT] Inference failed: {e}", throttle_duration_sec=5.0
+                )
 
             rate.sleep()
 
     def cleanup(self) -> None:
         """Release CUDA and TensorRT resources."""
-        rospy.loginfo("[DA3-TRT] Shutting down...")
+        self.get_logger().info("[DA3-TRT] Shutting down...")
         try:
             if hasattr(self, "engine") and self.engine is not None:
                 del self.engine
@@ -423,10 +430,11 @@ class DepthAnythingTRTNode:
                 pass
 
 
+def main():
+    ros.init()
+    node = DepthAnythingTRTNode()
+    ros.spin(node, node.run)
+
+
 if __name__ == "__main__":
-    rospy.init_node("depth_anything_trt_node")
-    try:
-        node = DepthAnythingTRTNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

@@ -6,7 +6,10 @@ import threading
 
 import cv2
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param
+from auv_common_lib import ros
+from rclpy.node import Node
 import tf2_ros
 import message_filters
 
@@ -14,10 +17,10 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from tf_transformations import euler_from_quaternion, quaternion_from_euler
 
 
-class CameraRollStabilizer:
+class CameraRollStabilizer(Node):
     """
     - Subscribes: Odometry + Rectified Color Image (time-synchronized)
     - Publishes:  Corrected Image (+TF from camera optical -> stabilized optical)
@@ -25,22 +28,22 @@ class CameraRollStabilizer:
     """
 
     def __init__(self):
-        rospy.init_node("camera_roll_stabilizer", anonymous=True)
-        rospy.loginfo("Camera roll stabilizer node starting...")
+        super().__init__("camera_roll_stabilizer")
+        self.get_logger().info("Camera roll stabilizer node starting...")
 
         # Message_filters sync tuning
-        self.sync_queue = int(rospy.get_param("~sync_queue_size", 10))
-        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))  # seconds
+        self.sync_queue = int(get_param(self, "~sync_queue_size", 10))
+        self.sync_slop = float(get_param(self, "~sync_slop", 0.05))  # seconds
 
         # Only recompute warp matrix if angle changes beyond this (degrees) or dims change
-        self.recalc_threshold_deg = float(rospy.get_param("~recalc_threshold_deg", 0.1))
+        self.recalc_threshold_deg = float(get_param(self, "~recalc_threshold_deg", 0.1))
 
         # Border behavior for rotation (constant black)
         self.border_mode = cv2.BORDER_CONSTANT
 
         # -------- Publishers / TF --------
-        self.img_pub = rospy.Publisher("camera/image_corrected", Image, queue_size=2)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.img_pub = self.create_publisher(Image, "camera/image_corrected", 2)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         # -------- Converters / State --------
         self.bridge = CvBridge()
@@ -51,9 +54,9 @@ class CameraRollStabilizer:
         self.M = None  # cached 2x3 rotation matrix
 
         img_sub = message_filters.Subscriber(
-            "camera/image_rect_color", Image, queue_size=1
+            self, Image, "camera/image_rect_color", qos_profile=1
         )
-        odom_sub = message_filters.Subscriber("odometry", Odometry, queue_size=1)
+        odom_sub = message_filters.Subscriber(self, Odometry, "odometry", qos_profile=1)
 
         self.sync = message_filters.ApproximateTimeSynchronizer(
             [img_sub, odom_sub], queue_size=self.sync_queue, slop=self.sync_slop
@@ -78,17 +81,18 @@ class CameraRollStabilizer:
         ]
 
         if not self._valid_quat(q):
-            rospy.logwarn_throttle(
-                5.0,
+            self.get_logger().warning(
                 "[camera_roll_stabilizer] Received invalid quaternion; skipping frame.",
+                throttle_duration_sec=5.0,
             )
             return
 
         try:
             roll, pitch, yaw = euler_from_quaternion(q)
         except Exception as e:
-            rospy.logwarn_throttle(
-                5.0, "[camera_roll_stabilizer] Euler conversion failed: %s", str(e)
+            self.get_logger().warning(
+                "[camera_roll_stabilizer] Euler conversion failed: %s" % (str(e),),
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -104,8 +108,9 @@ class CameraRollStabilizer:
         try:
             cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
         except CvBridgeError as e:
-            rospy.logwarn_throttle(
-                5.0, "[camera_roll_stabilizer] CvBridge decode failed: %s", str(e)
+            self.get_logger().warning(
+                "[camera_roll_stabilizer] CvBridge decode failed: %s" % (str(e),),
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -138,8 +143,9 @@ class CameraRollStabilizer:
             out_msg.header = img_msg.header
             self.img_pub.publish(out_msg)
         except CvBridgeError as e:
-            rospy.logwarn_throttle(
-                5.0, "[camera_roll_stabilizer] CvBridge encode failed: %s", str(e)
+            self.get_logger().warning(
+                "[camera_roll_stabilizer] CvBridge encode failed: %s" % (str(e),),
+                throttle_duration_sec=5.0,
             )
 
     # ---------------- Helpers ----------------
@@ -150,10 +156,11 @@ class CameraRollStabilizer:
         """
         t = TransformStamped()
         t.header.stamp = stamp
-        t.header.frame_id = rospy.get_param(
-            "~camera_optical_frame", "taluy/base_link/front_camera_optical_link"
+        t.header.frame_id = get_param(
+            self, "~camera_optical_frame", "taluy/base_link/front_camera_optical_link"
         )
-        t.child_frame_id = rospy.get_param(
+        t.child_frame_id = get_param(
+            self,
             "~camera_optical_frame_stabilized",
             "taluy/base_link/front_camera_optical_link_stabilized",
         )
@@ -181,13 +188,15 @@ class CameraRollStabilizer:
         return 0.5 < norm < 2.0  # loose sanity bounds
 
     def spin(self):
-        rospy.loginfo("Camera roll stabilizer node is up.")
-        rospy.spin()
+        self.get_logger().info("Camera roll stabilizer node is up.")
+        rclpy.spin(self)
+
+
+def main():
+    ros.init()
+    node = CameraRollStabilizer()
+    ros.spin(node, node.spin)
 
 
 if __name__ == "__main__":
-    try:
-        node = CameraRollStabilizer()
-        node.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

@@ -59,3 +59,10 @@ them as they are unless the entry says **fixed**; fix them in their own PRs.
   port keeps integer ids and writes them as decimal strings.
 - There is no global parameter server. `waypoint_publisher` publishes the path
   summary it used to store at `/waypoint_gui/paths` as latched JSON on that topic.
+
+## Vision
+
+- `camera_detection_node`: the default `config_file` (`config/detection_objects.yaml`)
+  does not exist; the node only starts when the launch file passes the real path.
+- `yolo_result_bridge` and the tracker launch files use absolute topic names
+  (`/yolo_result_*`, `/yolo_detections*`), so two vehicles cannot share a network.

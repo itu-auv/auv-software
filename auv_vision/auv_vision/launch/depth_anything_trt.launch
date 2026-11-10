@@ -3,29 +3,30 @@
     <arg name="rate" default="20.0" />
     <arg name="enabled" default="true" />
 
-    <arg name="engine_path" default="$(find auv_detection)/models/DA3METRIC-LARGE_476x644_sim.engine" />
+    <arg name="engine_path" default="$(find-pkg-share auv_detection)/models/DA3METRIC-LARGE_476x644_sim.engine" />
 
     <arg name="camera_namespace" default="cameras/cam_torpedo" />
-    <arg name="input_image_topic" default="$(arg camera_namespace)/image_rect_color" />
+    <arg name="input_image_topic" default="$(var camera_namespace)/image_rect_color" />
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
     <arg name="publish_rgb_point_cloud" default="false" />
     <arg name="output_rgb_point_cloud_topic" default="depth_anything/rgb_point_cloud" />
     <arg name="frame_id" default="taluy/base_link/torpedo_camera_optical_link" />
 
-    <group ns="$(arg namespace)">
-        <node pkg="auv_vision" type="depth_anything_trt_node.py" name="depth_anything_trt_node" output="screen">
-            <param name="engine_path" value="$(arg engine_path)" />
-            <param name="rate" value="$(arg rate)" />
-            <param name="enabled" value="$(arg enabled)" />
-            <param name="camera_namespace" value="$(arg camera_namespace)" />
-            <param name="frame_id" value="$(arg frame_id)" />
-            <param name="publish_rgb_point_cloud" value="$(arg publish_rgb_point_cloud)" />
+    <group>
+      <push_ros_namespace namespace="$(var namespace)" />
+        <node pkg="auv_vision" exec="depth_anything_trt_node.py" name="depth_anything_trt_node" output="screen">
+            <param name="engine_path" value="$(var engine_path)" />
+            <param name="rate" value="$(var rate)" />
+            <param name="enabled" value="$(var enabled)" />
+            <param name="camera_namespace" value="$(var camera_namespace)" />
+            <param name="frame_id" value="$(var frame_id)" />
+            <param name="publish_rgb_point_cloud" value="$(var publish_rgb_point_cloud)" />
 
-            <remap from="image_raw" to="$(arg input_image_topic)" />
-            <remap from="raw_depth" to="$(arg output_depth_topic)" />
-            <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
-            <remap from="rgb_point_cloud" to="$(arg output_rgb_point_cloud_topic)" />
+            <remap from="image_raw" to="$(var input_image_topic)" />
+            <remap from="raw_depth" to="$(var output_depth_topic)" />
+            <remap from="scaled_camera_info" to="$(var scaled_camera_info_topic)" />
+            <remap from="rgb_point_cloud" to="$(var output_rgb_point_cloud_topic)" />
             <remap from="enable" to="depth_anything_trt_node/enable" />
         </node>
     </group>

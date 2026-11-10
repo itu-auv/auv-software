@@ -14,9 +14,25 @@ def _param_name(name):
     return name.lstrip("~/").replace("/", ".")
 
 
+def _nested_overrides(node, name):
+    """Parameter overrides below `name` as a nested dict (rospy returned dicts)."""
+    nested = {}
+    for key, parameter in getattr(node, "_parameter_overrides", {}).items():
+        if key.startswith(name + "."):
+            branch = nested
+            *parents, leaf = key[len(name) + 1 :].split(".")
+            for parent in parents:
+                branch = branch.setdefault(parent, {})
+            branch[leaf] = parameter.value
+    return nested
+
+
 def get_param(node, name, default=_UNSET):
     """rospy.get_param for a node's own parameters; `~x`, `x/y` and `/x/y` all map to `x.y`."""
     name = _param_name(name)
+    nested = _nested_overrides(node, name)
+    if nested or isinstance(default, dict):
+        return nested or default
     if not node.has_parameter(name):
         node.declare_parameter(
             name,
@@ -40,25 +56,84 @@ def latched_qos(depth=1):
     return QoSProfile(depth=depth, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 
-class ServiceUnavailable(Exception):
+_node = None
+
+
+def set_node(node):
+    """Register the process's node for code that has no node at hand (see get_node)."""
+    global _node
+    _node = node
+
+
+def get_node():
+    """The node registered with set_node: for helper modules and SMACH states that
+    used rospy's implicit, process-wide node."""
+    if _node is None:
+        raise RuntimeError("auv_common_lib.ros.set_node() was not called")
+    return _node
+
+
+class ROSException(Exception):
     pass
 
 
-def service_client(node, srv_type, name):
-    """rospy.ServiceProxy: a client whose blocking call() also works from inside
-    callbacks (see spin). Asking again for the same service returns the same client."""
-    clients = node.__dict__.setdefault("_auv_service_clients", {})
-    if (srv_type, name) not in clients:
-        clients[srv_type, name] = node.create_client(
+class ServiceUnavailable(ROSException):
+    pass
+
+
+class ServiceProxy:
+    """rospy.ServiceProxy on an rclpy client.
+
+    Callable and blocking, also from inside callbacks (see spin). Like rospy, and
+    unlike a bare rclpy client, calling a service nobody serves raises instead of
+    waiting forever.
+    """
+
+    def __init__(self, node, srv_type, name):
+        self.srv_type = srv_type
+        self.client = node.create_client(
             srv_type, name, callback_group=ReentrantCallbackGroup()
         )
-    return clients[srv_type, name]
+
+    def wait_for_service(self, timeout=None):
+        if not self.client.wait_for_service(timeout_sec=timeout):
+            raise ServiceUnavailable(f"service {self.client.srv_name} is not available")
+
+    def call(self, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], self.srv_type.Request):
+            request = args[0]
+        else:
+            fields = self.srv_type.Request.get_fields_and_field_types()
+            request = self.srv_type.Request(**dict(zip(fields, args)), **kwargs)
+        self.wait_for_service(timeout=1.0)
+        return self.client.call(request)
+
+    __call__ = call
 
 
-def wait_for_service(client, timeout=None):
+def service_client(node, srv_type, name):
+    """The node's ServiceProxy for a service; created on first use."""
+    proxies = node.__dict__.setdefault("_auv_service_proxies", {})
+    if (srv_type, name) not in proxies:
+        proxies[srv_type, name] = ServiceProxy(node, srv_type, name)
+    return proxies[srv_type, name]
+
+
+def wait_for_service(proxy, timeout=None):
     """rospy.wait_for_service: raises ServiceUnavailable on timeout."""
-    if not client.wait_for_service(timeout_sec=timeout):
-        raise ServiceUnavailable(f"service {client.srv_name} is not available")
+    proxy.wait_for_service(timeout)
+
+
+def wait_for_message(node, topic, msg_type, timeout=None):
+    """rospy.wait_for_message: raises ROSException on timeout."""
+    from rclpy.wait_for_message import wait_for_message as wait
+
+    received, msg = wait(
+        msg_type, node, topic, time_to_wait=-1 if timeout is None else timeout
+    )
+    if not received:
+        raise ROSException(f"timeout waiting for a message on {topic}")
+    return msg
 
 
 def spin(node, loop=None):

@@ -3,7 +3,10 @@
 
 import cv2
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, latched_qos
+from auv_common_lib import ros
+from rclpy.node import Node
 import zmq
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
@@ -12,48 +15,47 @@ from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 ZMQ_TIMEOUT_MS = 30000
 
 
-class DepthAnythingNode:
+class DepthAnythingNode(Node):
     def __init__(self) -> None:
+        super().__init__("depth_anything_node")
         self.bridge = CvBridge()
 
-        self.zmq_host = rospy.get_param("~zmq_host", "localhost")
-        self.zmq_port = rospy.get_param("~zmq_port", 5555)
-        self.rate_hz = rospy.get_param("~rate", 10.0)
-        self.process_res = rospy.get_param("~process_res", 640)
-        self.camera_namespace = rospy.get_param(
-            "~camera_namespace", "cameras/cam_front"
+        self.zmq_host = get_param(self, "~zmq_host", "localhost")
+        self.zmq_port = get_param(self, "~zmq_port", 5555)
+        self.rate_hz = get_param(self, "~rate", 10.0)
+        self.process_res = get_param(self, "~process_res", 640)
+        self.camera_namespace = get_param(
+            self, "~camera_namespace", "cameras/cam_front"
         )
-        self.frame_id = rospy.get_param(
-            "~frame_id", "taluy/base_link/front_camera_optical_link"
+        self.frame_id = get_param(
+            self, "~frame_id", "taluy/base_link/front_camera_optical_link"
         )
-        self.publish_rgb_point_cloud = rospy.get_param(
-            "~publish_rgb_point_cloud", False
+        self.publish_rgb_point_cloud = get_param(
+            self, "~publish_rgb_point_cloud", False
         )
 
         camera_info_fetcher = CameraCalibrationFetcher(
-            self.camera_namespace, wait_for_camera_info=True
+            self, self.camera_namespace, wait_for_camera_info=True
         )
         self.camera_info = camera_info_fetcher.get_camera_info()
         self.scaled_intrinsics = None
 
-        self.context = zmq.Context()
+        self.zmq_context = zmq.Context()
         self.socket = None
         self._reset_zmq()
 
         self.latest_image = None
-        self.image_sub = rospy.Subscriber(
-            "image_raw", Image, self._image_cb, queue_size=1
-        )
-        self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
-        self.camera_info_pub = rospy.Publisher(
-            "scaled_camera_info", CameraInfo, queue_size=1, latch=True
+        self.image_sub = self.create_subscription(Image, "image_raw", self._image_cb, 1)
+        self.depth_pub = self.create_publisher(Image, "raw_depth", 1)
+        self.camera_info_pub = self.create_publisher(
+            CameraInfo, "scaled_camera_info", latched_qos()
         )
         self.point_cloud_pub = None
         self.point_cloud_fields = None
         self.point_cloud_pixels = None
         if self.publish_rgb_point_cloud:
-            self.point_cloud_pub = rospy.Publisher(
-                "rgb_point_cloud", PointCloud2, queue_size=1
+            self.point_cloud_pub = self.create_publisher(
+                PointCloud2, "rgb_point_cloud", 1
             )
             self.point_cloud_fields = [
                 PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
@@ -62,11 +64,13 @@ class DepthAnythingNode:
                 PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1),
             ]
 
-        rospy.on_shutdown(self.cleanup)
+        rclpy.get_default_context().on_shutdown(self.cleanup)
 
         if not self._ping_server():
-            rospy.logwarn("[DA3] Server not responding. Will retry in loop.")
-        rospy.loginfo(f"[DA3] Ready: {self.zmq_host}:{self.zmq_port}")
+            self.get_logger().warning(
+                "[DA3] Server not responding. Will retry in loop."
+            )
+        self.get_logger().info(f"[DA3] Ready: {self.zmq_host}:{self.zmq_port}")
 
     def _reset_zmq(self) -> None:
         if self.socket:
@@ -75,7 +79,7 @@ class DepthAnythingNode:
             except Exception:
                 pass
 
-        self.socket = self.context.socket(zmq.REQ)
+        self.socket = self.zmq_context.socket(zmq.REQ)
         self.socket.connect(f"tcp://{self.zmq_host}:{self.zmq_port}")
         self.socket.setsockopt(zmq.RCVTIMEO, ZMQ_TIMEOUT_MS)
         self.socket.setsockopt(zmq.SNDTIMEO, ZMQ_TIMEOUT_MS)
@@ -114,8 +118,9 @@ class DepthAnythingNode:
             orig_h = self.camera_info.height
 
             if orig_w == 0 or orig_h == 0:
-                rospy.logerr_throttle(
-                    5.0, "[DA3] Camera resolution is 0, cannot scale intrinsics."
+                self.get_logger().error(
+                    "[DA3] Camera resolution is 0, cannot scale intrinsics.",
+                    throttle_duration_sec=5.0,
                 )
                 return
 
@@ -125,12 +130,14 @@ class DepthAnythingNode:
             self.scaled_intrinsics = {
                 "width": w,
                 "height": h,
-                "fx": self.camera_info.K[0] * scale_w,
-                "fy": self.camera_info.K[4] * scale_h,
-                "cx": self.camera_info.K[2] * scale_w,
-                "cy": self.camera_info.K[5] * scale_h,
+                "fx": self.camera_info.k[0] * scale_w,
+                "fy": self.camera_info.k[4] * scale_h,
+                "cx": self.camera_info.k[2] * scale_w,
+                "cy": self.camera_info.k[5] * scale_h,
             }
-            rospy.loginfo(f"[DA3] Scaled intrinsics from {orig_w}x{orig_h} to {w}x{h}")
+            self.get_logger().info(
+                f"[DA3] Scaled intrinsics from {orig_w}x{orig_h} to {w}x{h}"
+            )
             self._publish_scaled_camera_info()
 
     def _publish_scaled_camera_info(self) -> None:
@@ -143,7 +150,7 @@ class DepthAnythingNode:
         msg.width = self.scaled_intrinsics["width"]
         msg.height = self.scaled_intrinsics["height"]
         msg.distortion_model = self.camera_info.distortion_model
-        msg.D = self.camera_info.D
+        msg.D = self.camera_info.d
 
         fx = self.scaled_intrinsics["fx"]
         fy = self.scaled_intrinsics["fy"]
@@ -180,21 +187,23 @@ class DepthAnythingNode:
     ) -> None:
         if (
             self.point_cloud_pub is None
-            or self.point_cloud_pub.get_num_connections() == 0
+            or self.point_cloud_pub.get_subscription_count() == 0
         ):
             return
 
         if self.scaled_intrinsics is None:
-            rospy.logwarn_throttle(
-                5.0, "[DA3] Cannot publish RGB point cloud without intrinsics."
+            self.get_logger().warning(
+                "[DA3] Cannot publish RGB point cloud without intrinsics.",
+                throttle_duration_sec=5.0,
             )
             return
 
         fx = self.scaled_intrinsics["fx"]
         fy = self.scaled_intrinsics["fy"]
         if fx == 0.0 or fy == 0.0:
-            rospy.logwarn_throttle(
-                5.0, "[DA3] Cannot publish RGB point cloud with zero focal length."
+            self.get_logger().warning(
+                "[DA3] Cannot publish RGB point cloud with zero focal length.",
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -251,9 +260,9 @@ class DepthAnythingNode:
         self.point_cloud_pub.publish(cloud_msg)
 
     def run(self) -> None:
-        rate = rospy.Rate(self.rate_hz)
+        rate = self.create_rate(self.rate_hz)
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             if self.latest_image is None:
                 rate.sleep()
                 continue
@@ -287,23 +296,28 @@ class DepthAnythingNode:
                     self._publish_rgb_point_cloud(depth, cv_img, msg.header)
 
             except (zmq.error.ZMQError, zmq.error.Again) as e:
-                rospy.logwarn_throttle(5.0, f"[DA3] ZMQ error: {e}. Reconnecting...")
+                self.get_logger().warning(
+                    f"[DA3] ZMQ error: {e}. Reconnecting...", throttle_duration_sec=5.0
+                )
                 self._reset_zmq()
             except Exception as e:
-                rospy.logerr_throttle(5.0, f"[DA3] Inference failed: {e}")
+                self.get_logger().error(
+                    f"[DA3] Inference failed: {e}", throttle_duration_sec=5.0
+                )
 
             rate.sleep()
 
     def cleanup(self) -> None:
-        rospy.loginfo("[DA3] Shutting down...")
+        self.get_logger().info("[DA3] Shutting down...")
         self.socket.close(linger=0)
-        self.context.term()
+        self.zmq_context.term()
+
+
+def main():
+    ros.init()
+    node = DepthAnythingNode()
+    ros.spin(node, node.run)
 
 
 if __name__ == "__main__":
-    rospy.init_node("depth_anything_node")
-    try:
-        node = DepthAnythingNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

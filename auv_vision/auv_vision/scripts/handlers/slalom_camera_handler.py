@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import math
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
 from geometry_msgs.msg import (
     PointStamped,
     TransformStamped,
@@ -58,7 +59,7 @@ class SlalomCameraHandler:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             if detection_id not in self.active_ids:
                 continue
@@ -97,7 +98,9 @@ class SlalomCameraHandler:
 
             # Max distance check drake bro
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:
-                rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
+                get_node().get_logger().debug(
+                    f"Detection for {prop_name} is too far away. Skipping."
+                )
                 continue
 
             transform_to_odom_and_publish(

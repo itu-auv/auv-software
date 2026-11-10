@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-from actionlib import server_goal_handle
 from tf2_geometry_msgs import tf2_geometry_msgs
 from collections import defaultdict, deque
 import re
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node
+from rclpy.duration import Duration
 import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
@@ -49,7 +50,9 @@ class FixedWidthCompressedPublisher:
             resized_msg.header = msg.header
             self.publisher.publish(resized_msg)
         except Exception as e:
-            rospy.logwarn_throttle(5.0, f"Failed to resize segment debug image: {e}")
+            get_node().get_logger().warning(
+                f"Failed to resize segment debug image: {e}", throttle_duration_sec=5.0
+            )
             self.publisher.publish(msg)
 
     def __getattr__(self, name):
@@ -86,16 +89,16 @@ class SegmentCameraHandler:
         self.object_transform_pub = publishers["object_transform"]
         self.shared_state = shared_state
         self.bridge = CvBridge()
-        self.debug_segment_pose = rospy.get_param("~debug_segment_pose", True)
-        self.debug_image_topic = rospy.get_param(
-            "~segment_pose_debug_topic", "segment_pose_debug"
+        self.debug_segment_pose = get_param(get_node(), "~debug_segment_pose", True)
+        self.debug_image_topic = get_param(
+            get_node(), "~segment_pose_debug_topic", "segment_pose_debug"
         )
         if not self.debug_image_topic.endswith("/compressed"):
             self.debug_image_topic += "/compressed"
         self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
             FixedWidthCompressedPublisher(
-                rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1),
+                get_node().create_publisher(CompressedImage, self.debug_image_topic, 1),
                 self.bridge,
                 640,
             )
@@ -103,15 +106,17 @@ class SegmentCameraHandler:
             else None
         )
         self.last_yaws = {}
-        self.task_object_list_pub = rospy.Publisher(
-            "octagon/object_list", String, queue_size=1
+        self.task_object_list_pub = get_node().create_publisher(
+            String, "octagon/object_list", 1
         )
 
     def _mask_to_cv2(self, mask_msg):
         try:
             return self.bridge.imgmsg_to_cv2(mask_msg, desired_encoding="mono8")
         except Exception as e:
-            rospy.logwarn_throttle(5.0, f"Failed to decode segmentation mask: {e}")
+            get_node().get_logger().warning(
+                f"Failed to decode segmentation mask: {e}", throttle_duration_sec=5.0
+            )
             return None
 
     def _estimate_distance(self, prop, detection, geometry):
@@ -181,14 +186,14 @@ class SegmentCameraHandler:
                 or prop_name == "pill_link"
                 or prop_name == self.OCTAGON_TABLE_SEGMENT_NAME
             ):
-                return Quaternion(0, 0, 0, 1)
+                return Quaternion(x=0, y=0, z=0, w=1)
 
             try:
                 transform = self.tf_buffer.lookup_transform(
                     "odom",
                     "taluy/base_link",
                     stamp,
-                    rospy.Duration(0.5),
+                    Duration(seconds=0.5),
                 )
                 _, _, robot_yaw = tf_transformations.euler_from_quaternion(
                     [
@@ -200,15 +205,15 @@ class SegmentCameraHandler:
                 )
                 object_angle_odom = robot_yaw + geometry["yaw"]
                 quat = tf_transformations.quaternion_from_euler(0, 0, object_angle_odom)
-                return Quaternion(*quat)
+                return Quaternion(x=quat[0], y=quat[1], z=quat[2], w=quat[3])
             except (
                 tf2_ros.LookupException,
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ):
-                return Quaternion(0, 0, 0, 1)
+                return Quaternion(x=0, y=0, z=0, w=1)
 
-        return Quaternion(0, 0, 0, 1)
+        return Quaternion(x=0, y=0, z=0, w=1)
 
     def _publish_octagon_task_object_list(self, table_mask, object_masks):
         if table_mask is None:
@@ -260,14 +265,16 @@ class SegmentCameraHandler:
             if len(detection.results) == 0:
                 continue
             if self._extract_mask_id(mask_msg) is None:
-                masks_by_id[detection.results[0].id].append(mask_msg)
+                masks_by_id[int(detection.results[0].hypothesis.class_id)].append(
+                    mask_msg
+                )
 
         debug_items_by_id = {}
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             try:
                 if detection_id not in self.id_tf_map:
@@ -350,9 +357,9 @@ class SegmentCameraHandler:
                 if distance is None:
                     distance = self.shared_state.get("altitude")
                     if distance is None:
-                        rospy.logwarn_throttle(
-                            5,
+                        get_node().get_logger().warning(
                             "No distance data for segment detection (no geometry, no altitude)",
+                            throttle_duration_sec=5,
                         )
                         continue
                 if geometry is not None:
@@ -370,7 +377,7 @@ class SegmentCameraHandler:
                 transform_stamped_msg.header.frame_id = self.camera_frame
                 transform_stamped_msg.child_frame_id = prop_name
                 transform_stamped_msg.transform.translation = Vector3(
-                    offset_x, offset_y, distance
+                    x=offset_x, y=offset_y, z=distance
                 )
                 transform_stamped_msg.transform.rotation = self._build_rotation(
                     stamp, geometry, prop_name
@@ -387,7 +394,7 @@ class SegmentCameraHandler:
                     )
 
                     transformed_pose_stamped = self.tf_buffer.transform(
-                        pose_stamped, "odom", rospy.Duration(4.0)
+                        pose_stamped, "odom", Duration(seconds=4.0)
                     )
 
                     final_transform_stamped = TransformStamped()
@@ -407,11 +414,13 @@ class SegmentCameraHandler:
                     tf2_ros.ConnectivityException,
                     tf2_ros.ExtrapolationException,
                 ) as e:
-                    rospy.logerr(f"Transform error for {prop_name}: {e}")
+                    get_node().get_logger().error(
+                        f"Transform error for {prop_name}: {e}"
+                    )
             except Exception as e:
-                rospy.logwarn_throttle(
-                    2.0,
+                get_node().get_logger().warning(
                     f"Segment detection processing failed for id={detection_id}: {e}",
+                    throttle_duration_sec=2.0,
                 )
                 continue
         self._publish_octagon_task_object_list(

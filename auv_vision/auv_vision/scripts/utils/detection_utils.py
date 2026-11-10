@@ -2,7 +2,9 @@
 
 import math
 import yaml
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
+from rclpy.duration import Duration
 from geometry_msgs.msg import (
     PointStamped,
     PoseStamped,
@@ -18,14 +20,14 @@ import tf2_geometry_msgs
 class CameraCalibration:
     def __init__(self, namespace: str):
         self.calibration = camera_calibrations.CameraCalibrationFetcher(
-            namespace, True
+            get_node(), namespace, True
         ).get_camera_info()
 
     def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
-        fx = self.calibration.P[0]
-        fy = self.calibration.P[5]
-        cx = self.calibration.P[2]
-        cy = self.calibration.P[6]
+        fx = self.calibration.p[0]
+        fy = self.calibration.p[5]
+        cx = self.calibration.p[2]
+        cy = self.calibration.p[6]
         norm_x = (pixel_coordinates[0] - cx) / fx
         norm_y = (pixel_coordinates[1] - cy) / fy
         angle_x = math.atan(norm_x)
@@ -33,12 +35,12 @@ class CameraCalibration:
         return angle_x, angle_y
 
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
-        focal_length = self.calibration.P[5]
+        focal_length = self.calibration.p[5]
         distance = (real_height * focal_length) / measured_height
         return distance
 
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
-        focal_length = self.calibration.P[0]
+        focal_length = self.calibration.p[0]
         distance = (real_width * focal_length) / measured_width
         return distance
 
@@ -76,7 +78,9 @@ class Prop:
         elif distance_from_width is not None:
             return distance_from_width
         else:
-            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            get_node().get_logger().error(
+                f"Could not estimate distance for prop {self.name}"
+            )
             return None
 
     # distance_from_height
@@ -91,7 +95,9 @@ class Prop:
                 self.real_height, math.sqrt(measured_height**2 + measured_width**2)
             )
         else:
-            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            get_node().get_logger().error(
+                f"Could not estimate distance for prop {self.name}"
+            )
             return None
 
 
@@ -460,8 +466,10 @@ def transform_to_odom_and_publish(
     transform_stamped_msg.header.frame_id = camera_frame
     transform_stamped_msg.child_frame_id = child_frame_id
 
-    transform_stamped_msg.transform.translation = Vector3(offset_x, offset_y, distance)
-    transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+    transform_stamped_msg.transform.translation = Vector3(
+        x=offset_x, y=offset_y, z=distance
+    )
+    transform_stamped_msg.transform.rotation = Quaternion(x=0, y=0, z=0, w=1)
 
     try:
         pose_stamped = PoseStamped()
@@ -470,7 +478,7 @@ def transform_to_odom_and_publish(
         pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
 
         transformed_pose_stamped = tf_buffer.transform(
-            pose_stamped, "odom", rospy.Duration(4.0)
+            pose_stamped, "odom", Duration(seconds=4.0)
         )
 
         final_transform_stamped = TransformStamped()
@@ -491,7 +499,9 @@ def transform_to_odom_and_publish(
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logwarn_throttle(5.0, f"Transform error for {child_frame_id}: {e}")
+        get_node().get_logger().warning(
+            f"Transform error for {child_frame_id}: {e}", throttle_duration_sec=5.0
+        )
 
 
 def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
@@ -507,5 +517,7 @@ def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
         else:
             return None
     else:
-        rospy.logwarn("The line segment is parallel to the ground plane.")
+        get_node().get_logger().warning(
+            "The line segment is parallel to the ground plane."
+        )
         return None

@@ -1,39 +1,21 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_vision)
 
-add_compile_options()
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-set(CMAKE_CXX_STANDARD 17)
+find_package(ament_cmake REQUIRED)
 
-find_package(catkin REQUIRED COMPONENTS
-  auv_detection
-  rospy
-  image_transport
-  cv_bridge
-  sensor_msgs
-  std_srvs
-  tf
+install(PROGRAMS
+  scripts/camera_detection_node.py
+  scripts/dynamic_roll_compensation.py
+  scripts/yolo_result_bridge.py
+  scripts/depth_anything_trt_node.py
+  scripts/depth_anything_zmq_client.py
+  DESTINATION lib/${PROJECT_NAME}
 )
+# helper modules imported by camera_detection_node.py from its own directory
+install(DIRECTORY scripts/handlers scripts/utils
+  DESTINATION lib/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+)
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
-catkin_package(
-  CATKIN_DEPENDS
-    auv_detection
-    rospy
-    sensor_msgs
-    std_srvs
-    tf
-)
-
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
-
-catkin_install_python(
-  PROGRAMS
-    scripts/dynamic_roll_compensation.py
-    scripts/yolo_result_bridge.py
-    scripts/depth_anything_trt_node.py
-    scripts/depth_anything_zmq_client.py
-  DESTINATION
-    ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+ament_package()

@@ -15,7 +15,11 @@ class CameraCalibrationFetcher:
         )
 
         if wait_for_camera_info:
-            wait_for_message(CameraInfo, node, self.camera_info_topic)
+            received, camera_info = wait_for_message(
+                CameraInfo, node, self.camera_info_topic
+            )
+            if received:
+                self.camera_info = camera_info
 
     def camera_info_callback(self, data):
         with self.camera_info_lock:
