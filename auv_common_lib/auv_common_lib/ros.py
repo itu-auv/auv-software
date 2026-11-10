@@ -374,8 +374,7 @@ def init(args=None):
                     namespace=node.get_namespace(),
                     use_global_arguments=False,
                     start_parameter_services=False,
-                    parameter_overrides=[node.get_parameter("use_sim_time")],
-                )
+                )  # wall time: a listener needs no clock, and so no /clock traffic
             listener_init(self, buffer, node, *args, spin_thread=spin_thread, **kwargs)
 
         tf2_ros.TransformListener.__init__ = threaded_listener
