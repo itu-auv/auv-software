@@ -133,8 +133,9 @@ Things ROS 2 does differently that bit during the port:
   release carries the backport the workaround can go.
 - Service replies go to every client of the service and queues are 10 deep by
   default, so replies and requests can be lost under load and a blocking call then
-  never returns. `ros.init()` makes Python clients and servers keep everything; C++
-  services that many nodes call need `rclcpp::ServicesQoS().keep_all()`.
+  never returns ([rmw#372](https://github.com/ros2/rmw/issues/372), open).
+  `ros.init()` makes Python clients and servers keep everything; C++ services that
+  many nodes call need `rclcpp::ServicesQoS().keep_all()`.
 - In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
   (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
