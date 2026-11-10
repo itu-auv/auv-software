@@ -10,7 +10,9 @@ class CameraCalibrationFetcher:
         self.camera_info_topic = f"{camera_namespace}/camera_info"
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
-        self.subscription = node.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, 10)
+        self.subscription = node.create_subscription(
+            CameraInfo, self.camera_info_topic, self.camera_info_callback, 10
+        )
 
         if wait_for_camera_info:
             wait_for_message(CameraInfo, node, self.camera_info_topic)
@@ -24,7 +26,9 @@ class CameraCalibrationFetcher:
 
     def get_camera_info(self):
         if not self.is_received():
-            self.node.get_logger().warning(f"Camera info not received on {self.camera_info_topic}")
+            self.node.get_logger().warning(
+                f"Camera info not received on {self.camera_info_topic}"
+            )
             return None
 
         with self.camera_info_lock:

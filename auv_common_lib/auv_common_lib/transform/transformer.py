@@ -27,7 +27,10 @@ def lookup_fresh_transform(
         timeout,
     )
     if not is_transform_fresh(transform, node, freshness_threshold):
-        age = abs((node.get_clock().now() - Time.from_msg(transform.header.stamp)).nanoseconds / 1e9)
+        age = abs(
+            (node.get_clock().now() - Time.from_msg(transform.header.stamp)).nanoseconds
+            / 1e9
+        )
         raise tf2_ros.ExtrapolationException(
             f"Transform from {source_frame} to {target_frame} is stale "
             f"({age:.3f}s > {freshness_threshold.nanoseconds / 1e9:.3f}s)"
