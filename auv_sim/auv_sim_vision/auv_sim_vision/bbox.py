@@ -607,7 +607,19 @@ class SimCamera:
         self.image_pub = get_node().create_publisher(image_msg_type, image_out_topic, 1)
 
         get_node().create_subscription(CameraInfo, camera_info_topic, self._info_cb, 1)
-        get_node().create_subscription(Image, image_topic, self._image_cb, 1)
+        self._image_topic = image_topic
+        self._image_sub = None
+        self.set_enabled(enabled_fn is None or enabled_fn())
+
+    def set_enabled(self, enabled: bool):
+        """Listen to the camera only while detections are wanted (images are large)."""
+        if enabled and self._image_sub is None:
+            self._image_sub = get_node().create_subscription(
+                Image, self._image_topic, self._image_cb, 1
+            )
+        elif not enabled and self._image_sub is not None:
+            get_node().destroy_subscription(self._image_sub)
+            self._image_sub = None
 
     def _info_cb(self, msg: CameraInfo):
         self.intrinsics = (msg.k[0], msg.k[4], msg.k[2], msg.k[5])

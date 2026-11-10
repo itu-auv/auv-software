@@ -1,6 +1,8 @@
+import faulthandler
 import inspect
 import os
 import signal
+import sys
 import threading
 import time
 
@@ -265,6 +267,20 @@ def spin(node, loop=None):
             rclpy.try_shutdown()
         except Exception:
             pass
+        threading.Thread(target=_exit_with_main_thread, daemon=True).start()
+
+
+def _exit_with_main_thread():
+    """A rospy node ended when its main function returned; its threads were daemons.
+    Here executor workers and TF listener threads are not, and one of them stuck in a
+    call would keep the finished process alive. Give them two seconds, then leave."""
+    main_thread = threading.main_thread()
+    while main_thread.is_alive():
+        time.sleep(0.2)
+    time.sleep(2.0)
+    sys.stderr.write("still running after main() returned; threads:\n")
+    faulthandler.dump_traceback(all_threads=True)
+    os._exit(0)
 
 
 # --- lenient message fields -------------------------------------------------
@@ -357,6 +373,25 @@ def init(args=None):
             self, coerce(response), header
         )
         Publisher._auv_lenient = True
+
+    # rclpy attaches QoS event handlers (they log incompatible-QoS warnings) to every
+    # publisher and subscription. With them in the wait set, a MultiThreadedExecutor
+    # spins hot while a callback waits for a worker thread: about 5 ms of CPU per
+    # message, a whole core at 200 messages per second. Leave them out.
+    import rclpy.event_handler
+
+    for callbacks in (
+        rclpy.event_handler.SubscriptionEventCallbacks,
+        rclpy.event_handler.PublisherEventCallbacks,
+    ):
+        if not getattr(callbacks, "_auv_quiet", False):
+
+            def quiet_init(self, *args, _init=callbacks.__init__, **kwargs):
+                kwargs.setdefault("use_default_callbacks", False)
+                _init(self, *args, **kwargs)
+
+            callbacks.__init__ = quiet_init
+            callbacks._auv_quiet = True
 
     # rospy's TF listener received transforms in a thread of its own from the moment
     # it was created. Give each listener a private node and thread, so lookups also

@@ -9,6 +9,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import rclpy
+import tf_transformations as tft
 from rclpy.node import Node
 from rclpy.time import Time
 from rclpy.duration import Duration
@@ -109,12 +110,21 @@ class SimulationMocks(Node):
                 self.pose_pending[name] = self.set_pose.call_async(request)
 
     def frame_pose(self, frame):
-        transform = self.buffer.lookup_transform('odom', frame, Time())
+        """World pose of a frame on the vehicle (odom is not the world: the vehicle does not start at the origin)."""
+        if self.truth is None:
+            raise TransformException('no ground-truth pose of the vehicle yet')
+        base = self.get_namespace().strip('/') + '/base_link'
+        on_vehicle = self.buffer.lookup_transform(base, frame, Time()).transform
+
+        def matrix(position, rotation):
+            m = tft.quaternion_matrix([rotation.x, rotation.y, rotation.z, rotation.w])
+            m[:3, 3] = [position.x, position.y, position.z]
+            return m
+        world = matrix(self.truth.position, self.truth.orientation) @ matrix(on_vehicle.translation, on_vehicle.rotation)
         pose = Pose()
-        pose.position.x = transform.transform.translation.x
-        pose.position.y = transform.transform.translation.y
-        pose.position.z = transform.transform.translation.z
-        pose.orientation = transform.transform.rotation
+        pose.position.x, pose.position.y, pose.position.z = (float(v) for v in world[:3, 3])
+        q = tft.quaternion_from_matrix(world)
+        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w = (float(v) for v in q)
         return pose
 
     async def spawn_model(self, relative_path, pose, key):

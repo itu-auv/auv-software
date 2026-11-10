@@ -88,7 +88,7 @@ def start(context):
         simulator,
         Node(package='robot_state_publisher', executable='robot_state_publisher', parameters=[{'robot_description': ParameterValue(robot, value_type=str), 'use_sim_time': True}]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(bridge)), launch_arguments={'namespace': namespace, 'world': world_name}.items()),
-        Node(package='auv_sim_bridge', executable='clock_bridge', parameters=[{'period': 0.01}]),
+        Node(package='auv_sim_bridge', executable='clock_bridge', parameters=[{'period': float(LaunchConfiguration('clock_period').perform(context))}]),
         RegisterEventHandler(OnShutdown(on_shutdown=[OpaqueFunction(function=lambda context: temporary.cleanup())])),
     ]
 
@@ -99,6 +99,7 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value='taluy_harmonic'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
+        DeclareLaunchArgument('clock_period', default_value='0.01', description='simulation seconds between /clock messages; raise it on a slow machine'),
         DeclareLaunchArgument('start', default_value='gate', description='pool world: start in front of gate, torpedo, bin, octagon, octagon_table or slalom'),
         DeclareLaunchArgument('x', default_value='', description='overrides the start pose'),
         DeclareLaunchArgument('y', default_value=''),

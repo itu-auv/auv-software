@@ -78,6 +78,7 @@ class SimTrackerNode:
 
     def enable_callback(self, req, response):
         self.enabled = req.data
+        self.camera.set_enabled(self.enabled)
         self._publish_enabled_status()
         message = "Simulation inference %s" % (
             "enabled" if self.enabled else "disabled"

@@ -19,7 +19,7 @@ Not done or not verified:
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
-- In the simulator the gate and torpedo tasks have been run from start to end; bin,
+- In the simulator the gate, torpedo and bin tasks have been run from start to end;
   octagon, pinger and return have not.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
@@ -117,8 +117,11 @@ Things ROS 2 does differently that bit during the port:
   (`latched_qos()` on both sides).
 - Scripts started by launch files need the executable bit in git.
 - PID integral gains tuned on ROS 1 need rescaling (see BUGS.md, Control).
-- In simulation every rclpy node wakes up for each `/clock` message, and a wake-up is
-  expensive (about 2 ms in a multi-threaded executor). Gazebo ticks at 1 kHz, so
+- rclpy's `MultiThreadedExecutor` burns about 5 ms of CPU per message when the default
+  QoS event handlers are attached to subscriptions (it spins while the callback waits
+  for a worker thread). `ros.init()` turns those handlers off; the price is that
+  incompatible-QoS warnings are no longer logged by our Python nodes.
+- In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
   (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
   about 1.5 % of a core.
