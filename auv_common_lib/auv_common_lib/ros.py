@@ -450,9 +450,27 @@ def init(args=None):
                     use_global_arguments=False,
                     start_parameter_services=False,
                 )  # wall time: a listener needs no clock, and so no /clock traffic
+                self._auv_private_node = True
             listener_init(self, buffer, node, *args, spin_thread=spin_thread, **kwargs)
 
+        unregister = tf2_ros.TransformListener.unregister
+
+        def unregister_and_stop(self):
+            # also end the thread and node made above, or they outlive the listener
+            unregister(self)
+            if getattr(self, "_auv_private_node", False) and not sys.is_finalizing():
+                self._auv_private_node = False
+                self.executor.shutdown(timeout_sec=0.0)
+                threading.Thread(
+                    target=lambda: (
+                        self.dedicated_listener_thread.join(2.0),
+                        self.node.destroy_node(),
+                    ),
+                    daemon=True,
+                ).start()
+
         tf2_ros.TransformListener.__init__ = threaded_listener
+        tf2_ros.TransformListener.unregister = unregister_and_stop
         tf2_ros.TransformListener._auv_threaded = True
 
     # rospy ran every subscriber, timer and service in its own thread. rclpy puts
