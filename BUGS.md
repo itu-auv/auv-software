@@ -103,6 +103,11 @@ Dead or broken leftovers:
   by name, so the monitor now calls the `joystick_node/shutdown` service that the
   joystick node offers (see "Behaviour that changed").
 
+- `roll.py` `TwoRollState`: DVL odometry is switched off before the roll and switched
+  back on only on the success path. If `ROLL_TWO_TIMES` times out (15 s) the gate task
+  aborts, the main state machine goes on to the next task (it does that for every
+  `aborted`), and the rest of the mission runs without DVL odometry.
+
 ## Control
 
 - `thruster_manager_ros.h`: the allocation result is used with `.value()` without
@@ -368,3 +373,8 @@ Dead or broken leftovers:
   **Fixed**: `premaps/sim_pool.yaml` for the pool world seen from the gate start; the
   sim launch uses it when starting there and no premap for the other start poses
   (`premap:=auto`).
+- The roll through the gate (`roll:=true`) does not finish in the Harmonic simulator:
+  the buoyancy sphere sits 0.2 m above the centre of mass, a righting moment of up to
+  59 Nm against the 50 Nm the state asks for. The vehicle tips to about 60 degrees
+  and `ROLL_TWO_TIMES` times out. The ROS 1 model had the same offset (54 Nm), so it
+  may never have rolled there either. Not fixed; check the roll in water.
