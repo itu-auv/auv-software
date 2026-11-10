@@ -47,14 +47,17 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const rclcpp::Node::SharedPtr &nh)
           const std::shared_ptr<auv_msgs::srv::SetObjectTransform::Request> req,
           std::shared_ptr<auv_msgs::srv::SetObjectTransform::Response> res) {
         set_transform_handler(*req, *res);
-      });
+      },
+      // many nodes call this many times a second: never drop a request
+      rclcpp::ServicesQoS().keep_all());
 
   clear_service_ = nh_->create_service<std_srvs::srv::Trigger>(
       "clear_object_transforms",
       [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> req,
              std::shared_ptr<std_srvs::srv::Trigger::Response> res) {
         clear_map_handler(*req, *res);
-      });
+      },
+      rclcpp::ServicesQoS().keep_all());
 
   dynamic_sub_ = nh_->create_subscription<geometry_msgs::msg::TransformStamped>(
       "object_transform_updates", 10,

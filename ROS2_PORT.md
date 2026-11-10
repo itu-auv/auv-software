@@ -78,7 +78,7 @@ written around:
 | `rospy.Rate`, `rospy.on_shutdown`, `rospy.wait_for_message` | `Rate`, `on_shutdown`, `wait_for_message` |
 | latched publisher | `latched_qos()` |
 
-`ros.init()` also restores three rospy behaviours the code depends on. Every
+`ros.init()` also restores four rospy behaviours the code depends on. Every
 subscriber, timer and service runs independently of the others (rclpy would run
 all of a node's callbacks one at a time, so one slow callback stalls the rest).
 And message fields are forgiving again. rclpy aborts the whole
@@ -86,7 +86,9 @@ process when a message with an `int` in a float field, a numpy scalar, or a
 `Vector3` where a `Point` belongs is published; rospy accepted all of those and
 the code relies on it in many places. And a TF listener receives transforms in a
 thread of its own from the moment it is created (rclpy's waits for the node to
-spin, so a lookup in a constructor would always time out).
+spin, so a lookup in a constructor would always time out). And a service call gets
+its answer or an error: requests and replies are never dropped from a full queue,
+and a server that dies during a call raises.
 
 ## Porting a ROS 1 branch
 
@@ -122,7 +124,14 @@ Things ROS 2 does differently that bit during the port:
   QoS event handlers are attached to subscriptions (it spins while the callback waits
   for a worker thread). `ros.init()` turns those handlers off and `ros.spin()`
   checks for incompatible publishers itself, so a best-effort driver feeding a
-  reliable subscription still gets a warning.
+  reliable subscription still gets a warning. The cause is in the Fast DDS layer
+  ([rclpy#1223](https://github.com/ros2/rclpy/issues/1223), fixed on Rolling by
+  [rmw_fastrtps#930](https://github.com/ros2/rmw_fastrtps/pull/930)); once a Jazzy
+  release carries the backport the workaround can go.
+- Service replies go to every client of the service and queues are 10 deep by
+  default, so replies and requests can be lost under load and a blocking call then
+  never returns. `ros.init()` makes Python clients and servers keep everything; C++
+  services that many nodes call need `rclcpp::ServicesQoS().keep_all()`.
 - In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
   (`period` parameter). On the vehicle there is no `/clock` and an idle node costs

@@ -13,7 +13,7 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.exceptions import ROSInterruptException
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 
 _UNSET = object()
@@ -58,6 +58,11 @@ def get_param(node, name, default=_UNSET):
 
 def has_param(node, name):
     return get_param(node, name, None) is not None
+
+
+SERVICE_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_ALL, reliability=ReliabilityPolicy.RELIABLE
+)
 
 
 def latched_qos(depth=1):
@@ -108,7 +113,7 @@ class ServiceProxy:
 
     Callable and blocking, also from inside callbacks (see spin). Like rospy, and
     unlike a bare rclpy client, calling a service nobody serves raises instead of
-    waiting forever.
+    waiting forever, and so does a server that goes away during the call.
     """
 
     def __init__(self, node, srv_type, name):
@@ -116,7 +121,10 @@ class ServiceProxy:
         self.srv_type = srv_type
         self.created = time.monotonic()
         self.client = node.create_client(
-            srv_type, name, callback_group=ReentrantCallbackGroup()
+            srv_type,
+            name,
+            qos_profile=SERVICE_QOS,
+            callback_group=ReentrantCallbackGroup(),
         )
 
     def wait_for_service(self, timeout=None):
@@ -141,7 +149,16 @@ class ServiceProxy:
             future = self.client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future)
             return future.result()
-        return self.client.call(request)
+        future = self.client.call_async(request)
+        answered = threading.Event()
+        future.add_done_callback(lambda _: answered.set())
+        while not answered.wait(1.0) and not future.done():
+            if not self.client.service_is_ready():  # rospy: the connection broke
+                self.client.remove_pending_request(future)
+                raise ServiceException(
+                    f"service {self.client.srv_name} went away during the call"
+                )
+        return future.result()
 
     __call__ = call
 
@@ -432,6 +449,20 @@ def init(args=None):
 
             callbacks.__init__ = quiet_init
             callbacks._auv_quiet = True
+
+    # A service reply is delivered to every client of that service, and by default a
+    # client keeps only the last 10 it has not processed. A node that stalls for a
+    # moment while others call the same service loses its own reply and waits for
+    # ever; rospy could not lose one. Keep every request and reply.
+    if not getattr(Node, "_auv_keep_all_services", False):
+        for create in ("create_client", "create_service"):
+
+            def keep_all(self, *args, _create=getattr(Node, create), **kwargs):
+                kwargs.setdefault("qos_profile", SERVICE_QOS)
+                return _create(self, *args, **kwargs)
+
+            setattr(Node, create, keep_all)
+        Node._auv_keep_all_services = True
 
     # rospy's TF listener received transforms in a thread of its own from the moment
     # it was created. Give each listener a private node and thread, so lookups also

@@ -23,7 +23,7 @@ if ! podman container exists "$NAME" || [ "$(podman inspect -f '{{.State.Running
   [ -n "${DISPLAY:-}" ] && gui+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix)
   [ -n "${XAUTHORITY:-}" ] && gui+=(-e XAUTHORITY=/tmp/.xauth -v "$XAUTHORITY":/tmp/.xauth:ro)
   podman run -d --name "$NAME" --init --replace \
-    --userns=keep-id --network host --ipc host \
+    --userns=keep-id --network host --ipc host --pids-limit=-1 \
     --device nvidia.com/gpu=all --security-opt label=disable \
     -e NVIDIA_DRIVER_CAPABILITIES=all -e HOME=/auv_ws/.home \
     "${gui[@]}" -v "$WS":/auv_ws -w /auv_ws \

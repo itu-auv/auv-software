@@ -309,6 +309,16 @@ Dead or broken leftovers:
   gravity estimator last until the node restarts. Deliberate (Melih), to be revisited.
 - There is no global parameter server. `waypoint_publisher` publishes the path
   summary it used to store at `/waypoint_gui/paths` as latched JSON on that topic.
+- A ROS 2 service reply is delivered to every client of that service, and each client
+  keeps only the last 10 it has not processed yet; a server does the same with
+  requests. Nine nodes call `map/set_object_transform`, the frame publishers up to 80
+  times a second, so a node that stalls for a fraction of a second loses its own
+  reply, and a blocking call then waits for ever (seen once: the mission stopped in
+  the octagon's last search). In ROS 1 a reply could not be lost. Python nodes that
+  use `ros.init()` and the transform server now keep every request and reply, and
+  `ServiceProxy` raises when the server disappears during a call. The cheaper design
+  is the topic the server already has (`object_transform_updates`): a frame published
+  20 times a second does not need an answer.
 
 ## Simulation tools ported to Gazebo Harmonic
 
