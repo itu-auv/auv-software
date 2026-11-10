@@ -110,6 +110,7 @@ class ServiceProxy:
     """
 
     def __init__(self, node, srv_type, name):
+        self.node = node
         self.srv_type = srv_type
         self.created = time.monotonic()
         self.client = node.create_client(
@@ -127,11 +128,17 @@ class ServiceProxy:
             fields = self.srv_type.Request.get_fields_and_field_types()
             request = self.srv_type.Request(**dict(zip(fields, args)), **kwargs)
         if not self.client.service_is_ready():
-            # a new client needs a moment to discover the server; after that a
-            # missing server fails at once, as it did with rospy
+            # a new client needs a few seconds to discover the server in a large
+            # system; after that a missing server fails at once, as it did with rospy
             self.wait_for_service(
-                timeout=max(0.0, 1.0 - (time.monotonic() - self.created))
+                timeout=max(0.0, 5.0 - (time.monotonic() - self.created))
             )
+        executor = self.node.executor
+        if executor is None or executor is rclpy.get_global_executor():
+            # called before spin() (a constructor): nobody else processes the answer
+            future = self.client.call_async(request)
+            rclpy.spin_until_future_complete(self.node, future)
+            return future.result()
         return self.client.call(request)
 
     __call__ = call

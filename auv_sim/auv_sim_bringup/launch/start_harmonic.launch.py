@@ -57,8 +57,10 @@ def start(context):
     pose = entity.find('pose')
     if pose is None:
         pose = ET.SubElement(entity, 'pose')
-    # start pose: as in the ROS 1 launch, the pool mission starts in front of the gate
-    start = {'pool': ('-7.0', '-15.5', '0')}.get(LaunchConfiguration('world').perform(context), ('0', '0', '0'))
+    # start poses of the ROS 1 launch (its `objects:=<task>,...` picked them by task)
+    starts = {'gate': (-7.0, -15.5, 0.0), 'torpedo': (0.8, -3.8, 0.33), 'bin': (5.0, -6.6, -0.9),
+              'octagon': (7.4, -7.0, 0.33), 'octagon_table': (13.0, -4.25, 0.0), 'slalom': (0.15, -13.3, -0.12)}
+    start = starts[LaunchConfiguration('start').perform(context)] if LaunchConfiguration('world').perform(context) == 'pool' else (0.0, 0.0, 0.0)
     x, y, yaw = (float(LaunchConfiguration(name).perform(context) or default) for name, default in zip(('x', 'y', 'yaw'), start))
     pose.text = f"{x} {y} {float(LaunchConfiguration('initial_z').perform(context))} 0 0 {yaw}"
     model = ET.tostring(entity, encoding='unicode')
@@ -97,7 +99,8 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value='taluy_harmonic'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
-        DeclareLaunchArgument('x', default_value='', description='start pose; empty = default of the world'),
+        DeclareLaunchArgument('start', default_value='gate', description='pool world: start in front of gate, torpedo, bin, octagon, octagon_table or slalom'),
+        DeclareLaunchArgument('x', default_value='', description='overrides the start pose'),
         DeclareLaunchArgument('y', default_value=''),
         DeclareLaunchArgument('yaw', default_value=''),
         OpaqueFunction(function=start),

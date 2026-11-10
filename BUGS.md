@@ -326,8 +326,8 @@ Dead or broken leftovers:
   `auv_localization_node/enable`. **Fixed**: both EKF launch files remap them.
 - The Harmonic launch always spawned the vehicle at the world origin, 14 m from the
   gate; the ROS 1 launch started the pool world in front of the gate. **Fixed**: `x`,
-  `y`, `yaw` arguments, defaulting to the ROS 1 start pose of the world. (The ROS 1
-  `objects:=torpedo,...` shortcuts for other start poses are not ported; pass the pose.)
+  `y`, `yaw` arguments, and `start:=gate|torpedo|bin|octagon|octagon_table|slalom` with
+  the start poses the ROS 1 launch chose from its `objects` argument.
 - Gazebo's 1 kHz `/clock` was bridged as is. **Fixed**: `clock_bridge` (see
   ROS2_PORT.md).
 - The Harmonic vehicle had no depth camera, so the torpedo task stopped at

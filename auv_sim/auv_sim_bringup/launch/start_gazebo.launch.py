@@ -89,7 +89,7 @@ def start(context):
     return [SetParameter(name='use_sim_time', value=True)] + camera_nodes + [
         include('auv_sim_bringup', 'start_harmonic.launch.py',
                 {'namespace': namespace, 'world': world, 'gui': LaunchConfiguration('gui'),
-                 'initial_z': LaunchConfiguration('initial_z'), 'x': LaunchConfiguration('x'),
+                 'initial_z': LaunchConfiguration('initial_z'), 'start': LaunchConfiguration('start'), 'x': LaunchConfiguration('x'),
                  'y': LaunchConfiguration('y'), 'yaw': LaunchConfiguration('yaw')}),
         Node(package='ros_gz_bridge', executable='parameter_bridge', name='simulation_spawn_bridge',
              arguments=[f'/world/{world}/create@ros_gz_interfaces/srv/SpawnEntity',
@@ -116,7 +116,8 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value='pool'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('initial_z', default_value='-0.5'),
-        DeclareLaunchArgument('x', default_value='', description='start pose; empty = default of the world'),
+        DeclareLaunchArgument('start', default_value='gate', description='pool world: start in front of gate, torpedo, bin, octagon, octagon_table or slalom'),
+        DeclareLaunchArgument('x', default_value='', description='overrides the start pose'),
         DeclareLaunchArgument('y', default_value=''),
         DeclareLaunchArgument('yaw', default_value=''),
         DeclareLaunchArgument('pinger_mode', default_value='torpedo'),

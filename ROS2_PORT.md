@@ -19,7 +19,8 @@ Not done or not verified:
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
-- Full competition missions have not been run in the new simulator.
+- In the simulator the gate and torpedo tasks have been run from start to end; bin,
+  octagon, pinger and return have not.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
 - The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
@@ -33,7 +34,8 @@ docker/dev/ros2 --build          # once: podman image with Jazzy, Gazebo, depend
 docker/dev/ros2                  # shell in the container, workspace at /auv_ws
 vcs import src < src/auv-software/third_party.repos
 colcon build --symlink-install
-ros2 launch auv_sim_bringup start_gazebo.launch.py gui:=true
+ros2 launch auv_sim_bringup start_gazebo.launch.py gui:=true       # start:=torpedo|bin|... or x:= y:= yaw:=
+ros2 launch auv_sim_vision tracker_robosub.launch                  # detections from the simulator
 ros2 launch auv_smach start.launch use_sim_time:=true test_mode:=true "test_states:=['init']"
 ros2 launch auv_bringup start.launch          # the real vehicle
 ```
