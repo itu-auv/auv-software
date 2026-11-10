@@ -33,7 +33,8 @@ Mission flow:
   `TypeError` before the first state runs.
 - `main_state_machine.py`: a state that is skipped while building (unknown name, or a
   `pathN` token with no path drawn in the GUI) is still the transition target of the
-  state before it, so smach refuses to run the whole mission.
+  state before it. smach's consistency check then fails and no state runs at all (the
+  mission exits with outcome `None`).
 - The wrapper states that run an inner state machine (`InitializeState`,
   `NavigateThroughGateState`, `BinTaskState`, `OctagonTaskState`,
   `RandomPingerTaskState`, `NavigateReturnThroughGateState`, `RotateAroundBuoyState`)
