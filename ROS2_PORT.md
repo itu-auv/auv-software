@@ -19,9 +19,13 @@ Not done or not verified:
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
-- In the simulator the gate, torpedo, bin and octagon tasks have each been run from
-  start to end (each from its own start pose, with `premap:=none` except the gate).
-  The pinger and return tasks, and a whole mission in one go, have not.
+- In the simulator the default full mission (gate, torpedo, bin, octagon, acoustic
+  send and receive, return through the gate) runs from start to end in one go, with
+  the first entry of BUGS.md fixed locally (one line; the port keeps the bug). Also
+  run: each task from its own start pose, the pinger task with the pinger at either
+  place, the gate with `coin_flip` and `yaw`, and a path drawn in the waypoint GUI.
+  The roll does not finish in the simulator (BUGS.md). The three GUIs start, but
+  nobody has clicked through them.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
 - The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
