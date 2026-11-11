@@ -132,22 +132,16 @@ def start(context):
         camera_nodes.extend(
             [
                 Node(
-                    package="ros_gz_bridge",
-                    executable="parameter_bridge",
+                    package="auv_sim_bridge",
+                    executable="gz_sensor_bridge",
                     name=f"{camera}_application_camera_bridge",
-                    arguments=[
-                        f"/model/{namespace}/{camera}_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-                        f"/model/{namespace}/{camera}_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-                    ],
-                    remappings=[
-                        (
-                            f"/model/{namespace}/{camera}_camera/image",
-                            camera_namespace + "/image_raw",
-                        ),
-                        (
-                            f"/model/{namespace}/{camera}_camera/camera_info",
-                            camera_namespace + "/camera_info",
-                        ),
+                    parameters=[
+                        {
+                            "topics": [
+                                f"/model/{namespace}/{camera}_camera/image {camera_namespace}/image_raw image",
+                                f"/model/{namespace}/{camera}_camera/camera_info {camera_namespace}/camera_info camera_info",
+                            ]
+                        }
                     ],
                 ),
                 Node(
@@ -168,28 +162,18 @@ def start(context):
         camera_nodes.extend(
             [
                 Node(
-                    package="ros_gz_bridge",
-                    executable="parameter_bridge",
+                    package="auv_sim_bridge",
+                    executable="gz_sensor_bridge",
                     name="realsense_bridge",
-                    arguments=[
-                        f"{gz}/image@sensor_msgs/msg/Image[gz.msgs.Image",
-                        f"{gz}/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
-                        f"{gz}/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+                    parameters=[
+                        {
+                            "topics": [
+                                f"{gz}/image {ros}/color/image_raw image",
+                                f"{gz}/depth_image {ros}/depth/image_raw image",
+                                f"{gz}/camera_info {ros}/color/camera_info,{ros}/depth/camera_info camera_info",
+                            ]
+                        }
                     ],
-                    remappings=[
-                        (f"{gz}/image", f"{ros}/color/image_raw"),
-                        (f"{gz}/depth_image", f"{ros}/depth/image_raw"),
-                        (f"{gz}/camera_info", f"{ros}/color/camera_info"),
-                    ],
-                ),
-                Node(
-                    package="ros_gz_bridge",
-                    executable="parameter_bridge",
-                    name="realsense_depth_info_bridge",
-                    arguments=[
-                        f"{gz}/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"
-                    ],
-                    remappings=[(f"{gz}/camera_info", f"{ros}/depth/camera_info")],
                 ),
                 Node(
                     package="depth_image_proc",

@@ -4,6 +4,10 @@
 // name.
 #include <gz/msgs/pose_v.pb.h>
 
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <functional>
 #include <gz/transport/Node.hh>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -21,9 +25,13 @@ int main(int argc, char** argv) {
   auto publisher = node->create_publisher<tf2_msgs::msg::TFMessage>(topic, 1);
   double last = -1.0;
 
+  std::atomic<int64_t> last_received{0};  // node time, nanoseconds
+  std::atomic<bool> received_any{false};
   gz::transport::Node gz_node;
   std::function<void(const gz::msgs::Pose_V&)> callback =
       [&](const gz::msgs::Pose_V& poses) {
+        last_received = node->now().nanoseconds();
+        received_any = true;
         const double sim_time =
             poses.header().stamp().sec() + 1e-9 * poses.header().stamp().nsec();
         if (sim_time >= last && sim_time - last < period) {
@@ -54,6 +62,19 @@ int main(int argc, char** argv) {
                  topic.c_str());
     return 1;
   }
+  // Gazebo can lose a subscriber's registration (see gz_sensor_bridge).
+  auto watchdog = node->create_wall_timer(std::chrono::seconds(1), [&]() {
+    const auto now = node->now().nanoseconds();
+    const auto quiet = 1e-9 * static_cast<double>(now - last_received);
+    if (quiet < 2.0) return;
+    if (received_any) {
+      RCLCPP_WARN(node->get_logger(), "%s quiet for %.1f s, subscribing again",
+                  topic.c_str(), quiet);
+    }
+    gz_node.Unsubscribe(topic);
+    gz_node.Subscribe(topic, callback);
+    last_received = now;
+  });
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

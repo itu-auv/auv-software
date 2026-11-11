@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 
@@ -31,52 +31,8 @@ def generate_launch_description():
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        name="taluy_sensor_bridge",
+        name="taluy_command_bridge",
         arguments=[
-            bridge_arg("/model/", namespace, "/imu@sensor_msgs/msg/Imu[gz.msgs.IMU"),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/pressure@sensor_msgs/msg/FluidPressure[gz.msgs.FluidPressure",
-            ),
-            bridge_arg(
-                "/model/", namespace, "/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry"
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/dvl/velocity@marine_acoustic_msgs/msg/Dvl[gz.msgs.DVLVelocityTracking",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/front_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/front_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/bottom_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/bottom_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/torpedo_camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-            ),
-            bridge_arg(
-                "/model/",
-                namespace,
-                "/torpedo_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            ),
             bridge_arg("/world/", world, "/control@ros_gz_interfaces/srv/ControlWorld"),
         ]
         + [
@@ -89,14 +45,31 @@ def generate_launch_description():
             )
             for index in range(8)
         ],
-        remappings=[
-            (
-                bridge_arg("/model/", namespace, "/imu"),
-                bridge_arg("/", namespace, "/sensors/imu/data"),
-            )
-        ],
         output="screen",
     )
+
+    def sensor_bridge(context):
+        ns = namespace.perform(context)
+        model = f"/model/{ns}"
+        return [
+            Node(
+                package="auv_sim_bridge",
+                executable="gz_sensor_bridge",
+                name="taluy_sensor_bridge",
+                parameters=[
+                    {
+                        "topics": [
+                            f"{model}/imu /{ns}/sensors/imu/data imu",
+                            f"{model}/pressure {model}/pressure fluid_pressure",
+                            f"{model}/odometry {model}/odometry odometry",
+                            f"{model}/dvl/velocity {model}/dvl/velocity dvl",
+                        ]
+                    }
+                ],
+                output="screen",
+            )
+        ]
+
     pwm_adapter = Node(
         package="auv_sim_bridge",
         executable="sim_pwm_to_force.py",
@@ -137,6 +110,7 @@ def generate_launch_description():
             DeclareLaunchArgument("namespace", default_value="taluy"),
             DeclareLaunchArgument("world", default_value="taluy_harmonic"),
             bridge,
+            OpaqueFunction(function=sensor_bridge),
             pwm_adapter,
             dvl_adapter,
             pressure_adapter,

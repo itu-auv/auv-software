@@ -43,14 +43,16 @@ int main(int argc, char** argv) {
     RCLCPP_FATAL(node->get_logger(), "Cannot subscribe to the Gazebo clock");
     return 1;
   }
-  // gz-transport (Jetty) sometimes stops delivering to a live subscription,
-  // and then every sim-time timer in ROS stops. Subscribe again when it does.
+  // Gazebo can lose a subscriber's registration (see gz_sensor_bridge), and
+  // then every sim-time timer in ROS stops. Subscribe again when it does. This
+  // is the source of simulation time, so its silence is in wall time, and long
+  // enough that a Gazebo that is only slow does not trip it.
   auto watchdog = node->create_wall_timer(std::chrono::seconds(1), [&]() {
     const auto quiet =
         std::chrono::steady_clock::now() -
         std::chrono::steady_clock::time_point(
             std::chrono::steady_clock::duration(last_received.load()));
-    if (quiet < std::chrono::seconds(2)) return;
+    if (quiet < std::chrono::seconds(5)) return;
     if (received_any) {  // before that, Gazebo is still loading the world
       RCLCPP_WARN(node->get_logger(),
                   "No Gazebo clock for %.1f s, subscribing again",
