@@ -73,11 +73,16 @@
           <box><size>0.087 0.087 0.001</size></box>
         </geometry>
         <material>
-          <script>
-            <uri>model://bandaid/materials/scripts</uri>
-            <uri>model://bandaid/materials/textures</uri>
-            <name>Task5BandAidMaterial</name>
-          </script>
+          <ambient>0.8 0.8 0.8 1.0</ambient>
+          <diffuse>0.8 0.8 0.8 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://bandaid/materials/textures/Task5_BandAid.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
       </visual>
 
@@ -87,11 +92,16 @@
           <box><size>0.087 0.087 0.001</size></box>
         </geometry>
         <material>
-          <script>
-            <uri>model://bandaid/materials/scripts</uri>
-            <uri>model://bandaid/materials/textures</uri>
-            <name>Task5BandAidMaterial</name>
-          </script>
+          <ambient>0.8 0.8 0.8 1.0</ambient>
+          <diffuse>0.8 0.8 0.8 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://bandaid/materials/textures/Task5_BandAid.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
       </visual>
 

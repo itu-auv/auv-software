@@ -75,11 +75,16 @@
           <box><size>0.07 0.07 0.001</size></box>
         </geometry>
         <material>
-          <script>
-            <uri>model://pill/materials/scripts</uri>
-            <uri>model://pill/materials/textures</uri>
-            <name>Task5PillMaterial</name>
-          </script>
+          <ambient>0.8 0.8 0.8 1.0</ambient>
+          <diffuse>0.8 0.8 0.8 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://pill/materials/textures/Task5_Pill.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
       </visual>
 
@@ -89,11 +94,16 @@
           <box><size>0.07 0.07 0.001</size></box>
         </geometry>
         <material>
-          <script>
-            <uri>model://pill/materials/scripts</uri>
-            <uri>model://pill/materials/textures</uri>
-            <name>Task5PillMaterial</name>
-          </script>
+          <ambient>0.8 0.8 0.8 1.0</ambient>
+          <diffuse>0.8 0.8 0.8 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://pill/materials/textures/Task5_Pill.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
       </visual>
 
