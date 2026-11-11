@@ -89,6 +89,19 @@ def start(context):
         if "buoyancy_volume" in collision.get("name", ""):
             contact = ET.SubElement(ET.SubElement(collision, "surface"), "contact")
             ET.SubElement(contact, "collide_bitmask").text = "0"
+    # the URDF's pure black (Gazebo Classic ignored URDF colours) renders as a flat
+    # silhouette; make it a dark grey that takes light
+    for material in entity.iter("material"):
+        if material.findtext("diffuse", "").split()[:3] == ["0", "0", "0"]:
+            for tag, value in (
+                ("diffuse", "0.16"),
+                ("ambient", "0.16"),
+                ("specular", "0.35"),
+            ):
+                element = material.find(tag)
+                if element is None:
+                    element = ET.SubElement(material, tag)
+                element.text = f"{value} {value} {value} 1"
     pose = entity.find("pose")
     if pose is None:
         pose = ET.SubElement(entity, "pose")

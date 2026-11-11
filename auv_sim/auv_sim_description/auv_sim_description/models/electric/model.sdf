@@ -56,7 +56,7 @@
         <max_contacts>5</max_contacts>
       </collision>
 
-      <!-- Primary visual (untextured DAE mesh) -->
+      <!-- Body. Without a material gz-sim uses a fully metallic default, which renders black -->
   <visual name="electric_vis_base">
         <pose>0 0 0.014 0 0 0</pose>
         <geometry>
@@ -64,13 +64,18 @@
             <size>0.0875 0.0875 0.032</size>
           </box>
         </geometry>
+        <material>
+          <ambient>0.6 0.6 0.6 1</ambient>
+          <diffuse>0.6 0.6 0.6 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
       </visual>
 
       <!-- Decal visuals to display the texture on the caps -->
   <visual name="electric_vis_decal_top">
-        <pose>0 0 0.0305 0 0 0</pose>
+        <pose>0 0 0.031 0 0 0</pose>
         <geometry>
-          <box><size>0.087 0.087 0.001</size></box>
+          <plane><normal>0 0 1</normal><size>0.087 0.087</size></plane>
         </geometry>
         <material>
           <ambient>0.8 0.8 0.8 1.0</ambient>
@@ -87,9 +92,9 @@
       </visual>
 
   <visual name="electric_vis_decal_bot">
-        <pose>0 0 -0.0025 0 3.14159 0</pose>
+        <pose>0 0 -0.003 0 3.14159 0</pose>
         <geometry>
-          <box><size>0.087 0.087 0.001</size></box>
+          <plane><normal>0 0 1</normal><size>0.087 0.087</size></plane>
         </geometry>
         <material>
           <ambient>0.8 0.8 0.8 1.0</ambient>

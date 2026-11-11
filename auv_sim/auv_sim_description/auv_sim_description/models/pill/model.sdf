@@ -57,7 +57,7 @@
         <max_contacts>5</max_contacts>
       </collision>
 
-      <!-- Primary visual (untextured DAE mesh) -->
+      <!-- Body. Without a material gz-sim uses a fully metallic default, which renders black -->
   <visual name="pill_vis_base">
         <pose>0 0 0.025 0 0 0</pose>
         <geometry>
@@ -66,13 +66,18 @@
             <length>0.05</length>
           </cylinder>
         </geometry>
+        <material>
+          <ambient>0.6 0.6 0.6 1</ambient>
+          <diffuse>0.6 0.6 0.6 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
       </visual>
 
       <!-- Decal visuals to display the texture on the caps -->
   <visual name="pill_vis_decal_top">
-        <pose>0 0 0.0505 0 0 0</pose>
+        <pose>0 0 0.051 0 0 0</pose>
         <geometry>
-          <box><size>0.07 0.07 0.001</size></box>
+          <plane><normal>0 0 1</normal><size>0.07 0.07</size></plane>
         </geometry>
         <material>
           <ambient>0.8 0.8 0.8 1.0</ambient>
@@ -89,9 +94,9 @@
       </visual>
 
   <visual name="pill_vis_decal_bot">
-        <pose>0 0 -0.0005 0 3.14159 0</pose>
+        <pose>0 0 -0.001 0 3.14159 0</pose>
         <geometry>
-          <box><size>0.07 0.07 0.001</size></box>
+          <plane><normal>0 0 1</normal><size>0.07 0.07</size></plane>
         </geometry>
         <material>
           <ambient>0.8 0.8 0.8 1.0</ambient>
