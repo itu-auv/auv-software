@@ -9,5 +9,5 @@ repositories:
     url: https://github.com/itu-auv/ultralytics_ros.git
   ../third_party/vectornav:
     type: git
-    version: ros2
-    url: https://github.com/dawonn/vectornav.git
+    version: lyrical
+    url: https://github.com/Ufuk-a/vectornav.git

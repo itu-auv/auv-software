@@ -6,8 +6,8 @@
       <background>0.0 0.2 0.25 1</background>
       <grid>false</grid>
     </scene>
-    <physics name="1ms" type="ode">
-      <max_step_size>0.001</max_step_size>
+    <physics name="10ms" type="ode">
+      <max_step_size>0.01</max_step_size>
       <real_time_factor>1</real_time_factor>
     </physics>
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>

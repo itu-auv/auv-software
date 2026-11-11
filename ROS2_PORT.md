@@ -17,10 +17,11 @@ support) and the mission launch runs a state machine against it.
 Not done or not verified:
 
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
-  have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
-  team fork. The Xsens driver is Movella's official ROS 2 driver (the nobleo fork
-  ROS 1 used has no ROS 2 version); its launch file keeps it from writing any
-  configuration to the sensor, and its `ntrip` package is not built.
+  have not met their devices. `vectornav` is the upstream ROS 2 driver with a
+  Lyrical build fix (branch `lyrical` of Ufuk-a/vectornav), not the team fork. The
+  Xsens driver is Movella's official ROS 2 driver (the nobleo fork ROS 1 used has no
+  ROS 2 version); its launch file keeps it from writing any configuration to the
+  sensor, and its `ntrip` package is not built.
 - In the simulator the default full mission (gate, torpedo, bin, octagon, acoustic
   send and receive, return through the gate) runs from start to end in one go. Also
   run: each task from its own start pose, the pinger task with the pinger at either
@@ -30,9 +31,12 @@ Not done or not verified:
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Lyrical.
 - The simulator part of the port (Gazebo Classic + UUV simulator → gz-sim, written
-  for Harmonic and now run on Jetty)
-  is a rewrite by necessity. The ROS 1 sim files it replaced are still in
-  `auv_sim/` for reference and are not installed.
+  for Harmonic and now run on Jetty) is a rewrite by necessity. The ROS 1 sim files
+  it replaced are still in `auv_sim/` for reference and are not installed.
+- The simulator steps physics every 10 ms, as ROS 1's `pool.world` did (the first
+  port used 1 ms: real-time factor 0.63 instead of 0.85). gz-sim makes physics wait
+  for camera frames that are due, which Gazebo Classic did not do by default, so it
+  runs below real time when rendering falls behind.
 
 ## Build and run
 
@@ -142,7 +146,9 @@ Things ROS 2 does differently that bit during the port:
   many nodes call need `rclcpp::ServicesQoS().keep_all()`.
 - In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
-  (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
+  (`period` parameter). On Jetty, gz-transport sometimes stops delivering the Gazebo
+  clock to it with the connection still up; it subscribes again after 2 s of silence
+  and logs a warning. On the vehicle there is no `/clock` and an idle node costs
   about 1.5 % of a core.
 - smach for ROS 2 resolves `Concurrence` outcomes differently from ROS 1 (see
   BUGS.md); use `auv_smach.common.Concurrence`.

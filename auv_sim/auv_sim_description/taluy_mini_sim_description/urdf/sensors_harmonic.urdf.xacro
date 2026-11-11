@@ -3,7 +3,7 @@
     <gazebo reference="${namespace}/base_link">
       <sensor name="front_camera" type="camera">
         <pose>0.3 0 0 0 0 0</pose>
-        <gz_frame_id>${namespace}/base_link/front_camera_optical_link</gz_frame_id>
+        <frame_id>${namespace}/base_link/front_camera_optical_link</frame_id>
         <always_on>true</always_on>
         <update_rate>${camera_update_rate}</update_rate>
         <topic>/model/${namespace}/front_camera/image</topic>
@@ -22,7 +22,7 @@
       </sensor>
       <sensor name="bottom_camera" type="camera">
         <pose>-0.07480 0.195326 -0.267674 0 1.57079632679 3.14159265359</pose>
-        <gz_frame_id>${namespace}/base_link/bottom_camera_optical_link</gz_frame_id>
+        <frame_id>${namespace}/base_link/bottom_camera_optical_link</frame_id>
         <always_on>true</always_on>
         <update_rate>${camera_update_rate}</update_rate>
         <topic>/model/${namespace}/bottom_camera/image</topic>
@@ -44,7 +44,7 @@
         <always_on>true</always_on>
         <update_rate>20</update_rate>
         <topic>/model/${namespace}/imu</topic>
-        <gz_frame_id>${namespace}/base_link/imu_link</gz_frame_id>
+        <frame_id>${namespace}/base_link/imu_link</frame_id>
         <imu>
           <orientation_reference_frame>
             <localization>ENU</localization>
@@ -97,7 +97,7 @@
         <always_on>true</always_on>
         <update_rate>20</update_rate>
         <topic>/model/${namespace}/dvl/velocity</topic>
-        <gz_frame_id>${namespace}/base_link/dvl_link</gz_frame_id>
+        <frame_id>${namespace}/base_link/dvl_link</frame_id>
         <gz:dvl>
           <type>phased_array</type>
           <arrangement degrees="true">
