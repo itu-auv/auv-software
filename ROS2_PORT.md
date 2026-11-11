@@ -20,8 +20,7 @@ Not done or not verified:
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
   team fork.
 - In the simulator the default full mission (gate, torpedo, bin, octagon, acoustic
-  send and receive, return through the gate) runs from start to end in one go, with
-  the first entry of BUGS.md fixed locally (one line; the port keeps the bug). Also
+  send and receive, return through the gate) runs from start to end in one go. Also
   run: each task from its own start pose, the pinger task with the pinger at either
   place, the gate with `coin_flip` and `yaw`, and a path drawn in the waypoint GUI.
   The roll does not finish in the simulator (BUGS.md). The three GUIs start, but

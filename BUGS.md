@@ -7,8 +7,8 @@ are not bugs: they record where ROS 2 forced a change.
 
 ## Worth fixing first
 
-1. The default full mission cannot start: `NavigateReturnThroughGateState` is built
-   with an argument it does not take (Missions).
+1. The default full mission could not start: `NavigateReturnThroughGateState` was
+   built with an argument it did not take (Missions). **Fixed**.
 2. A dynamic path to a frame that does not exist hangs the mission for ever
    (Navigation).
 3. Timeouts inside `DynamicPathWithTransformCheck`, `AlignFrameWithTransformCheck` and
@@ -27,10 +27,12 @@ are not bugs: they record where ROS 2 forced a change.
 
 Mission flow:
 
-- `main_state_machine.py` builds `NavigateReturnThroughGateState` with a
-  `gate_search_frame` argument the class does not take. `NAVIGATE_RETURN_THROUGH_GATE`
-  is in the default `full_mission_states`, so the default full mission dies with a
-  `TypeError` before the first state runs.
+- `main_state_machine.py` built `NavigateReturnThroughGateState` with a
+  `gate_search_frame` argument the class did not take. `NAVIGATE_RETURN_THROUGH_GATE`
+  is in the default `full_mission_states`, so the default full mission died with a
+  `TypeError` before the first state ran (since #679, in ROS 1 too). **Fixed**: the
+  class takes `gate_search_frame` and uses it in place of its hard-coded
+  `gate_middle_part`, the same value the caller passes.
 - `main_state_machine.py`: a state that is skipped while building (unknown name, or a
   `pathN` token with no path drawn in the GUI) is still the transition target of the
   state before it. smach's consistency check then fails and no state runs at all (the
