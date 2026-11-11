@@ -1,0 +1,255 @@
+import smach
+import smach_ros
+import rclpy
+from auv_common_lib.ros import get_node, Rate
+from rclpy.duration import Duration
+from std_srvs.srv import SetBool
+from std_srvs.srv import Empty
+from std_srvs.srv import Trigger
+from robot_localization.srv import SetPose
+from auv_msgs.srv import SetObjectTransform
+from std_msgs.msg import Bool
+from auv_smach.tf_utils import get_base_link
+from auv_smach.common import (
+    CancelAlignControllerState,
+    ClearObjectMapState,
+    ClearKDEMapState,
+)
+from typing import Optional, Literal
+from dataclasses import dataclass
+from auv_smach.common import SetDetectionFocusState, SetDetectionState
+
+
+class ResetOdometryState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "reset_odometry",
+            Trigger,
+            request=Trigger.Request(),
+        )
+
+
+class WaitForKillswitchEnabledState(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.enabled = False
+        self.killswitch_subscriber = get_node().create_subscription(
+            Bool, "propulsion_board/status", self.killswitch_callback, 10
+        )
+
+    def killswitch_callback(self, msg):
+        self.enabled = msg.data
+
+    def execute(self, userdata):
+        rate = Rate(get_node(), 10)
+        while rclpy.ok():
+            if self.enabled:
+                return "succeeded"
+            rate.sleep()
+        return "aborted"
+
+
+class DVLEnableState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "dvl/enable",
+            SetBool,
+            request=SetBool.Request(data=True),
+        )
+
+
+class DisableDA3PipelineState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "enable_da3_publisher",
+            SetBool,
+            request=SetBool.Request(data=False),
+        )
+
+
+class DelayState(smach.State):
+    def __init__(self, delay_time):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.delay_time = delay_time
+
+    def execute(self, userdata):
+        get_node().get_clock().sleep_for(Duration(seconds=self.delay_time))
+        return "succeeded"
+
+
+class OdometryEnableState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "localization_enable",
+            Empty,
+            request=Empty.Request(),
+        )
+
+
+class ResetOdometryPoseState(smach_ros.ServiceState):
+    def __init__(self):
+        initial_pose_request = SetPose.Request()
+        initial_pose_request.pose.pose.pose.orientation.w = 1.0
+
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "set_pose",
+            SetPose,
+            request=initial_pose_request,
+        )
+
+
+class SetStartFrameState(smach_ros.ServiceState):
+    def __init__(self, frame_name: str):
+        transform_request = SetObjectTransform.Request()
+        transform_request.transform.header.frame_id = get_base_link()
+        transform_request.transform.child_frame_id = frame_name
+        transform_request.transform.transform.rotation.w = 1.0
+
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "set_object_transform",
+            SetObjectTransform,
+            request=transform_request,
+        )
+
+
+class InitializeState(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        # Initialize the state machine
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        # Open the container for adding states
+        with self.state_machine:
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "WAIT_FOR_KILLSWITCH_ENABLED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_KILLSWITCH_ENABLED",
+                WaitForKillswitchEnabledState(),
+                transitions={
+                    "succeeded": "DVL_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DVL_ENABLE",
+                DVLEnableState(),
+                transitions={
+                    "succeeded": "DELAY_FOR_DVL_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_FOR_DVL_ENABLE",
+                DelayState(delay_time=4.4),
+                transitions={
+                    "succeeded": "ODOMETRY_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ODOMETRY_ENABLE",
+                OdometryEnableState(),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
+                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=False),
+                transitions={
+                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
+                transitions={
+                    "succeeded": "DISABLE_DA3_PIPELINE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_DA3_PIPELINE",
+                DisableDA3PipelineState(),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "CLEAR_KDE_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_KDE_MAP",
+                ClearKDEMapState(),
+                transitions={
+                    "succeeded": "SET_START_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_START_FRAME",
+                SetStartFrameState(frame_name="mission_start_link"),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+    def execute(self, userdata):
+        # Execute the state machine
+        outcome = self.state_machine.execute()
+
+        if outcome is None:
+            return "preempted"
+
+        # Return the outcome of the state machine
+        return outcome

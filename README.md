@@ -1,6 +1,15 @@
 # auv-software
-ITU AUV Team main software stack
+ITU AUV Team main software stack, on ROS 2 Lyrical Luth and Gazebo Jetty.
 
+- [ROS2_PORT.md](ROS2_PORT.md): state of the ROS 2 port, how to build and run it, and
+  how to port a ROS 1 branch.
+- [BUGS.md](BUGS.md): bugs found during the port and left for separate fixes.
+
+```bash
+docker/dev/ros2 --build && docker/dev/ros2    # dev container (podman)
+colcon build --symlink-install
+ros2 launch auv_sim_bringup start_gazebo.launch.py gui:=true
+```
 
 ## CI Status
 | workflow     | status                                                                                                                                                                                                          |

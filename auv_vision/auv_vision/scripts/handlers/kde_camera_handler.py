@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import math
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
+from rclpy.duration import Duration
 from geometry_msgs.msg import (
     PointStamped,
     PoseStamped,
@@ -54,10 +56,12 @@ class KdeCameraHandler:
         for _detection_id, link_name in id_tf_map.items():
             if link_name not in self.kde_publishers:
                 topic = f"kde_map/points/{link_name}"
-                self.kde_publishers[link_name] = rospy.Publisher(
-                    topic, PointStamped, queue_size=10
+                self.kde_publishers[link_name] = get_node().create_publisher(
+                    PointStamped, topic, 10
                 )
-                rospy.loginfo(f"KDE handler: publishing {link_name} on {topic}")
+                get_node().get_logger().info(
+                    f"KDE handler: publishing {link_name} on {topic}"
+                )
 
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
@@ -65,7 +69,7 @@ class KdeCameraHandler:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             if detection_id not in self.id_tf_map:
                 continue
@@ -94,7 +98,7 @@ class KdeCameraHandler:
                 continue
 
             _angles, offset_x, offset_y = calculate_angles_and_offsets(
-                self.calibration, detection.bbox.center, distance
+                self.calibration, detection.bbox.center.position, distance
             )
 
             self._transform_and_publish_point(
@@ -115,7 +119,7 @@ class KdeCameraHandler:
             pose_stamped.pose.orientation.w = 1.0
 
             transformed = self.tf_buffer.transform(
-                pose_stamped, "odom", rospy.Duration(4.0)
+                pose_stamped, "odom", Duration(seconds=4.0)
             )
 
             point_msg = PointStamped()
@@ -131,7 +135,9 @@ class KdeCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(5.0, f"KDE transform error for {link_name}: {e}")
+            get_node().get_logger().warning(
+                f"KDE transform error for {link_name}: {e}", throttle_duration_sec=5.0
+            )
 
     def _process_altitude_projection(self, detection, stamp):
         """Project bin_whole onto the pool floor using ray-plane intersection."""
@@ -140,11 +146,11 @@ class KdeCameraHandler:
         if altitude is None:
             return
 
-        detection_id = detection.results[0].id
+        detection_id = int(detection.results[0].hypothesis.class_id)
         link_name = self.id_tf_map[detection_id]
 
-        bbox_bottom_x = detection.bbox.center.x
-        bbox_bottom_y = detection.bbox.center.y + detection.bbox.size_y * 0.5
+        bbox_bottom_x = detection.bbox.center.position.x
+        bbox_bottom_y = detection.bbox.center.position.y + detection.bbox.size_y * 0.5
 
         angles = self.calibration.calculate_angles((bbox_bottom_x, bbox_bottom_y))
 
@@ -166,7 +172,7 @@ class KdeCameraHandler:
 
         try:
             transform = self.tf_buffer.lookup_transform(
-                "odom", self.camera_frame, stamp, rospy.Duration(1.0)
+                "odom", self.camera_frame, stamp, Duration(seconds=1.0)
             )
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
@@ -191,7 +197,7 @@ class KdeCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"KDE altitude projection error: {e}")
+            get_node().get_logger().error(f"KDE altitude projection error: {e}")
 
 
 def create_handler(

@@ -43,3 +43,8 @@
 *.pth
 *.onnx
 *.engine
+
+# Local colcon output
+/build/
+/install/
+/log/

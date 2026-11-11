@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="namespace" default="taluy" />
+    <arg name="use_sim_time" default="false" description="true when running against the simulator" />
+    <set_parameter name="use_sim_time" value="$(var use_sim_time)" />
     <arg name="enable_rate" default="20" />
-    <param name="/smach/max_linear_velocity" value="0.3" />
-    <param name="/smach/max_angular_velocity" value="0.45" />
 
     <!-- State Mapping Definitions
          Path tokens (path1, path2, ...) resolve dynamically against
@@ -11,16 +11,13 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
-        slalom:NAVIGATE_THROUGH_SLALOM,
         pinger:RANDOM_PINGER_TASK,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
-        gps:NAVIGATE_TO_GPS_TARGET,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
-        pipeline:NAVIGATE_THROUGH_PIPELINE,
         path1:path1,
         path2:path2,
         path3:path3,
@@ -28,41 +25,41 @@
     "/>
 
     <!-- Test Mode Configuration -->
-    <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
-    <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
-    <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
-    <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
-    <arg name="ignore_kde" default="false" doc="Use raw search frames instead of KDE frames"/>
+    <arg name="test_mode" default="false" description="Enable test mode for state machine"/>
+    <arg name="roll" default="false" description="Enable roll mode for state machine"/>
+    <arg name="yaw" default="false" description="Enable yaw mode for state machine"/>
+    <arg name="coin_flip" default="false" description="Enable coin flip mode for state machine"/>
+    <arg name="ignore_kde" default="false" description="Use raw search frames instead of KDE frames"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
-        'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
-        'NAVIGATE_TO_GPS_TARGET',
         'ACOUSTIC_TRANSMITTER',
         'ACOUSTIC_RECEIVER',
-        'NAVIGATE_RETURN_THROUGH_GATE',
-        'NAVIGATE_THROUGH_PIPELINE'
-    ]" doc="Full sequence of mission states"/>
+        'NAVIGATE_RETURN_THROUGH_GATE'
+    ]" description="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
     <arg name="test_states" default="[
         'init'
-    ]" doc="States to execute in test mode"/>
+    ]" description="States to execute in test mode"/>
 
-    <group ns="$(arg namespace)">
+    <group>
+      <push_ros_namespace namespace="$(var namespace)" />
         <!-- Main State Machine Node -->
-        <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
+        <node name="main_state_machine" pkg="auv_smach" exec="main_state_machine.py" output="screen">
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
-            <param name="~base_link" value="$(arg namespace)/base_link"/>
-            <param name="roll" value="$(arg roll)"/>
-            <param name="yaw" value="$(arg yaw)"/>
-            <param name="coin_flip" value="$(arg coin_flip)"/>
-            <param name="ignore_kde" value="$(arg ignore_kde)"/>
+            <param name="smach.max_linear_velocity" value="0.3" />
+            <param name="smach.max_angular_velocity" value="0.45" />
+            <param name="base_link" value="$(var namespace)/base_link"/>
+            <param name="roll" value="$(var roll)"/>
+            <param name="yaw" value="$(var yaw)"/>
+            <param name="coin_flip" value="$(var coin_flip)"/>
+            <param name="ignore_kde" value="$(var ignore_kde)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -80,7 +77,6 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
-            <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
@@ -89,7 +85,7 @@
             <remap from="enable_da3_publisher" to="object_plane_fitter/enable"/>
             <remap from="enable_da3_trt_inference" to="depth_anything_trt_node/enable"/>
 
-            <param name="enable_rate" value="$(arg enable_rate)"/>
+            <param name="enable_rate" value="$(var enable_rate)"/>
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
@@ -112,21 +108,18 @@
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
-            <!--pipeline.py-->
-            <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
-
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
 
             <!-- octagon.py Gripper Service -->
             <remap from="actuators/gripper/close" to="actuators/gripper/close"/>
 
-            <param name="test_mode" value="$(arg test_mode)"/>
-            <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
-            <rosparam param="full_mission_states" subst_value="true">$(arg full_mission_states)</rosparam>
-            <param name="test_states" value="$(arg test_states)"/>
+            <param name="test_mode" value="$(var test_mode)"/>
+            <param name="state_map" value="$(var state_map)" />
+            <param name="full_mission_states" value="$(var full_mission_states)" />
+            <param name="test_states" value="$(var test_states)"/>
             <!-- Load path planner parameters in the node -->
-            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <param from="$(find-pkg-share auv_navigation)/config/path_planner_config.yaml" />
         </node>
     </group>
 </launch>

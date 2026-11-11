@@ -2,7 +2,8 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20" />
-  <arg name="sim" default="true" />
+  <arg name="localization_disabled_at_startup" default="false" />
+  <arg name="plane_fitter_sync_queue_size" default="90" />
   <arg name="use_gui" default="true" />
   <arg name="world" default="pool" />
   <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
@@ -63,30 +64,8 @@
       <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
     </node>
 
-    <!-- Gripper Service Node -->
-    <node name="gripper_service" pkg="auv_sim_bridge" type="sim_gripper_service.py" output="screen">
-      <param name="model_name" value="$(arg namespace)" />
-      <param name="robot_description_param" value="/$(arg namespace)/robot_description" />
-      <param name="left_joint" value="$(arg namespace)/finger_left_joint" />
-      <param name="right_joint" value="$(arg namespace)/finger_right_joint" />
-      <!-- Neutral/Normal: paralel parmaklar (0.0 rad), Open: dışa açık (+0.25 rad), Close: içe kapalı (-0.15 rad) -->
-      <param name="open_angle" value="0.25" />
-      <param name="close_angle" value="-0.15" />
-      <param name="neutral_angle" value="0.0" />
-      <!-- Behavior params -->
-      <param name="mirror_right" value="false" />
-      <param name="move_duration" value="1.5" />
-      <param name="move_steps" value="40" />
-      <!-- Effort control - DENGELI: Güçlü ama titremeyen tutuş -->
-      <param name="use_effort_control" value="true" />
-      <param name="kp_effort" value="45.0" />
-      <param name="max_effort" value="20.0" />
-      <param name="hold_effort" value="7.0" />
-      <remap from="actuators/gripper/set" to="actuators/gripper/set" />
-      <remap from="actuators/gripper/open" to="actuators/gripper/open" />
-      <remap from="actuators/gripper/close" to="actuators/gripper/close" />
-      <remap from="actuators/gripper/neutral" to="actuators/gripper/neutral" />
-    </node>
+    <!-- Gripper angle command mock -->
+    <node name="gripper_service" pkg="auv_sim_bridge" type="sim_gripper_service.py" output="screen" />
 
     <!-- Pinger Simulation Mock Node -->
     <node name="sim_pinger_mock" pkg="auv_sim_bridge" type="sim_pinger_mock.py" output="screen">
@@ -100,7 +79,8 @@
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="sim" value="$(arg sim)" />
+    <arg name="localization_disabled_at_startup" value="$(arg localization_disabled_at_startup)" />
+    <arg name="plane_fitter_sync_queue_size" value="$(arg plane_fitter_sync_queue_size)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/$(arg namespace)/control_config.yaml"/>

@@ -136,3 +136,13 @@ using SixDOFModel = Model<6>;
 
 }  // namespace control
 }  // namespace auv
+
+#include "auv_common_lib/ros/rosparam.h"
+
+namespace auv::common::rosparam {
+template <>
+struct parser<auv::control::SixDOFModel> {
+  static auv::control::SixDOFModel parse(const std::string param_name,
+                                         const rclcpp::Node& nh);
+};
+}  // namespace auv::common::rosparam

@@ -1,0 +1,187 @@
+# ROS 2 port
+
+`auv-software` on ROS 2 Lyrical Luth (Ubuntu 26.04) with Gazebo Jetty. The port is a translation of
+the ROS 1 code, as close to line by line as ROS 2 allows: same packages, nodes,
+topics, parameters and algorithms. Bugs found on the way are listed in
+[BUGS.md](BUGS.md) and left alone unless keeping them was more work than fixing.
+
+The earlier planning document and its agent hand-off log are in the git history
+(`ROS2_JAZZY_MIGRATION_PLAN.md`).
+
+## State
+
+All 29 packages build with `colcon build`. The simulator launch starts the whole
+stack (simulator, localization, control, mapping, navigation, vision, mission
+support) and the mission launch runs a state machine against it.
+
+Not done or not verified:
+
+- Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
+  have not met their devices. `vectornav` is the upstream ROS 2 driver with a
+  Lyrical build fix (branch `lyrical` of Ufuk-a/vectornav), not the team fork. The
+  Xsens driver is Movella's official ROS 2 driver (the nobleo fork ROS 1 used has no
+  ROS 2 version); its launch file keeps it from writing any configuration to the
+  sensor, and its `ntrip` package is not built.
+- In the simulator the default full mission (gate, torpedo, bin, octagon, acoustic
+  send and receive, return through the gate) runs from start to end in one go. Also
+  run: each task from its own start pose, the pinger task with the pinger at either
+  place, the gate with `coin_flip` and `yaw`, and a path drawn in the waypoint GUI.
+  The roll does not finish in the simulator (BUGS.md). The taluy GUI's service
+  buttons and Launch SMACH work against the simulator; its other tabs and the
+  premap GUI start, but nobody has clicked through them.
+- `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
+  images (they wait on the choice of vehicle OS); `industrial_ci` builds on Lyrical.
+- The simulator part of the port (Gazebo Classic + UUV simulator → gz-sim, written
+  for Harmonic and now run on Jetty) is a rewrite by necessity. The ROS 1 sim files
+  it replaced are still in `auv_sim/` for reference and are not installed.
+- The simulator steps physics every 10 ms, as ROS 1's `pool.world` did (the first
+  port used 1 ms: real-time factor 0.63 instead of 0.85). gz-sim makes physics wait
+  for camera frames that are due, which Gazebo Classic did not do by default, so it
+  runs below real time when rendering falls behind.
+
+## Build and run
+
+```bash
+docker/dev/ros2 --build          # once: podman image with Lyrical, Gazebo, dependencies
+docker/dev/ros2                  # shell in the container, workspace at /auv_ws
+vcs import src < src/auv-software/third_party.repos
+colcon build --symlink-install
+ros2 launch auv_sim_bringup start_gazebo.launch.py gui:=true       # start:=torpedo|bin|... to begin at a task
+ros2 launch auv_sim_vision tracker_robosub.launch                  # detections from the simulator
+ros2 launch auv_smach start.launch use_sim_time:=true test_mode:=true "test_states:=['init']"
+ros2 launch auv_bringup start.launch          # the real vehicle
+```
+
+## How the code was ported
+
+Launch files are still XML (`*.launch`); `ros2 launch` reads them. The edits are
+the ROS 2 spellings: `$(var x)`, `$(find-pkg-share pkg)`, `exec=`, and
+`<push_ros_namespace>` inside `<group>`. The control, localization and simulator
+launch files were ported to Python earlier and stay that way.
+
+Parameter files loaded with `<param from=…>` are ROS 2 parameter files
+(`/**:` or `/**/<node>:` then `ros__parameters:`). YAML files that code opens
+itself (premaps, waypoints, detection objects) are unchanged.
+
+There is no global parameter server, and so no global `/use_sim_time` either. The
+simulator launch sets it for its own nodes; anything started separately against the
+simulator needs `use_sim_time:=true` (the mission and teleop launch files take it).
+A node of ours that finds a `/clock` while on wall time stops with an error instead
+of running on mixed clocks. `start.launch` and the simulator launch also push
+`environment.yaml` to every node they start; a node reads `/env/pool_depth` as its
+own parameter `env.pool_depth`.
+
+`.cfg` files became parameter lists next to the node that serves them
+(`auv_common_lib.reconfigure.Server`); other nodes use `reconfigure.Client`.
+`rqt_reconfigure` and `ros2 param set` edit them.
+
+Python nodes use `auv_common_lib.ros`, which keeps the rospy habits the code was
+written around:
+
+| rospy | here |
+|---|---|
+| `rospy.init_node`, `rospy.spin` | `ros.init()`, `ros.spin(node[, loop])` |
+| the implicit process-wide node (helper modules, SMACH states) | `ros.set_node(node)`, `ros.get_node()` |
+| `rospy.get_param` (also nested dicts) | `get_param(node, name, default)` |
+| `rospy.ServiceProxy` — callable, blocking, raises if nobody serves | `service_client(node, type, name)` |
+| `rospy.Rate`, `rospy.on_shutdown`, `rospy.wait_for_message` | `Rate`, `on_shutdown`, `wait_for_message` |
+| latched publisher | `latched_qos()` |
+
+`ros.init()` also restores four rospy behaviours the code depends on. Every
+subscriber, timer and service runs independently of the others (rclpy would run
+all of a node's callbacks one at a time, so one slow callback stalls the rest).
+And message fields are forgiving again. rclpy aborts the whole
+process when a message with an `int` in a float field, a numpy scalar, or a
+`Vector3` where a `Point` belongs is published; rospy accepted all of those and
+the code relies on it in many places. And a TF listener receives transforms in a
+thread of its own from the moment it is created (rclpy's waits for the node to
+spin, so a lookup in a constructor would always time out). And a service call gets
+its answer or an error: requests and replies are never dropped from a full queue,
+and a server that dies during a call raises.
+
+A Python node that seems stuck prints what each of its threads is doing when sent
+`kill -USR1 <pid>` (into its log, or the terminal of `ros2 launch`).
+
+## Porting a ROS 1 branch
+
+`tools/ros1to2/` holds the scripts that did the mechanical part of this port.
+They rewrite files in place and print what is left for a person:
+
+```bash
+tools/ros1to2/ros1to2.py [--node "get_node()"] file.py   # rospy calls -> rclpy / ros helpers
+tools/ros1to2/nodeify.py file.py                         # class -> Node, main(), service callbacks
+tools/ros1to2/ctors.py file.py                           # Point(1, 2, 3) -> Point(x=1, y=2, z=3)
+tools/ros1to2/launch1to2.py file.launch                  # roslaunch XML -> ROS 2 launch XML
+tools/ros1to2/ros1to2_cpp.py --node nh_ file.cpp         # includes, message types, logging, time
+tools/ros1to2/wrapyaml.py config.yaml                    # rosparam YAML -> ROS 2 parameter file
+tools/ros1to2/nodelint.py dir                            # run inside the container, see below
+```
+
+Things ROS 2 does differently that bit during the port:
+
+- A `Node` subclass must not reuse the names `publishers`, `subscriptions`,
+  `clients`, `services`, `timers`, `context`, `executor`, `handle`
+  (`nodelint.py` finds them).
+- Private names are `~/name`, not `~name`.
+- `vision_msgs`: `bbox.center.position.x`, `results[0].hypothesis.class_id`
+  (a string; we put the integer id in it).
+- `CameraInfo` fields are lower case (`k`, `d`, `r`, `p`).
+- Service handlers take `(request, response)` and cannot fail the call; report
+  through the response.
+- A subscriber only gets a latched message if it also asks for it
+  (`latched_qos()` on both sides).
+- Scripts started by launch files need the executable bit in git.
+- PID integral gains tuned on ROS 1 need rescaling (see BUGS.md, Control).
+- rclpy's `MultiThreadedExecutor` burns about 5 ms of CPU per message when the default
+  QoS event handlers are attached to subscriptions (it spins while the callback waits
+  for a worker thread). `ros.init()` turns those handlers off and `ros.spin()`
+  checks for incompatible publishers itself, so a best-effort driver feeding a
+  reliable subscription still gets a warning. The cause is in the Fast DDS layer
+  ([rclpy#1223](https://github.com/ros2/rclpy/issues/1223), fixed on Rolling by
+  [rmw_fastrtps#930](https://github.com/ros2/rmw_fastrtps/pull/930)); once a Lyrical
+  release carries the backport the workaround can go.
+- Service replies go to every client of the service and queues are 10 deep by
+  default, so replies and requests can be lost under load and a blocking call then
+  never returns ([rmw#372](https://github.com/ros2/rmw/issues/372), open).
+  `ros.init()` makes Python clients and servers keep everything; C++ services that
+  many nodes call need `rclcpp::ServicesQoS().keep_all()`.
+- In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
+  `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
+  (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
+  about 1.5 % of a core.
+- smach for ROS 2 resolves `Concurrence` outcomes differently from ROS 1 (see
+  BUGS.md); use `auv_smach.common.Concurrence`.
+- `ros_gz_bridge` drops entity names from `gz.msgs.Pose_V`; `world_pose_bridge` keeps
+  them.
+- On Jetty, Gazebo sometimes stops sending a topic to a subscriber whose connection
+  is still up (it sends only to subscribers in its own registry, and a second
+  subscriber on the topic hides the loss). `auv_sim_bridge/gz_sensor_bridge` carries
+  the sensor streams instead of `ros_gz_bridge` and subscribes again after 2 s of
+  simulation time without data; `world_pose_bridge` does the same, and `clock_bridge`
+  after 5 s of wall time. Each logs a warning when it does.
+- Every Python TF listener pays for each `/tf` message, so a node that broadcasts
+  many frames sends them as one message per tick (`object_map_tf_server`,
+  `premap_publisher`): 800 messages a second became 90 five minutes into a mission.
+
+## Lyrical
+
+The port was written on Jazzy and moved to Lyrical. What changed, for anyone moving
+other code:
+
+- `ament_target_dependencies()` is gone. Link targets:
+  `target_link_libraries(t rclcpp::rclcpp ${std_msgs_TARGETS} tf2_ros::tf2_ros)`.
+- The `.h` headers of `tf2`, `tf2_ros` and `message_filters` are gone; use `.hpp`.
+- `message_filters::Subscriber::subscribe` needs an `rclcpp::QoS` (no default, no
+  `rmw_qos_profile_t`). `rclcpp::QoS(10)` is the old default.
+- Gazebo CMake packages have no version in their names: `gz-sim::gz-sim`,
+  `gz-transport::gz-transport` (Jazzy's vendor packages accept the same spelling).
+- `${OpenCV_LIBRARIES}` after `cv_bridge` holds every OpenCV module, `opencv_viz`
+  included, which drags in a VTK whose JsonCpp target PCL never created: CMake fails
+  at generate time. Link the modules you use (`opencv_core`, ...).
+- rclpy has no `logger.warn`; `smach_ros` still calls it, so `auv_smach/__init__.py`
+  adds it back.
+- Generated Python messages with a field named `range` break
+  (`marine_acoustic_msgs/Dvl`; [rosidl_python#275](https://github.com/ros2/rosidl_python/issues/275)).
+  The dev image patches the generated file.
+- The `osrf/ros` base image lags the apt repository; mixing its packages with newer
+  ones gives `undefined symbol` errors at run time, so the image upgrades first.

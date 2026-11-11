@@ -3,14 +3,18 @@
 import os
 import sys
 import importlib
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, latched_qos, service_client
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
+from std_srvs.srv import SetBool
+from auv_msgs.srv import SetDetectionFocus
 import tf2_ros
 
 # Add scripts directory to path so we can import detection_utils and handlers
@@ -30,13 +34,15 @@ DEFAULT_TRACKER_ENABLE_SERVICES = {
 }
 
 
-class CameraDetectionNode:
+class CameraDetectionNode(Node):
     def __init__(self):
-        rospy.init_node("camera_detection_pose_estimator", anonymous=True)
-        rospy.loginfo("Camera detection node started")
+        super().__init__("camera_detection_pose_estimator")
+        ros.set_node(self)
+        self.get_logger().info("Camera detection node started")
 
         # Load config
-        config_file = rospy.get_param(
+        config_file = get_param(
+            self,
             "~config_file",
             os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
@@ -52,19 +58,19 @@ class CameraDetectionNode:
 
         # Shared resources
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.publishers = {
-            "object_transform": rospy.Publisher(
-                "object_transform_updates", TransformStamped, queue_size=10
+        self.object_publishers = {
+            "object_transform": self.create_publisher(
+                TransformStamped, "object_transform_updates", 10
             ),
-            "props_yaw": rospy.Publisher("props_yaw", PropsYaw, queue_size=10),
+            "props_yaw": self.create_publisher(PropsYaw, "props_yaw", 10),
         }
 
         # Shared state accessible by handlers
         self.shared_state = {
             "altitude": None,
-            "pool_depth": rospy.get_param("/env/pool_depth"),
+            "pool_depth": get_param(self, "/env/pool_depth"),
         }
 
         # Camera enable flags
@@ -82,19 +88,19 @@ class CameraDetectionNode:
             for cam_key, service_name in DEFAULT_TRACKER_ENABLE_SERVICES.items()
             if cam_key in self.config["cameras"]
         }
-        tracker_enable_services.update(rospy.get_param("~tracker_enable_services", {}))
+        tracker_enable_services.update(get_param(self, "~tracker_enable_services", {}))
         self.tracker_enable_services = tracker_enable_services
         self.tracker_enable_proxies = {
-            cam_key: rospy.ServiceProxy(service_name, SetBool)
+            cam_key: service_client(self, SetBool, service_name)
             for cam_key, service_name in self.tracker_enable_services.items()
         }
         tracker_enabled_topics = {
             cam_key: self._enabled_topic_from_enable_service(service_name)
             for cam_key, service_name in self.tracker_enable_services.items()
         }
-        tracker_enabled_topics.update(rospy.get_param("~tracker_enabled_topics", {}))
+        tracker_enabled_topics.update(get_param(self, "~tracker_enabled_topics", {}))
         tracker_enabled_topics.update(
-            rospy.get_param("~tracker_enable_status_topics", {})
+            get_param(self, "~tracker_enable_status_topics", {})
         )
         self.tracker_enabled_topics = tracker_enabled_topics
         self.tracker_enabled_status = {
@@ -104,11 +110,11 @@ class CameraDetectionNode:
             cam_key: None for cam_key in self.tracker_enable_services
         }
         self.tracker_enabled_subscribers = {
-            cam_key: rospy.Subscriber(
-                topic,
+            cam_key: self.create_subscription(
                 Bool,
+                topic,
                 lambda msg, k=cam_key: self._handle_tracker_enabled_status(k, msg),
-                queue_size=1,
+                latched_qos(),  # the trackers latch their enabled state
             )
             for cam_key, topic in self.tracker_enabled_topics.items()
         }
@@ -136,76 +142,74 @@ class CameraDetectionNode:
                     self.props,
                     calibration,
                     self.tf_buffer,
-                    self.publishers,
+                    self.object_publishers,
                     self.shared_state,
                 )
                 self.handlers[cam_key] = handler
 
                 # Create subscriber
-                rospy.Subscriber(
-                    cam_cfg["yolo_topic"],
+                self.create_subscription(
                     YoloResult,
+                    cam_cfg["yolo_topic"],
                     lambda msg, k=cam_key: self._dispatch(msg, k),
-                    queue_size=1,
+                    1,
                 )
             except Exception as e:
-                rospy.logerr(
+                self.get_logger().error(
                     f"Failed to initialize camera '{cam_key}': {e}. "
                     "Skipping this camera — other cameras will still work."
                 )
 
         # Odometry subscriber
-        rospy.Subscriber("odometry", Odometry, self._odometry_callback)
+        self.create_subscription(Odometry, "odometry", self._odometry_callback, 10)
 
         # Services
-        rospy.Service(
-            "enable_front_camera_detections",
-            SetBool,
-            self._handle_enable_front_camera,
+        self.create_service(
+            SetBool, "enable_front_camera_detections", self._handle_enable_front_camera
         )
-        rospy.Service(
-            "enable_bottom_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_bottom_camera_detections",
             self._handle_enable_bottom_camera,
         )
-        rospy.Service(
-            "enable_slalom_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_slalom_camera_detections",
             self._handle_enable_slalom_camera,
         )
-        rospy.Service(
-            "enable_torpedo_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_torpedo_camera_detections",
             self._handle_enable_torpedo_camera,
         )
-        rospy.Service(
-            "set_bottom_camera_focus",
+        self.create_service(
             SetDetectionFocus,
+            "set_bottom_camera_focus",
             self._handle_set_bottom_camera_focus,
         )
-        rospy.Service(
-            "set_front_camera_focus",
+        self.create_service(
             SetDetectionFocus,
+            "set_front_camera_focus",
             self._handle_set_front_camera_focus,
         )
-        rospy.Service(
-            "enable_segment_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_segment_camera_detections",
             self._handle_enable_segment_camera,
         )
-        rospy.Service(
-            "enable_front_kde_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_front_kde_camera_detections",
             self._handle_enable_front_kde_camera,
         )
-        rospy.Service(
-            "enable_all_camera_detections",
+        self.create_service(
             SetBool,
+            "enable_all_camera_detections",
             self._handle_enable_all_camera_detections,
         )
 
-        self.tracker_enable_sync_timer = rospy.Timer(
-            rospy.Duration(1.0), self._sync_tracker_enable_states
+        self.tracker_enable_sync_timer = self.create_timer(
+            1.0, self._sync_tracker_enable_states
         )
 
     @staticmethod
@@ -230,14 +234,16 @@ class CameraDetectionNode:
                 camera_frame,
                 "odom",
                 msg.header.stamp,
-                rospy.Duration(1.0),
+                Duration(seconds=1.0),
             )
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(15.0, f"Transform error: {e}")
+            self.get_logger().warning(
+                f"Transform error: {e}", throttle_duration_sec=15.0
+            )
             return
 
         self.handlers[cam_key].handle(msg)
@@ -245,9 +251,10 @@ class CameraDetectionNode:
     def _odometry_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
         self.shared_state["altitude"] = self.shared_state["pool_depth"] - depth
-        rospy.loginfo_once(
+        self.get_logger().info(
             f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
-            f"(pool_depth={self.shared_state['pool_depth']})"
+            f"(pool_depth={self.shared_state['pool_depth']})",
+            once=True,
         )
 
     def _set_tracker_enabled(self, cam_key, enabled, warn=True):
@@ -257,18 +264,18 @@ class CameraDetectionNode:
         service_name = self.tracker_enable_services[cam_key]
         try:
             response = self.tracker_enable_proxies[cam_key](
-                SetBoolRequest(data=enabled)
+                SetBool.Request(data=enabled)
             )
-        except (rospy.ServiceException, rospy.ROSException) as e:
+        except Exception as e:
             if warn:
-                rospy.logwarn(
+                self.get_logger().warning(
                     f"Could not set YOLO tracker '{cam_key}' via {service_name}: {e}"
                 )
             return False
 
         if not response.success:
             if warn:
-                rospy.logwarn(
+                self.get_logger().warning(
                     f"YOLO tracker '{cam_key}' rejected enable={enabled}: {response.message}"
                 )
             return False
@@ -276,7 +283,7 @@ class CameraDetectionNode:
         self.tracker_enable_applied[cam_key] = enabled
         return True
 
-    def _sync_tracker_enable_states(self, _event):
+    def _sync_tracker_enable_states(self):
         for cam_key in self.tracker_enable_proxies:
             enabled = self.camera_enabled.get(cam_key, False)
             tracker_enabled = self.tracker_enabled_status.get(cam_key)
@@ -284,10 +291,10 @@ class CameraDetectionNode:
                 self.tracker_enable_applied[cam_key] = enabled
                 continue
             if tracker_enabled is not None:
-                rospy.logwarn_throttle(
-                    5.0,
+                self.get_logger().warning(
                     f"YOLO tracker '{cam_key}' enabled={tracker_enabled} "
                     f"differs from camera_detection enabled={enabled}; resyncing",
+                    throttle_duration_sec=5.0,
                 )
             elif self.tracker_enable_applied.get(cam_key) == enabled:
                 continue
@@ -302,28 +309,28 @@ class CameraDetectionNode:
         )
         if not tracker_updated:
             message += "; YOLO tracker state was not updated"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
-    def _handle_enable_front_camera(self, req):
+    def _handle_enable_front_camera(self, req, response):
         return self._handle_enable_camera("front", req.data)
 
-    def _handle_enable_bottom_camera(self, req):
+    def _handle_enable_bottom_camera(self, req, response):
         return self._handle_enable_camera("bottom", req.data)
 
-    def _handle_enable_slalom_camera(self, req):
+    def _handle_enable_slalom_camera(self, req, response):
         return self._handle_enable_camera("slalom", req.data)
 
-    def _handle_enable_torpedo_camera(self, req):
+    def _handle_enable_torpedo_camera(self, req, response):
         return self._handle_enable_camera("torpedo", req.data)
 
-    def _handle_enable_segment_camera(self, req):
+    def _handle_enable_segment_camera(self, req, response):
         return self._handle_enable_camera("bottom_seg", req.data)
 
-    def _handle_enable_front_kde_camera(self, req):
+    def _handle_enable_front_kde_camera(self, req, response):
         return self._handle_enable_camera("front_kde", req.data)
 
-    def _handle_enable_all_camera_detections(self, req):
+    def _handle_enable_all_camera_detections(self, req, response):
         success = True
         messages = []
         for cam_key in list(self.camera_enabled.keys()):
@@ -331,17 +338,17 @@ class CameraDetectionNode:
             if not res.success:
                 success = False
             messages.append(res.message)
-        return SetBoolResponse(success=success, message="; ".join(messages))
+        return SetBool.Response(success=success, message="; ".join(messages))
 
-    def _handle_set_front_camera_focus(self, req):
+    def _handle_set_front_camera_focus(self, req, response):
         focus_objects = [
             obj.strip() for obj in req.focus_object.split(",") if obj.strip()
         ]
 
         if not focus_objects:
             message = f"Empty focus object provided. No changes made. Available options: {list(self.object_groups.keys())}"
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         unfound_objects = [
             obj for obj in focus_objects if obj not in self.object_groups
@@ -349,13 +356,13 @@ class CameraDetectionNode:
 
         if unfound_objects:
             message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.object_groups.keys())}"
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         if "none" in focus_objects and len(focus_objects) > 1:
             message = "Cannot specify 'none' with other focus objects."
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         all_target_ids = []
         for focus_object in focus_objects:
@@ -373,18 +380,18 @@ class CameraDetectionNode:
         else:
             message = f"Front camera focus set to IDs: {target_ids}"
 
-        rospy.loginfo(message)
-        return SetDetectionFocusResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetDetectionFocus.Response(success=True, message=message)
 
-    def _handle_set_bottom_camera_focus(self, req):
+    def _handle_set_bottom_camera_focus(self, req, response):
         focus_objects = [
             obj.strip() for obj in req.focus_object.split(",") if obj.strip()
         ]
 
         if not focus_objects:
             message = f"Empty focus object provided. No changes made. Available options: {list(self.bottom_object_groups.keys())}"
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         unfound_objects = [
             obj for obj in focus_objects if obj not in self.bottom_object_groups
@@ -392,13 +399,13 @@ class CameraDetectionNode:
 
         if unfound_objects:
             message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.bottom_object_groups.keys())}"
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         if "none" in focus_objects and len(focus_objects) > 1:
             message = "Cannot specify 'none' with other focus objects."
-            rospy.logwarn(message)
-            return SetDetectionFocusResponse(success=False, message=message)
+            self.get_logger().warning(message)
+            return SetDetectionFocus.Response(success=False, message=message)
 
         all_target_ids = []
         for focus_object in focus_objects:
@@ -416,16 +423,15 @@ class CameraDetectionNode:
         else:
             message = f"Bottom camera focus set to IDs: {target_ids}"
 
-        rospy.loginfo(message)
-        return SetDetectionFocusResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetDetectionFocus.Response(success=True, message=message)
 
-    def run(self):
-        rospy.spin()
+
+def main():
+    ros.init()
+    node = CameraDetectionNode()
+    ros.spin(node)
 
 
 if __name__ == "__main__":
-    try:
-        node = CameraDetectionNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

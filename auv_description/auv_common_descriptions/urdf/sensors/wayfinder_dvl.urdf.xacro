@@ -55,12 +55,5 @@
       <child link="${name}_link"/>
       <origin xyz="0 0 0" rpy="0 0 ${sensor_orientation}"/>
     </joint>
-    <!-- <gazebo reference="${name}_propeller_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
-
-    <gazebo reference="${name}_link">
-      <material>Gazebo/Orange</material>
-    </gazebo> -->
   </xacro:macro>
 </robot>

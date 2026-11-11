@@ -8,17 +8,34 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-import dynamic_reconfigure.client
-import rospy
+import rclpy
+from rclpy.node import Node
+from rclpy.time import Time
+from auv_control.control_clients import (
+    ControlClients,
+    ControllerParameters,
+    log,
+    parameter,
+    init_ros,
+)
 import message_filters
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
 
-import tf.transformations
+import tf_transformations
 
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger
 
-from auv_msgs.srv import SetDampingTarget, SetDampingTargetResponse
+
+def TriggerResponse(success, message):
+    return Trigger.Response(success=success, message=message)
+
+
+from auv_msgs.srv import SetDampingTarget
+
+
+def SetDampingTargetResponse(success, message):
+    return SetDampingTarget.Response(success=success, message=message)
 
 
 def now_str() -> str:
@@ -41,11 +58,11 @@ class ActiveTest:
     axis_name: str  # surge / sway / yaw
     target: float
     phase: str  # PREHOLD / SETTLE / RECORD
-    phase_start: rospy.Time
+    phase_start: Time
     csv_path: str
 
 
-class DampingStepWrenchLogger:
+class DampingStepWrenchLogger(Node):
     """
     STEP test:
       PREHOLD: cmd_wrench=0 for pre_hold_time
@@ -63,32 +80,33 @@ class DampingStepWrenchLogger:
     }
 
     def __init__(self):
-        rospy.init_node("damping_step_wrench_logger", anonymous=False)
-        rospy.loginfo("damping_step_wrench_logger started")
+        super().__init__("damping_step_wrench_logger")
+        self._control_clients = ControlClients(self.get_namespace())
+        log(self, "info", "damping_step_wrench_logger started")
 
-        self.cmd_wrench_topic = rospy.get_param("~cmd_wrench_topic", "cmd_wrench")
-        self.odom_topic = rospy.get_param("~odom_topic", "odometry")
-        self.wrench_topic = rospy.get_param("~wrench_topic", "wrench")
+        self.cmd_wrench_topic = parameter(self, "~cmd_wrench_topic", "cmd_wrench")
+        self.odom_topic = parameter(self, "~odom_topic", "odometry")
+        self.wrench_topic = parameter(self, "~wrench_topic", "wrench")
 
-        self.pre_hold_time = float(rospy.get_param("~pre_hold_time", 4.0))
-        self.settle_time = float(rospy.get_param("~settle_time", 5.0))
-        self.record_time = float(rospy.get_param("~record_time", 10.0))
+        self.pre_hold_time = float(parameter(self, "~pre_hold_time", 4.0))
+        self.settle_time = float(parameter(self, "~settle_time", 5.0))
+        self.record_time = float(parameter(self, "~record_time", 10.0))
 
-        self.cmd_rate = float(rospy.get_param("~cmd_rate", 50.0))
-        self.log_rate = float(rospy.get_param("~log_rate", 50.0))
+        self.cmd_rate = float(parameter(self, "~cmd_rate", 50.0))
+        self.log_rate = float(parameter(self, "~log_rate", 50.0))
 
-        self.stabilize_time = float(rospy.get_param("~stabilize_time", 4.0))
+        self.stabilize_time = float(parameter(self, "~stabilize_time", 4.0))
 
-        log_dir = os.path.expanduser(rospy.get_param("~log_dir", "~/damping_tests"))
-        if bool(rospy.get_param("~date_subdir", True)):
+        log_dir = os.path.expanduser(parameter(self, "~log_dir", "~/damping_tests"))
+        if bool(parameter(self, "~date_subdir", True)):
             log_dir = os.path.join(log_dir, date_str())
         self.log_dir = log_dir
-        self.file_prefix = rospy.get_param("~file_prefix", "damping_step")
+        self.file_prefix = parameter(self, "~file_prefix", "damping_step")
         os.makedirs(self.log_dir, exist_ok=True)
 
-        self.log_only_record = bool(rospy.get_param("~log_only_record", True))
-        self.controller_reconfigure_server = rospy.resolve_name(
-            rospy.get_param("~controller_reconfigure_server", "auv_control_node")
+        self.log_only_record = bool(parameter(self, "~log_only_record", True))
+        self.controller_reconfigure_server = parameter(
+            self, "controller_reconfigure_server", "auv_control_node"
         )
 
         self._lock = threading.RLock()
@@ -99,7 +117,7 @@ class DampingStepWrenchLogger:
         self.sequence_axis = ""
         self.sequence_idx = 0
         self.sequence_state = "IDLE"  # IDLE, STABILIZING, TESTING
-        self.sequence_timer = rospy.Time.now()
+        self.sequence_timer = self.get_clock().now()
 
         self.last_odom: Optional[Odometry] = None
         self.last_wrench: Optional[WrenchStamped] = None
@@ -111,33 +129,50 @@ class DampingStepWrenchLogger:
         self.saved_pid_gains = None
         self.saved_pid_axis = None
 
-        self.cmd_wrench_pub = rospy.Publisher(
-            self.cmd_wrench_topic, WrenchStamped, queue_size=10
+        self.cmd_wrench_pub = self.create_publisher(
+            WrenchStamped, self.cmd_wrench_topic, 10
         )
 
-        self.odom_sub = message_filters.Subscriber(self.odom_topic, Odometry)
-        self.wrench_sub = message_filters.Subscriber(self.wrench_topic, WrenchStamped)
+        self.odom_sub = message_filters.Subscriber(self, Odometry, self.odom_topic)
+        self.wrench_sub = message_filters.Subscriber(
+            self, WrenchStamped, self.wrench_topic
+        )
 
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.odom_sub, self.wrench_sub], queue_size=50, slop=0.05
         )
         self.ts.registerCallback(self._sync_cb)
 
-        self._reset_odom_srv = rospy.ServiceProxy("reset_odometry", Trigger)
+        self._reset_odom_srv = lambda: self._control_clients.service(
+            Trigger, self.resolve_service_name("reset_odometry"), Trigger.Request()
+        )
 
-        rospy.Service("~surge", SetDampingTarget, self._srv_surge)  # linear.x
-        rospy.Service("~sway", SetDampingTarget, self._srv_sway)  # linear.y
-        rospy.Service("~yaw", SetDampingTarget, self._srv_yaw)  # angular.z
-        rospy.loginfo("Services: ~surge ~sway ~yaw  (enable, target)")
+        self.create_service(
+            SetDampingTarget, "~/surge", lambda req, res: self._srv_surge(req)
+        )  # linear.x
+        self.create_service(
+            SetDampingTarget, "~/sway", lambda req, res: self._srv_sway(req)
+        )  # linear.y
+        self.create_service(
+            SetDampingTarget, "~/yaw", lambda req, res: self._srv_yaw(req)
+        )  # angular.z
+        log(self, "info", "Services: ~surge ~sway ~yaw  (enable, target)")
 
-        rospy.Service("~surge_seq", Trigger, self._srv_surge_seq)
-        rospy.Service("~sway_seq", Trigger, self._srv_sway_seq)
-        rospy.Service("~yaw_seq", Trigger, self._srv_yaw_seq)
-        rospy.Service("~stop_seq", Trigger, self._srv_stop_seq)
-        rospy.loginfo("Sequence Services: ~surge_seq ~sway_seq ~yaw_seq ~stop_seq")
+        self.create_service(
+            Trigger, "~/surge_seq", lambda req, res: self._srv_surge_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/sway_seq", lambda req, res: self._srv_sway_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/yaw_seq", lambda req, res: self._srv_yaw_seq(req)
+        )
+        self.create_service(
+            Trigger, "~/stop_seq", lambda req, res: self._srv_stop_seq(req)
+        )
+        log(self, "info", "Sequence Services: ~surge_seq ~sway_seq ~yaw_seq ~stop_seq")
 
-        rospy.Timer(rospy.Duration(1.0 / self.cmd_rate), self._cmd_timer_cb)
-        rospy.on_shutdown(self._restore_pid_gains)
+        self.create_timer(1.0 / self.cmd_rate, self._cmd_timer_cb)
 
     def _sync_cb(self, odom_msg: Odometry, wrench_msg: WrenchStamped):
         with self._lock:
@@ -166,7 +201,7 @@ class DampingStepWrenchLogger:
     def _srv_stop_seq(self, req):
         with self._lock:
             if self.sequence_state != "IDLE":
-                rospy.loginfo("Stopping sequence...")
+                log(self, "info", "Stopping sequence...")
                 self.sequence_state = "IDLE"
             if self.active is not None:
                 self.stop_requested = True
@@ -184,7 +219,7 @@ class DampingStepWrenchLogger:
                 default_targets = [0.4, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 3.5, 4.0]
             else:
                 default_targets = [2.5, 5.0, 7.5, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0]
-            targets = rospy.get_param(f"~{axis_name}_targets", default_targets)
+            targets = parameter(self, f"~{axis_name}_targets", default_targets)
 
             full_seq = []
             for t in targets:
@@ -197,10 +232,10 @@ class DampingStepWrenchLogger:
 
             # Start stabilization phase before triggering first test
             self.sequence_state = "STABILIZING"
-            self.sequence_timer = rospy.Time.now()
+            self.sequence_timer = self.get_clock().now()
 
             msg = f"Started '{axis_name}' sequence. Stabilizing for {self.stabilize_time}s..."
-            rospy.loginfo(msg)
+            log(self, "info", msg)
             return TriggerResponse(True, msg)
 
     def _handle(self, axis_name: str, enable: bool, target: float):
@@ -236,33 +271,39 @@ class DampingStepWrenchLogger:
                 axis_name=axis_name,
                 target=float(target),
                 phase="PREHOLD",
-                phase_start=rospy.Time.now(),
+                phase_start=self.get_clock().now(),
                 csv_path=csv_path,
             )
             self.stop_requested = False
             self.curr_cmd = WrenchStamped()
 
             msg = f"Started {axis_name} target={target}. CSV={csv_path}"
-            rospy.loginfo(msg)
+            log(self, "info", msg)
             return SetDampingTargetResponse(True, msg)
 
     # --- Timers
-    def _cmd_timer_cb(self, _evt):
+    def _cmd_timer_cb(self):
         with self._lock:
             # 1) SEQUENCE MANAGER
             if self.sequence_state == "STABILIZING":
-                dt_stab = (rospy.Time.now() - self.sequence_timer).to_sec()
+                dt_stab = (
+                    self.get_clock().now() - self.sequence_timer
+                ).nanoseconds / 1e9
                 if dt_stab >= self.stabilize_time:
                     if self.sequence_idx >= len(self.sequence_targets):
-                        rospy.loginfo(
-                            f"*** Sequence for {self.sequence_axis} COMPLETED ***"
+                        log(
+                            self,
+                            "info",
+                            f"*** Sequence for {self.sequence_axis} COMPLETED ***",
                         )
                         self.sequence_state = "IDLE"
                     else:
                         target = self.sequence_targets[self.sequence_idx]
                         self.sequence_idx += 1
-                        rospy.loginfo(
-                            f"Sequence -> Starting {self.sequence_axis} target: {target}"
+                        log(
+                            self,
+                            "info",
+                            f"Sequence -> Starting {self.sequence_axis} target: {target}",
                         )
 
                         self._handle(self.sequence_axis, enable=True, target=target)
@@ -276,8 +317,8 @@ class DampingStepWrenchLogger:
                 self._finish_locked("STOP_REQUESTED")
                 return
 
-            t_now = rospy.Time.now()
-            dt = (t_now - self.active.phase_start).to_sec()
+            t_now = self.get_clock().now()
+            dt = (t_now - self.active.phase_start).nanoseconds / 1e9
 
             if self.active.phase == "PREHOLD":
                 self.curr_cmd = WrenchStamped()
@@ -327,7 +368,7 @@ class DampingStepWrenchLogger:
 
         ori = odom.pose.pose.orientation
         quaternion = [ori.x, ori.y, ori.z, ori.w]
-        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(quaternion)
+        (roll, pitch, yaw) = tf_transformations.euler_from_quaternion(quaternion)
 
         fx = wrench.wrench.force.x
         fy = wrench.wrench.force.y
@@ -336,7 +377,7 @@ class DampingStepWrenchLogger:
         ty = wrench.wrench.torque.y
         tz = wrench.wrench.torque.z
 
-        log_time = odom.header.stamp.to_sec()
+        log_time = Time.from_msg(odom.header.stamp).nanoseconds / 1e9
 
         row = [
             log_time,
@@ -367,7 +408,7 @@ class DampingStepWrenchLogger:
             self.csv_writer.writerow(row)
             self.csv_file.flush()
         except Exception as e:
-            rospy.logerr(f"CSV write failed: {e}")
+            log(self, "error", f"CSV write failed: {e}")
             self._finish_locked("CSV_WRITE_ERROR")
 
     def _make_cmd(self, axis_name: str, target: float) -> WrenchStamped:
@@ -385,12 +426,14 @@ class DampingStepWrenchLogger:
             return True
 
         try:
-            self.reconfigure_client = dynamic_reconfigure.client.Client(
-                self.controller_reconfigure_server, timeout=5
+            self.reconfigure_client = ControllerParameters(
+                self._control_clients, self.controller_reconfigure_server, timeout=5
             )
             return True
         except Exception as exc:
-            rospy.logwarn(
+            log(
+                self,
+                "warning",
                 "Failed to connect to controller reconfigure server %s: %s",
                 self.controller_reconfigure_server,
                 exc,
@@ -407,27 +450,27 @@ class DampingStepWrenchLogger:
         try:
             current_cfg = self.reconfigure_client.get_configuration()
         except Exception as exc:
-            rospy.logwarn("Failed to read controller configuration: %s", exc)
+            log(self, "warning", "Failed to read controller configuration: %s", exc)
             return False
 
         if not current_cfg:
-            rospy.logwarn("Controller configuration is empty")
+            log(self, "warning", "Controller configuration is empty")
             return False
 
-        gain_updates = {}
+        gain_updates = {name: list(current_cfg[name]) for name in ("kp", "ki", "kd")}
         self.saved_pid_gains = {}
         self.saved_pid_axis = axis_name
 
-        for idx in self.AXIS_GAIN_INDICES[axis_name]:
-            for prefix in ("kp", "ki", "kd"):
-                key = f"{prefix}_{idx}"
-                self.saved_pid_gains[key] = current_cfg.get(key, 0.0)
-                gain_updates[key] = 0.0
+        for name, values in gain_updates.items():
+            self.saved_pid_gains[name] = {}
+            for idx in self.AXIS_GAIN_INDICES[axis_name]:
+                self.saved_pid_gains[name][idx] = values[idx]
+                values[idx] = 0.0
 
         try:
             self.reconfigure_client.update_configuration(gain_updates)
         except Exception as exc:
-            rospy.logwarn("Failed to zero PID gains for %s: %s", axis_name, exc)
+            log(self, "warning", "Failed to zero PID gains for %s: %s", axis_name, exc)
             self.saved_pid_gains = None
             self.saved_pid_axis = None
             return False
@@ -440,13 +483,21 @@ class DampingStepWrenchLogger:
 
         try:
             self._reset_odom_srv()
-        except rospy.ServiceException as exc:
-            rospy.logwarn("Failed to call odometry reset service: %s", exc)
+        except Exception as exc:
+            log(self, "warning", "Failed to call odometry reset service: %s", exc)
 
         try:
-            self.reconfigure_client.update_configuration(self.saved_pid_gains)
+            current_cfg = self.reconfigure_client.get_configuration()
+            gain_updates = {}
+            for name, saved in self.saved_pid_gains.items():
+                gain_updates[name] = list(current_cfg[name])
+                for idx, value in saved.items():
+                    gain_updates[name][idx] = value
+            self.reconfigure_client.update_configuration(gain_updates)
         except Exception as exc:
-            rospy.logwarn(
+            log(
+                self,
+                "warning",
                 "Failed to restore PID gains for %s: %s",
                 self.saved_pid_axis,
                 exc,
@@ -507,26 +558,38 @@ class DampingStepWrenchLogger:
 
         axis = self.active.axis_name if self.active else "none"
         path = self.active.csv_path if self.active else ""
-        rospy.loginfo(f"Test finished: reason={reason} axis={axis} csv={path}")
+        log(self, "info", f"Test finished: reason={reason} axis={axis} csv={path}")
 
         self.active = None
         self.stop_requested = False
 
         if self.sequence_state == "TESTING":
             if reason == "COMPLETED":
-                rospy.loginfo(
-                    f"Sequence -> Test completed. Stabilizing for {self.stabilize_time}s."
+                log(
+                    self,
+                    "info",
+                    f"Sequence -> Test completed. Stabilizing for {self.stabilize_time}s.",
                 )
                 self.sequence_state = "STABILIZING"
-                self.sequence_timer = rospy.Time.now()
+                self.sequence_timer = self.get_clock().now()
             else:
-                rospy.logwarn(f"Sequence aborted due to condition: {reason}")
+                log(self, "warning", f"Sequence aborted due to condition: {reason}")
                 self.sequence_state = "IDLE"
 
 
-if __name__ == "__main__":
+def main():
+    init_ros()
+    node = DampingStepWrenchLogger()
     try:
-        node = DampingStepWrenchLogger()
-        rospy.spin()
-    except rospy.ROSInterruptException:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
         pass
+    finally:
+        node._restore_pid_gains()
+        node._control_clients.shutdown()
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+if __name__ == "__main__":
+    main()

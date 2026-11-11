@@ -3,20 +3,37 @@
 
 from typing import Tuple, Optional
 import math
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client, Rate
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import threading
 import tf2_ros
-import tf_conversions
+import tf_transformations
 import geometry_msgs.msg
 from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
 from std_msgs.msg import Float64
-from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from std_srvs.srv import SetBool, Trigger
+from auv_msgs.srv import SetObjectTransform
 from nav_msgs.msg import Odometry
-from dynamic_reconfigure.server import Server
-from dynamic_reconfigure.client import Client as DynamicReconfigureClient
-from auv_mapping.cfg import GateTrajectoryConfig
-from auv_bringup.cfg import SmachParametersConfig
+from auv_common_lib.reconfigure import Server
+from auv_common_lib.reconfigure import Client as DynamicReconfigureClient
+
+# name, default, description, min, max
+GateTrajectoryConfig = [
+    (
+        "selected_role",
+        "survey_repair",
+        "Selected gate role: survey_repair or search_rescue",
+    ),
+    ("entrance_offset", 1.5, "Entrance offset (m)", 0, 5),
+    ("exit_offset", 0.5, "Exit offset (m)", 0, 10),
+    ("z_offset", 0.5, "Z offset (m)", -2, 2),
+    ("parallel_shift_offset", 0.0, "Parallel shift offset (m)", -1, 1),
+    ("rescuer_distance", 1.0, "Rescuer distance (m)", 0, 5),
+]
 
 
 ROLE_TO_GATE_FRAME = {
@@ -25,14 +42,14 @@ ROLE_TO_GATE_FRAME = {
 }
 
 
-class TransformServiceNode:
+class TransformServiceNode(Node):
     def __init__(self):
         self.is_enabled = False
         self.gate_angle = None
         self.publish_gate_angle_enabled = False
-        rospy.init_node("create_gate_frames_node")
+        super().__init__("create_gate_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # Dynamic reconfigure server for gate parameters
         self.gate_frame_1 = "gate_survey_repair_link"
@@ -45,69 +62,70 @@ class TransformServiceNode:
         self.rescuer_distance = 1.0
         self.wall_reference_yaw = 0.0
         self.reconfigure_server = Server(
-            GateTrajectoryConfig, self.reconfigure_callback
+            self, GateTrajectoryConfig, self.reconfigure_callback
         )
 
         # Client for auv_smach parameters
-        if SmachParametersConfig is not None:
+        try:
             self.smach_params_client = DynamicReconfigureClient(
+                self,
                 "smach_parameters_server",
                 timeout=10,
                 config_callback=self.smach_params_callback,
             )
-        else:
-            rospy.logerr("Smach dynamic reconfigure client not started.")
+        except TimeoutError:
+            self.get_logger().error("Smach dynamic reconfigure client not started.")
 
         # Service to broadcast transforms
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_service = service_client(
+            self, SetObjectTransform, "set_object_transform"
         )
         self.set_object_transform_service.wait_for_service()
-        self.gate_angle_publisher = rospy.Publisher(
-            "gate_angle", Float64, queue_size=10
-        )
-        self.publish_gate_angle_service = rospy.Service(
-            "publish_gate_angle", Trigger, self.handle_publish_gate_angle
+        self.gate_angle_publisher = self.create_publisher(Float64, "gate_angle", 10)
+        self.publish_gate_angle_service = self.create_service(
+            Trigger, "publish_gate_angle", self.handle_publish_gate_angle
         )
 
         self.odom_frame = "odom"
-        self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
+        self.robot_base_frame = get_param(self, "~robot_base_frame", "taluy/base_link")
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
         self.middle_frame = "gate_middle_part"
 
         # Verify that we have valid frame names
         if not all([self.gate_frame_1, self.gate_frame_2]):
-            rospy.logerr("Missing required gate frame parameters")
-            rospy.signal_shutdown("Missing required parameters")
+            self.get_logger().error("Missing required gate frame parameters")
+            raise SystemExit("Missing required parameters")
 
-        self.set_enable_service = rospy.Service(
-            "toggle_gate_trajectory", SetBool, self.handle_enable_service
+        self.set_enable_service = self.create_service(
+            SetBool, "toggle_gate_trajectory", self.handle_enable_service
         )
 
         # --- Parameters for fallback (single-frame) mode
-        self.fallback_entrance_offset = rospy.get_param(
-            "~fallback_entrance_offset", 1.0
+        self.fallback_entrance_offset = get_param(
+            self, "~fallback_entrance_offset", 1.0
         )
-        self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.0)
-        self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
-        self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
+        self.fallback_exit_offset = get_param(self, "~fallback_exit_offset", 1.0)
+        self.MIN_GATE_SEPARATION = get_param(self, "~min_gate_separation", 0.2)
+        self.MAX_GATE_SEPARATION = get_param(self, "~max_gate_separation", 2.5)
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.3
 
-        self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
+        self.odom_sub = self.create_subscription(
+            Odometry, "odometry", self.odom_callback, 10
+        )
         self.latest_odom = None
 
         self.coin_flip_enabled = False
         self.coin_flip_rescuer_pose = None
         self.rescuer_frame_name = "coin_flip_rescuer"
 
-        self.toggle_rescuer_service = rospy.Service(
-            "toggle_coin_flip_rescuer", SetBool, self.handle_toggle_rescuer_service
+        self.toggle_rescuer_service = self.create_service(
+            SetBool, "toggle_coin_flip_rescuer", self.handle_toggle_rescuer_service
         )
 
     def smach_params_callback(self, config):
         """Callback for receiving parameters from the auv_smach node."""
-        rospy.loginfo("Received smach parameters update: %s", config)
+        self.get_logger().info("Received smach parameters update: %s" % (config,))
         if "wall_reference_yaw" in config:
             self.wall_reference_yaw = config["wall_reference_yaw"]
         if "selected_role" in config:
@@ -116,20 +134,21 @@ class TransformServiceNode:
     def set_target_gate_frame(self, selected_role):
         target_gate_frame = ROLE_TO_GATE_FRAME.get(selected_role)
         if target_gate_frame is None:
-            rospy.logwarn(
-                "Unknown selected role '%s'. Keeping target gate frame: %s",
-                selected_role,
-                self.target_gate_frame,
+            self.get_logger().warning(
+                "Unknown selected role '%s'. Keeping target gate frame: %s"
+                % (selected_role, self.target_gate_frame)
             )
             return
 
         self.target_gate_frame = target_gate_frame
 
-    def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
+    def handle_toggle_rescuer_service(
+        self, request: SetBool, response
+    ) -> SetBool.Response:
 
         self.coin_flip_enabled = request.data
         message = f"Coin flip rescuer frame publishing set to: {self.coin_flip_enabled}"
-        rospy.loginfo(message)
+        self.get_logger().info(message)
 
         if request.data:
             self._publish_rescuer_frame()
@@ -139,8 +158,8 @@ class TransformServiceNode:
                 initial_transform = self.tf_buffer.lookup_transform(
                     self.odom_frame,
                     self.robot_base_frame,
-                    rospy.Time(0),
-                    rospy.Duration(4.0),
+                    Time(),
+                    Duration(seconds=4.0),
                 )
 
                 initial_pos = initial_transform.transform.translation
@@ -150,11 +169,11 @@ class TransformServiceNode:
                 rescuer_pose.position.y = initial_pos.y
                 rescuer_pose.position.z = initial_pos.z
 
-                q = tf_conversions.transformations.quaternion_from_euler(0, 0, 0)
-                rescuer_pose.orientation = Quaternion(*q)
+                q = tf_transformations.quaternion_from_euler(0, 0, 0)
+                rescuer_pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
                 self.coin_flip_rescuer_pose = rescuer_pose
-                return SetBoolResponse(success=True, message=message)
+                return SetBool.Response(success=True, message=message)
 
             except (
                 tf2_ros.LookupException,
@@ -162,21 +181,23 @@ class TransformServiceNode:
                 tf2_ros.ExtrapolationException,
             ) as e:
                 error_message = f"Failed to get initial vehicle pose to calculate rescuer frame: {e}"
-                rospy.logerr(error_message)
+                self.get_logger().error(error_message)
                 self.coin_flip_enabled = False
-                return SetBoolResponse(success=False, message=error_message)
+                return SetBool.Response(success=False, message=error_message)
 
-        return SetBoolResponse(success=True, message=message)
+        return SetBool.Response(success=True, message=message)
 
     def odom_callback(self, msg):
         self.latest_odom = msg
 
     def _publish_rescuer_frame(self):
         if not self.coin_flip_enabled:
-            rospy.logdebug("Coin flip rescuer frame publishing is disabled.")
+            self.get_logger().debug("Coin flip rescuer frame publishing is disabled.")
             return
         if self.latest_odom is None:
-            rospy.logwarn("Coin flip rescuer frame odometry message not received.")
+            self.get_logger().warning(
+                "Coin flip rescuer frame odometry message not received."
+            )
             return
 
         pos = self.latest_odom.pose.pose.position
@@ -186,11 +207,9 @@ class TransformServiceNode:
         rescuer_x = pos.x + dx
         rescuer_y = pos.y + dy
         rescuer_z = pos.z
-        rescuer_quat = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, reference_yaw
-        )
+        rescuer_quat = tf_transformations.quaternion_from_euler(0, 0, reference_yaw)
         transform = TransformStamped()
-        transform.header.stamp = rospy.Time.now()
+        transform.header.stamp = self.get_clock().now().to_msg()
         transform.header.frame_id = self.odom_frame
         transform.child_frame_id = self.rescuer_frame_name
         transform.transform.translation.x = rescuer_x
@@ -212,8 +231,8 @@ class TransformServiceNode:
             t_gate1 = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.gate_frame_1,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
         except tf2_ros.TransformException:
             t_gate1 = None
@@ -222,8 +241,8 @@ class TransformServiceNode:
             t_gate2 = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.gate_frame_2,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
         except tf2_ros.TransformException:
             t_gate2 = None
@@ -243,12 +262,15 @@ class TransformServiceNode:
             middle_y = (p1.y + p2.y) / 2.0
             middle_z = (p1.z + p2.z) / 2.0
             # Orientation: same as odom frame (no rotation)
-            identity_quat = tf_conversions.transformations.quaternion_from_euler(
-                0, 0, 0
-            )
+            identity_quat = tf_transformations.quaternion_from_euler(0, 0, 0)
             middle_pose = Pose(
-                position=Point(middle_x, middle_y, middle_z),
-                orientation=Quaternion(*identity_quat),
+                position=Point(x=middle_x, y=middle_y, z=middle_z),
+                orientation=Quaternion(
+                    x=identity_quat[0],
+                    y=identity_quat[1],
+                    z=identity_quat[2],
+                    w=identity_quat[3],
+                ),
             )
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose
@@ -257,14 +279,17 @@ class TransformServiceNode:
 
             if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
                 # Distance is valid, use standard dual-frame method
-                rospy.loginfo_once("Using dual-frame mode for gate trajectory.")
+                self.get_logger().info(
+                    "Using dual-frame mode for gate trajectory.", once=True
+                )
                 poses = self._compute_frames_dual_mode(
                     self.get_translation(t_gate1), self.get_translation(t_gate2)
                 )
             else:
                 # Distance is out of bounds, use fallback method with the selected target
-                rospy.logwarn_once(
-                    f"Gate distance ({distance:.2f}m) is out of bounds. Using fallback mode."
+                self.get_logger().warning(
+                    f"Gate distance ({distance:.2f}m) is out of bounds. Using fallback mode.",
+                    once=True,
                 )
                 target_transform = (
                     t_gate1 if self.target_gate_frame == self.gate_frame_1 else t_gate2
@@ -273,14 +298,16 @@ class TransformServiceNode:
 
         elif t_gate1 or t_gate2:
             # Only one frame is visible, use fallback method
-            rospy.logwarn_once("Only one gate frame is visible. Using fallback mode.")
+            self.get_logger().warning(
+                "Only one gate frame is visible. Using fallback mode.", once=True
+            )
             visible_transform = t_gate1 if t_gate1 else t_gate2
             # --- Place gate_middle_part at the visible frame's position
             p = visible_transform.transform.translation
             q = visible_transform.transform.rotation
             middle_pose = Pose(
-                position=Point(p.x, p.y, p.z),
-                orientation=Quaternion(q.x, q.y, q.z, q.w),
+                position=Point(x=p.x, y=p.y, z=p.z),
+                orientation=Quaternion(x=q.x, y=q.y, z=q.z, w=q.w),
             )
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose
@@ -290,7 +317,9 @@ class TransformServiceNode:
 
         else:
             # No frames are visible
-            rospy.logwarn("Neither gate frame is visible. Cannot create trajectory.")
+            self.get_logger().warning(
+                "Neither gate frame is visible. Cannot create trajectory."
+            )
             return
 
         if poses:
@@ -313,11 +342,11 @@ class TransformServiceNode:
             robot_transform = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.robot_base_frame,
-                rospy.Time(0),
-                rospy.Duration(4.0),
+                Time(),
+                Duration(seconds=4.0),
             )
         except tf2_ros.TransformException as e:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Fallback mode failed: Could not get robot transform '{self.robot_base_frame}': {e}"
             )
             return None
@@ -331,7 +360,7 @@ class TransformServiceNode:
 
         length = math.sqrt(dx**2 + dy**2)
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
-            rospy.logwarn(
+            self.get_logger().warning(
                 "Robot is too close to the gate frame for fallback calculation."
             )
             return None
@@ -342,26 +371,32 @@ class TransformServiceNode:
 
         # Position entrance before the gate, exit after the gate
         entrance_position = Point(
-            gate_pos.x - unit_dx * self.fallback_entrance_offset,
-            gate_pos.y - unit_dy * self.fallback_entrance_offset,
-            gate_pos.z - self.z_offset,  # Apply Z-offset
+            x=gate_pos.x - unit_dx * self.fallback_entrance_offset,
+            y=gate_pos.y - unit_dy * self.fallback_entrance_offset,
+            z=gate_pos.z - self.z_offset,  # Apply Z-offset
         )
         exit_position = Point(
-            gate_pos.x + unit_dx * self.fallback_exit_offset,
-            gate_pos.y + unit_dy * self.fallback_exit_offset,
-            gate_pos.z - self.z_offset,  # Apply Z-offset
+            x=gate_pos.x + unit_dx * self.fallback_exit_offset,
+            y=gate_pos.y + unit_dy * self.fallback_exit_offset,
+            z=gate_pos.z - self.z_offset,  # Apply Z-offset
         )
 
         # Orientation should look along the line of approach
         common_yaw = math.atan2(dy, dx)
-        common_quat = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, common_yaw
-        )
+        common_quat = tf_transformations.quaternion_from_euler(0, 0, common_yaw)
 
         entrance_pose = Pose(
-            position=entrance_position, orientation=Quaternion(*common_quat)
+            position=entrance_position,
+            orientation=Quaternion(
+                x=common_quat[0], y=common_quat[1], z=common_quat[2], w=common_quat[3]
+            ),
         )
-        exit_pose = Pose(position=exit_position, orientation=Quaternion(*common_quat))
+        exit_pose = Pose(
+            position=exit_position,
+            orientation=Quaternion(
+                x=common_quat[0], y=common_quat[1], z=common_quat[2], w=common_quat[3]
+            ),
+        )
 
         return entrance_pose, exit_pose
 
@@ -391,7 +426,7 @@ class TransformServiceNode:
                 selected_gate_link_translation, other_gate_link_translation
             )
         except ValueError as e:
-            rospy.logwarn(f"Could not compute dual-mode frames: {e}")
+            self.get_logger().warning(f"Could not compute dual-mode frames: {e}")
             return None
 
         # Create TransformStamped messages for entrance and exit
@@ -465,12 +500,12 @@ class TransformServiceNode:
             robot_transform = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.robot_base_frame,
-                rospy.Time(0),
-                rospy.Duration(4.0),
+                Time(),
+                Duration(seconds=4.0),
             )
             robot_pos = robot_transform.transform.translation
         except tf2_ros.TransformException as e:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Could not get robot transform for entrance/exit calculation: {e}"
             )
             raise ValueError(
@@ -510,15 +545,21 @@ class TransformServiceNode:
             exit_position[1] - entrance_position[1],
             exit_position[0] - entrance_position[0],
         )
-        common_quat = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, common_yaw
-        )
+        common_quat = tf_transformations.quaternion_from_euler(0, 0, common_yaw)
 
         entrance_pose = Pose(
-            position=Point(*entrance_position), orientation=Quaternion(*common_quat)
+            position=Point(
+                x=entrance_position[0], y=entrance_position[1], z=entrance_position[2]
+            ),
+            orientation=Quaternion(
+                x=common_quat[0], y=common_quat[1], z=common_quat[2], w=common_quat[3]
+            ),
         )
         exit_pose = Pose(
-            position=Point(*exit_position), orientation=Quaternion(*common_quat)
+            position=Point(x=exit_position[0], y=exit_position[1], z=exit_position[2]),
+            orientation=Quaternion(
+                x=common_quat[0], y=common_quat[1], z=common_quat[2], w=common_quat[3]
+            ),
         )
 
         return entrance_pose, exit_pose
@@ -536,11 +577,11 @@ class TransformServiceNode:
             transform_selected_to_other = self.tf_buffer.lookup_transform(
                 selected_gate_frame_name,
                 other_gate_frame_name,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
         except tf2_ros.TransformException as e:
-            rospy.logwarn(f"Parallel shift failed due to TF Error: {e}")
+            self.get_logger().warning(f"Parallel shift failed due to TF Error: {e}")
             return transform_to_shift
 
         dx_sel = transform_selected_to_other.transform.translation.x
@@ -548,7 +589,9 @@ class TransformServiceNode:
         length = math.sqrt(dx_sel**2 + dy_sel**2)
 
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
-            rospy.logwarn("Gate links too close for parallel shift. Skipping.")
+            self.get_logger().warning(
+                "Gate links too close for parallel shift. Skipping."
+            )
             return transform_to_shift
 
         # Shift is applied in the odom frame, so we need the odom-frame direction vector
@@ -579,7 +622,7 @@ class TransformServiceNode:
         pose: Pose,
     ) -> TransformStamped:
         transform = geometry_msgs.msg.TransformStamped()
-        transform.header.stamp = rospy.Time.now()
+        transform.header.stamp = self.get_clock().now().to_msg()
         transform.header.frame_id = self.odom_frame
         transform.child_frame_id = child_frame_id
         transform.transform.translation = pose.position
@@ -587,32 +630,32 @@ class TransformServiceNode:
         return transform
 
     def send_transform(self, transform: TransformStamped):
-        request = SetObjectTransformRequest()
+        request = SetObjectTransform.Request()
         request.transform = transform
         try:
             response = self.set_object_transform_service.call(request)
             if not response.success:
-                rospy.logerr(
+                self.get_logger().error(
                     f"Failed to set transform for {transform.child_frame_id}: {response.message}"
                 )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+        except Exception as e:
+            self.get_logger().error(f"Service call failed: {e}")
 
-    def handle_enable_service(self, request: SetBool):
+    def handle_enable_service(self, request: SetBool, response):
         self.is_enabled = request.data
         message = f"Gate trajectory transform publishing is set to: {self.is_enabled}"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return SetBool.Response(success=True, message=message)
 
-    def handle_publish_gate_angle(self, req):
+    def handle_publish_gate_angle(self, req, response):
         self.publish_gate_angle_enabled = True
         message = "Gate angle publishing enabled."
-        rospy.loginfo(message)
-        return TriggerResponse(success=True, message=message)
+        self.get_logger().info(message)
+        return Trigger.Response(success=True, message=message)
 
     def _publish_gate_angle_loop(self):
-        rate = rospy.Rate(10.0)
-        while not rospy.is_shutdown():
+        rate = Rate(self, 10.0)
+        while rclpy.ok():
             if self.publish_gate_angle_enabled and self.gate_angle is not None:
                 self.gate_angle_publisher.publish(self.gate_angle)
             rate.sleep()
@@ -622,8 +665,8 @@ class TransformServiceNode:
         gate_angle_thread.daemon = True
         gate_angle_thread.start()
 
-        rate = rospy.Rate(2.0)
-        while not rospy.is_shutdown():
+        rate = Rate(self, 2.0)
+        while rclpy.ok():
             if self.is_enabled:
                 self.create_trajectory_frames()
 
@@ -643,9 +686,11 @@ class TransformServiceNode:
         return config
 
 
+def main():
+    ros.init()
+    node = TransformServiceNode()
+    ros.spin(node, node.spin)
+
+
 if __name__ == "__main__":
-    try:
-        node = TransformServiceNode()
-        node.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

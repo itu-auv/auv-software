@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import math
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
+from rclpy.duration import Duration
 from geometry_msgs.msg import (
     PointStamped,
     TransformStamped,
@@ -56,7 +58,7 @@ class FrontCameraHandler:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             if detection_id not in self.active_ids:
                 continue
@@ -95,7 +97,7 @@ class FrontCameraHandler:
                 continue
 
             angles, offset_x, offset_y = calculate_angles_and_offsets(
-                self.calibration, detection.bbox.center, distance
+                self.calibration, detection.bbox.center.position, distance
             )
 
             # Publish props yaw
@@ -107,7 +109,9 @@ class FrontCameraHandler:
 
             # Max distance check
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:
-                rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
+                get_node().get_logger().debug(
+                    f"Detection for {prop_name} is too far away. Skipping."
+                )
                 continue
 
             transform_to_odom_and_publish(
@@ -126,13 +130,13 @@ class FrontCameraHandler:
         altitude = self.shared_state.get("altitude")
         pool_depth = self.shared_state.get("pool_depth")
         if altitude is None:
-            rospy.logwarn("No altitude data available")
+            get_node().get_logger().warning("No altitude data available")
             return
 
-        detection_id = detection.results[0].id
+        detection_id = int(detection.results[0].hypothesis.class_id)
 
-        bbox_bottom_x = detection.bbox.center.x
-        bbox_bottom_y = detection.bbox.center.y + detection.bbox.size_y * 0.5
+        bbox_bottom_x = detection.bbox.center.position.x
+        bbox_bottom_y = detection.bbox.center.position.y + detection.bbox.size_y * 0.5
 
         angles = self.calibration.calculate_angles((bbox_bottom_x, bbox_bottom_y))
 
@@ -157,7 +161,7 @@ class FrontCameraHandler:
                 "odom",
                 self.camera_frame,
                 stamp,
-                rospy.Duration(1.0),
+                Duration(seconds=1.0),
             )
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
@@ -172,8 +176,10 @@ class FrontCameraHandler:
                 transform_stamped_msg.header.frame_id = "odom"
                 transform_stamped_msg.child_frame_id = self.id_tf_map[detection_id]
 
-                transform_stamped_msg.transform.translation = Vector3(x, y, z)
-                transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+                transform_stamped_msg.transform.translation = Vector3(x=x, y=y, z=z)
+                transform_stamped_msg.transform.rotation = Quaternion(
+                    x=0, y=0, z=0, w=1
+                )
                 self.object_transform_pub.publish(transform_stamped_msg)
 
         except (
@@ -181,7 +187,7 @@ class FrontCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"Transform error: {e}")
+            get_node().get_logger().error(f"Transform error: {e}")
 
 
 def create_handler(

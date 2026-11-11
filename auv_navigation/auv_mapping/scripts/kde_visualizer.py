@@ -8,7 +8,7 @@ so that rendering never blocks the KDE computation.
 
 import threading
 import copy
-import rospy
+import rclpy
 import numpy as np
 import cv2
 
@@ -39,16 +39,17 @@ class KdeVisualizer:
     """
 
     def __init__(
-        self, image_width, image_height, class_colors, bandwidth, grid_resolution
+        self, node, image_width, image_height, class_colors, bandwidth, grid_resolution
     ):
+        self.node = node
         self.image_width = image_width
         self.image_height = image_height
         self.class_colors = class_colors
         self.bandwidth = bandwidth
         self.grid_resolution = grid_resolution
 
-        self.image_pub = rospy.Publisher(
-            "kde_map/visualization/compressed", CompressedImage, queue_size=1
+        self.image_pub = self.node.create_publisher(
+            CompressedImage, "kde_map/visualization/compressed", 1
         )
 
         # Threading primitives
@@ -81,7 +82,7 @@ class KdeVisualizer:
 
     def _render_loop(self):
         """Main loop of the visualization thread."""
-        while not rospy.is_shutdown():
+        while rclpy.ok():
             # Wait for new data (with timeout so we can check shutdown)
             signalled = self._event.wait(timeout=1.0)
             if not signalled:
@@ -98,7 +99,7 @@ class KdeVisualizer:
             if kde_data is None or not kde_data:
                 continue
 
-            if self.image_pub.get_num_connections() == 0:
+            if self.image_pub.get_subscription_count() == 0:
                 continue
 
             self._render_and_publish(kde_data, results)
@@ -338,7 +339,7 @@ class KdeVisualizer:
 
         # ── Publish
         msg = CompressedImage()
-        msg.header.stamp = rospy.Time.now()
+        msg.header.stamp = self.node.get_clock().now().to_msg()
         msg.format = "jpeg"
         success, buf = cv2.imencode(".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if success:

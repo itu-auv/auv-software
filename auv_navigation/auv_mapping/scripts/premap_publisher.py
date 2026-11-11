@@ -2,7 +2,12 @@
 
 import os
 import time
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, Rate
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import numpy as np
 import yaml
 import threading
@@ -10,42 +15,42 @@ from datetime import datetime
 from typing import Dict
 
 from geometry_msgs.msg import TransformStamped, Vector3, Quaternion, PoseStamped
-from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.srv import SetPremap, SetPremapResponse
+from std_srvs.srv import Trigger
+from auv_msgs.srv import SetPremap
 import tf2_ros
 import tf2_geometry_msgs
 
 
-class PremapPublisher:
+class PremapPublisher(Node):
     GUI_METADATA_PREFIX = "__gui/"
 
     def __init__(self):
-        rospy.init_node("premap_publisher", anonymous=False)
-        rospy.loginfo("Premap Publisher starting...")
+        super().__init__("premap_publisher")
+        self.get_logger().info("Premap Publisher starting...")
 
-        self.world_frame = rospy.get_param("~static_frame", "odom")
-        self.rate_hz = rospy.get_param("~rate", 10.0)
+        self.world_frame = get_param(self, "~static_frame", "odom")
+        self.rate_hz = get_param(self, "~rate", 10.0)
 
         self.lock = threading.Lock()
-        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(60.0))
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.tf_buffer = tf2_ros.Buffer(Duration(seconds=60.0))
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         self.premap: Dict[str, Dict] = {}
         self.gui_state = {}
-        premap_file = rospy.get_param("~premap_file", "")
+        premap_file = get_param(self, "~premap_file", "")
         self.premap_yaml_path = premap_file
         if premap_file:
             self._load_premap(premap_file)
 
-        self.set_premap_srv = rospy.Service(
-            "set_premap", SetPremap, self.set_premap_handler
+        self.set_premap_srv = self.create_service(
+            SetPremap, "set_premap", self.set_premap_handler
         )
-        self.get_premap_srv = rospy.Service(
-            "get_premap", Trigger, self.get_premap_handler
+        self.get_premap_srv = self.create_service(
+            Trigger, "get_premap", self.get_premap_handler
         )
 
-        rospy.loginfo(
+        self.get_logger().info(
             f"Premap Publisher initialized. " f"premap_objects={len(self.premap)}"
         )
 
@@ -55,11 +60,13 @@ class PremapPublisher:
                 data = yaml.safe_load(f)
 
             if data is None:
-                rospy.logwarn(f"Pre-map file is empty: {filepath}")
+                self.get_logger().warning(f"Pre-map file is empty: {filepath}")
                 return
 
             if "objects" not in data:
-                rospy.logwarn(f"Pre-map file has no 'objects' key: {filepath}")
+                self.get_logger().warning(
+                    f"Pre-map file has no 'objects' key: {filepath}"
+                )
                 return
 
             self.gui_state = data.get("gui_state", {}) or {}
@@ -69,7 +76,7 @@ class PremapPublisher:
             transform_stamped = None
 
             if needs_transform:
-                rospy.loginfo(
+                self.get_logger().info(
                     f"Premap reference_frame='{source_frame}' differs from "
                     f"world_frame='{self.world_frame}', waiting for TF..."
                 )
@@ -77,15 +84,15 @@ class PremapPublisher:
                     transform_stamped = self.tf_buffer.lookup_transform(
                         self.world_frame,
                         source_frame,
-                        rospy.Time(0),
-                        rospy.Duration(10.0),
+                        Time(),
+                        Duration(seconds=10.0),
                     )
                 except (
                     tf2_ros.LookupException,
                     tf2_ros.ExtrapolationException,
                     tf2_ros.ConnectivityException,
                 ) as e:
-                    rospy.logerr(
+                    self.get_logger().error(
                         f"Cannot transform premap from '{source_frame}' to "
                         f"'{self.world_frame}': {e}. Skipping premap load."
                     )
@@ -112,7 +119,7 @@ class PremapPublisher:
                         else:
                             p_stamped.pose.orientation.w = 1.0
 
-                        tf_pose = tf2_geometry_msgs.do_transform_pose(
+                        tf_pose = tf2_geometry_msgs.do_transform_pose_stamped(
                             p_stamped, transform_stamped
                         ).pose
                         pos = [
@@ -133,28 +140,30 @@ class PremapPublisher:
                     }
 
             frame_msg = f" (transformed from {source_frame})" if needs_transform else ""
-            rospy.loginfo(
+            self.get_logger().info(
                 f"Loaded pre-map with {len(self.premap)} objects from {filepath}{frame_msg}"
             )
         except Exception as e:
-            rospy.logerr(f"Failed to load pre-map: {e}")
+            self.get_logger().error(f"Failed to load pre-map: {e}")
 
     def _validate_premap_object(self, label: str, obj_data: Dict):
         """Validate and normalize one premap object entry."""
         if not isinstance(obj_data, dict):
-            rospy.logwarn(f"Skipping premap object '{label}': entry must be a dict")
+            self.get_logger().warning(
+                f"Skipping premap object '{label}': entry must be a dict"
+            )
             return None
 
         pos = obj_data.get("position", [0, 0, 0])
         orient = obj_data.get("orientation", [0, 0, 0, 1])
 
         if not isinstance(pos, (list, tuple)) or len(pos) != 3:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Skipping premap object '{label}': position must be length-3 list"
             )
             return None
         if not isinstance(orient, (list, tuple)) or len(orient) != 4:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Skipping premap object '{label}': orientation must be length-4 list"
             )
             return None
@@ -168,20 +177,20 @@ class PremapPublisher:
                 float(orient[3]),
             ]
         except (TypeError, ValueError):
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Skipping premap object '{label}': non-numeric position/orientation"
             )
             return None
 
         if not np.all(np.isfinite(pos)) or not np.all(np.isfinite(orient)):
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Skipping premap object '{label}': non-finite position/orientation"
             )
             return None
 
         q_norm = np.linalg.norm(orient)
         if q_norm < 1e-8:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Skipping premap object '{label}': zero-norm orientation quaternion"
             )
             return None
@@ -189,7 +198,7 @@ class PremapPublisher:
 
         return pos, orient
 
-    def set_premap_handler(self, req: SetPremap) -> SetPremapResponse:
+    def set_premap_handler(self, req: SetPremap, response) -> SetPremap.Response:
         """Service handler to set pre-map."""
         try:
             target_frame = self.world_frame
@@ -201,12 +210,12 @@ class PremapPublisher:
                 )
             )
             if new_premap_data is None:
-                return SetPremapResponse(
+                return SetPremap.Response(
                     success=False,
                     message=f"Failed to transform objects from {source_frame} to {target_frame}",
                 )
             if not new_premap_data:
-                return SetPremapResponse(
+                return SetPremap.Response(
                     success=False,
                     message="No valid objects in request; pre-map unchanged",
                 )
@@ -216,15 +225,15 @@ class PremapPublisher:
             )
 
             msg = f"Pre-map set with {len(self.premap)} objects: {list(self.premap.keys())}"
-            rospy.loginfo(msg)
-            return SetPremapResponse(success=True, message=msg)
+            self.get_logger().info(msg)
+            return SetPremap.Response(success=True, message=msg)
 
         except Exception as e:
             msg = f"Failed to set pre-map: {e}"
-            rospy.logerr(msg)
-            return SetPremapResponse(success=False, message=msg)
+            self.get_logger().error(msg)
+            return SetPremap.Response(success=False, message=msg)
 
-    def get_premap_handler(self, _req) -> TriggerResponse:
+    def get_premap_handler(self, _req, response) -> Trigger.Response:
         try:
             objects = {}
             with self.lock:
@@ -243,15 +252,15 @@ class PremapPublisher:
                 "objects": objects,
                 "gui_state": self.gui_state,
             }
-            return TriggerResponse(
+            return Trigger.Response(
                 success=True,
                 message=yaml.safe_dump(data, default_flow_style=False, sort_keys=False),
             )
 
         except Exception as e:
             msg = f"Failed to get pre-map: {e}"
-            rospy.logerr(msg)
-            return TriggerResponse(success=False, message=msg)
+            self.get_logger().error(msg)
+            return Trigger.Response(success=False, message=msg)
 
     def _transform_and_parse_service_objects(self, objects, source_frame, target_frame):
         """Transform request objects to target frame."""
@@ -263,14 +272,14 @@ class PremapPublisher:
         if source_frame != target_frame:
             try:
                 transform_stamped = self.tf_buffer.lookup_transform(
-                    target_frame, source_frame, rospy.Time(0), rospy.Duration(1.0)
+                    target_frame, source_frame, Time(), Duration(seconds=1.0)
                 )
             except (
                 tf2_ros.LookupException,
                 tf2_ros.ExtrapolationException,
                 tf2_ros.ConnectivityException,
             ) as e:
-                rospy.logerr(f"Transform error: {e}")
+                self.get_logger().error(f"Transform error: {e}")
                 return None, None, None
 
         for obj_pose in objects:
@@ -285,7 +294,7 @@ class PremapPublisher:
 
             try:
                 if transform_stamped:
-                    tf_pose = tf2_geometry_msgs.do_transform_pose(
+                    tf_pose = tf2_geometry_msgs.do_transform_pose_stamped(
                         p_stamped, transform_stamped
                     ).pose
                 else:
@@ -295,7 +304,7 @@ class PremapPublisher:
                 orient = tf_pose.orientation
 
                 if label in new_premap_data:
-                    rospy.logwarn(
+                    self.get_logger().warning(
                         f"[SetPremap] Duplicate label '{label}' in request. Overwriting."
                     )
 
@@ -315,7 +324,7 @@ class PremapPublisher:
                 }
 
             except Exception as e:
-                rospy.logwarn(f"Failed to process object {label}: {e}")
+                self.get_logger().warning(f"Failed to process object {label}: {e}")
                 continue
 
         if not gui_state["objects"]:
@@ -330,7 +339,7 @@ class PremapPublisher:
             return
 
         if not key.startswith("object/"):
-            rospy.logwarn(f"Skipping unknown GUI metadata label '{label}'")
+            self.get_logger().warning(f"Skipping unknown GUI metadata label '{label}'")
             return
 
         obj_name = key.split("/", 1)[1]
@@ -357,7 +366,7 @@ class PremapPublisher:
             self.premap = new_premap_data
             self.gui_state = gui_state or {}
 
-        rospy.loginfo(
+        self.get_logger().info(
             f"Pre-map reset update complete. Loaded {len(self.premap)} objects."
         )
         if self.premap_yaml_path:
@@ -385,7 +394,7 @@ class PremapPublisher:
                     base, ext = os.path.splitext(self.premap_yaml_path)
                     backup_path = f"{base}_{timestamp}{ext}"
                     os.rename(self.premap_yaml_path, backup_path)
-                    rospy.loginfo(f"Backed up old premap to {backup_path}")
+                    self.get_logger().info(f"Backed up old premap to {backup_path}")
 
                 yaml_final_data = {
                     "reference_frame": target_frame,
@@ -400,18 +409,21 @@ class PremapPublisher:
                         yaml_final_data, f, default_flow_style=False, sort_keys=False
                     )
 
-                rospy.loginfo(f"Saved premap to {self.premap_yaml_path}")
+                self.get_logger().info(f"Saved premap to {self.premap_yaml_path}")
             except Exception as yaml_err:
-                rospy.logerr(f"Failed to save YAML: {yaml_err}")
+                self.get_logger().error(f"Failed to save YAML: {yaml_err}")
         else:
-            rospy.logwarn("No premap_file parameter set, not saving to disk")
+            self.get_logger().warning(
+                "No premap_file parameter set, not saving to disk"
+            )
 
     def broadcast_transforms(self):
         """Broadcast TF for all premap objects."""
+        transforms = []
         with self.lock:
             for label, data in self.premap.items():
                 tf_msg = TransformStamped()
-                tf_msg.header.stamp = rospy.Time.now()
+                tf_msg.header.stamp = self.get_clock().now().to_msg()
                 tf_msg.header.frame_id = self.world_frame
                 # Prefix premap frames with p_ to match the original object_tracker behavior
                 tf_msg.child_frame_id = f"p_{label}"
@@ -422,19 +434,23 @@ class PremapPublisher:
                 q = data.get("orientation", np.array([0.0, 0.0, 0.0, 1.0]))
                 tf_msg.transform.rotation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
-                self.tf_broadcaster.sendTransform(tf_msg)
+                transforms.append(tf_msg)
+        if transforms:
+            self.tf_broadcaster.sendTransform(transforms)
 
     def run(self):
         """Main loop: broadcast transforms at configured rate."""
-        rate = rospy.Rate(self.rate_hz)
-        while not rospy.is_shutdown():
+        rate = Rate(self, self.rate_hz)
+        while rclpy.ok():
             self.broadcast_transforms()
             rate.sleep()
 
 
+def main():
+    ros.init()
+    node = PremapPublisher()
+    ros.spin(node, node.run)
+
+
 if __name__ == "__main__":
-    try:
-        node = PremapPublisher()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

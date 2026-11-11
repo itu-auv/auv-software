@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy"/>
+  <arg name="world" default="pool"/>
+  <set_parameter name="use_sim_time" value="true"/>
+  <!-- ground-truth poses of the simulated objects (was /gazebo/model_states) -->
+  <node name="sim_pose_bridge" pkg="auv_sim_bridge" exec="world_pose_bridge">
+    <param name="world" value="$(var world)"/>
+  </node>
+  <arg name="config" default="$(find-pkg-share auv_sim_vision)/config/bbox_objects.yaml"/>
+
+  <node name="tracker_node_front" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="front"/>
+    <param name="enabled" value="true"/>
+    <param name="result_topic" value="/yolo_result_front"/>
+    <param name="result_image_topic" value="/yolo_image_front/compressed"/>
+  </node>
+
+  <node name="tracker_node_bottom" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="bottom"/>
+    <param name="enabled" value="false"/>
+    <param name="result_topic" value="/yolo_result_bottom"/>
+    <param name="result_image_topic" value="/yolo_image_bottom/compressed"/>
+  </node>
+
+  <node name="tracker_node_realsense" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="realsense"/>
+    <param name="enabled" value="false"/>
+    <param name="result_topic" value="/yolo_result_realsense"/>
+    <param name="result_image_topic" value="/yolo_image_realsense/compressed"/>
+  </node>
+
+  <node name="tracker_node_torpedo" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="torpedo"/>
+    <param name="enabled" value="false"/>
+    <param name="result_topic" value="/yolo_result_torpedo"/>
+    <param name="result_image_topic" value="/yolo_image_torpedo/compressed"/>
+  </node>
+
+  <node name="tracker_node_segment" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="bottom_seg"/>
+    <param name="enabled" value="false"/>
+    <param name="result_topic" value="/yolo_result_seg"/>
+    <param name="result_image_topic" value="/yolo_image_seg/compressed"/>
+  </node>
+  <!-- <node name="tracker_node_slalom" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="slalom"/>
+    <param name="enabled" value="false"/>
+    <param name="result_topic" value="/yolo_result_slalom"/>
+    <param name="result_image_topic" value="/yolo_image_slalom/compressed"/>
+  </node> -->
+
+  <node name="tracker_node_torpedo_front" pkg="auv_sim_vision" exec="tracker_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+    <param name="config" value="$(var config)"/>
+    <param name="camera" value="torpedo_front"/>
+    <param name="enabled" value="true"/>
+    <param name="result_topic" value="/yolo_result_torpedo_front"/>
+    <param name="result_image_topic" value="/yolo_image_torpedo_front/compressed"/>
+  </node>
+
+  <include file="$(find-pkg-share auv_sim_vision)/launch/depth_anything_bridge.launch">
+    <arg name="namespace" value="$(var namespace)"/>
+  </include>
+
+</launch>

@@ -3,8 +3,21 @@
   <xacro:macro name="auv_sim_base" params="namespace *gazebo inertial_reference_frame use_models">
     <xacro:insert_block name="gazebo"/>
     <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro"/>
-    <xacro:taluy_base use_models="$(arg use_models)"/>
+    <xacro:taluy_base use_models="$(arg use_models)">
+      <base_link_extra>
+        <collision name="buoyancy_volume">
+          <origin xyz="0 0 0.2" rpy="0 0 0"/>
+          <geometry>
+            <sphere radius="0.19268541"/>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>0</collide_bitmask>
+            </contact>
+          </surface>
+        </collision>
+      </base_link_extra>
+    </xacro:taluy_base>
     <xacro:include filename="$(find taluy_sim_description)/urdf/actuators.urdf.xacro"/>
-    <xacro:include filename="$(find taluy_sim_description)/urdf/sensors.urdf.xacro"/>
   </xacro:macro>
 </robot>

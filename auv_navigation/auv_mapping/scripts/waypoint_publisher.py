@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 
+import json
 import math
 import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, latched_qos, Rate
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import tf2_ros
 import yaml
-from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.srv import SetWaypoint, SetWaypointResponse
+from std_msgs.msg import String
+from std_srvs.srv import Trigger
+from auv_msgs.srv import SetWaypoint
 from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from tf_transformations import euler_from_quaternion, quaternion_from_euler
 
 
 DEFAULT_STATE_FILE = os.path.abspath(
@@ -47,45 +54,48 @@ class PathState:
         return f"{self.waypoint_prefix}{self.index}_wp{i + 1}"
 
 
-class WaypointPublisher:
+class WaypointPublisher(Node):
     def __init__(self):
-        rospy.init_node("waypoint_publisher", anonymous=False)
-        rospy.loginfo("[WaypointPublisher] Starting...")
+        super().__init__("waypoint_publisher")
+        self.get_logger().info("[WaypointPublisher] Starting...")
 
-        self.broadcast_rate_hz = float(rospy.get_param("~broadcast_rate_hz", 20.0))
+        self.broadcast_rate_hz = float(get_param(self, "~broadcast_rate_hz", 20.0))
         self.state_file = os.path.expanduser(
-            rospy.get_param("~state_file", DEFAULT_STATE_FILE)
+            get_param(self, "~state_file", DEFAULT_STATE_FILE)
         )
-        self.default_waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
+        self.default_waypoint_prefix = get_param(self, "~waypoint_prefix", "path")
         self.default_b_reference_distance = float(
-            rospy.get_param("~b_reference_distance", 12.0)
+            get_param(self, "~b_reference_distance", 12.0)
         )
-        self.paths_rosparam = rospy.get_param("~paths_rosparam", "/waypoint_gui/paths")
+        self.paths_rosparam = get_param(self, "~paths_rosparam", "/waypoint_gui/paths")
+        self.paths_pub = self.create_publisher(
+            String, self.paths_rosparam, latched_qos()
+        )
 
         self.lock = threading.Lock()
         self.paths = []
         self._last_broadcast_stamp = None
         self._rosparam_sync_counter = 0
 
-        self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=10.0))
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         self._load_state()
 
-        self.set_waypoint_srv = rospy.Service(
-            "set_waypoint", SetWaypoint, self.set_waypoint_handler
+        self.set_waypoint_srv = self.create_service(
+            SetWaypoint, "set_waypoint", self.set_waypoint_handler
         )
-        self.get_waypoint_srv = rospy.Service(
-            "get_waypoint", Trigger, self.get_waypoint_handler
+        self.get_waypoint_srv = self.create_service(
+            Trigger, "get_waypoint", self.get_waypoint_handler
         )
 
-        rospy.loginfo(
+        self.get_logger().info(
             f"[WaypointPublisher] Ready. paths={len(self.paths)}, "
             f"state_file='{self.state_file}'"
         )
 
-    def set_waypoint_handler(self, req):
+    def set_waypoint_handler(self, req, response):
         new_paths = []
         for i, path_msg in enumerate(req.paths, start=1):
             path = self._path_from_msg(i, path_msg)
@@ -93,7 +103,7 @@ class WaypointPublisher:
                 new_paths.append(path)
 
         if not new_paths:
-            return SetWaypointResponse(
+            return SetWaypoint.Response(
                 success=False,
                 message="No valid waypoint paths in request; state unchanged",
             )
@@ -109,16 +119,16 @@ class WaypointPublisher:
             f"Waypoint set with {len(new_paths)} path(s), "
             f"{waypoint_count} waypoint(s)."
         )
-        rospy.loginfo(f"[WaypointPublisher] {msg}")
-        return SetWaypointResponse(success=True, message=msg)
+        self.get_logger().info(f"[WaypointPublisher] {msg}")
+        return SetWaypoint.Response(success=True, message=msg)
 
-    def get_waypoint_handler(self, _req):
+    def get_waypoint_handler(self, _req, response):
         try:
             with self.lock:
                 paths_snapshot = list(self.paths)
 
             state = self._build_state_dict(paths_snapshot)
-            return TriggerResponse(
+            return Trigger.Response(
                 success=True,
                 message=yaml.safe_dump(
                     state, sort_keys=False, default_flow_style=False
@@ -126,8 +136,8 @@ class WaypointPublisher:
             )
         except Exception as exc:
             msg = f"Failed to get waypoint state: {exc}"
-            rospy.logerr(f"[WaypointPublisher] {msg}")
-            return TriggerResponse(success=False, message=msg)
+            self.get_logger().error(f"[WaypointPublisher] {msg}")
+            return Trigger.Response(success=False, message=msg)
 
     def _path_from_msg(self, index, path_msg):
         ref_a = path_msg.ref_a.strip()
@@ -144,7 +154,7 @@ class WaypointPublisher:
         )
 
         if not ref_a:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"[WaypointPublisher] Skipping path {index}: ref_a is required"
             )
             return None
@@ -152,7 +162,9 @@ class WaypointPublisher:
         waypoints = [self._waypoint_from_pose(pose) for pose in path_msg.waypoints]
 
         if not waypoints:
-            rospy.logwarn(f"[WaypointPublisher] Skipping path {index}: no waypoints")
+            self.get_logger().warning(
+                f"[WaypointPublisher] Skipping path {index}: no waypoints"
+            )
             return None
 
         return PathState(
@@ -221,7 +233,7 @@ class WaypointPublisher:
 
         if loaded_paths:
             self._sync_paths_rosparam(loaded_paths)
-            rospy.loginfo(
+            self.get_logger().info(
                 f"[WaypointPublisher] Loaded {len(loaded_paths)} path(s) "
                 f"from {self.state_file}"
             )
@@ -309,19 +321,21 @@ class WaypointPublisher:
             base, ext = os.path.splitext(self.state_file)
             backup_path = f"{base}_{timestamp}{ext}"
             os.rename(self.state_file, backup_path)
-            rospy.loginfo(f"[WaypointPublisher] Backed up old state to {backup_path}")
+            self.get_logger().info(
+                f"[WaypointPublisher] Backed up old state to {backup_path}"
+            )
 
         with open(self.state_file, "w") as f:
             yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
 
-        rospy.loginfo(f"[WaypointPublisher] Saved state to {self.state_file}")
+        self.get_logger().info(f"[WaypointPublisher] Saved state to {self.state_file}")
 
     def _existing_state_timestamp(self):
         mtime = os.path.getmtime(self.state_file)
         return datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M")
 
     def broadcast_transforms(self):
-        now = rospy.Time.now()
+        now = self.get_clock().now()
         if self._last_broadcast_stamp is not None and now <= self._last_broadcast_stamp:
             return
         self._last_broadcast_stamp = now
@@ -375,17 +389,17 @@ class WaypointPublisher:
             tf_a_b = self.tf_buffer.lookup_transform(
                 path.ref_a,
                 path.ref_b,
-                rospy.Time(0),
-                rospy.Duration(0.1),
+                Time(),
+                Duration(seconds=0.1),
             )
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as exc:
-            rospy.logwarn_throttle(
-                30.0,
+            self.get_logger().warning(
                 f"[WaypointPublisher] Waiting for TF {path.ref_a}->{path.ref_b}: {exc}",
+                throttle_duration_sec=30.0,
             )
             return None
 
@@ -436,17 +450,21 @@ class WaypointPublisher:
                     path.wp_frame_name(i) for i in range(len(path.waypoints))
                 ],
             }
-        rospy.set_param(self.paths_rosparam, data)
+        # ROS 2 has no global parameter server; latched JSON on the same name.
+        self.paths_pub.publish(String(data=json.dumps(data)))
 
     def run(self):
-        rate = rospy.Rate(self.broadcast_rate_hz)
-        while not rospy.is_shutdown():
+        rate = Rate(self, self.broadcast_rate_hz)
+        while rclpy.ok():
             self.broadcast_transforms()
             rate.sleep()
 
 
+def main():
+    ros.init()
+    node = WaypointPublisher()
+    ros.spin(node, node.run)
+
+
 if __name__ == "__main__":
-    try:
-        WaypointPublisher().run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

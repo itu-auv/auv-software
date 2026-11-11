@@ -29,15 +29,14 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <ros/ros.h>
-
 #include "auv_cam/auv_camera_ros.h"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char* argv[]) {
-  ros::init(argc, argv, "auv_gst_cam_node");
-  ros::NodeHandle nh("~");
+  rclcpp::init(argc, argv);
+  auto nh = std::make_shared<rclcpp::Node>("auv_gst_cam_node");
   auto node = auv_cam::USBGStreamerCameraROS(nh);
   node.start();
-  ros::shutdown();
+  rclcpp::shutdown();
   return 0;
 }

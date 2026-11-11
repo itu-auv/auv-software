@@ -36,50 +36,56 @@
 
 namespace auv_cam {
 
-RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh) : nh_(nh), it_(nh_) {
-  width_ = nh_.param<int>("width", 640);
-  height_ = nh_.param<int>("height", 480);
-  fps_ = nh_.param<int>("fps", 30);
-  verbose_ = nh_.param<bool>("verbose", false);
-  pub_camera_info_ = nh_.param<bool>("pub_camera_info", false);
+RTSPCameraROS::RTSPCameraROS(const rclcpp::Node::SharedPtr &nh)
+    : nh_(nh), it_(*nh_) {
+  width_ = nh_->declare_parameter<int>("width", 640);
+  height_ = nh_->declare_parameter<int>("height", 480);
+  fps_ = nh_->declare_parameter<int>("fps", 30);
+  verbose_ = nh_->declare_parameter<bool>("verbose", false);
+  pub_camera_info_ = nh_->declare_parameter<bool>("pub_camera_info", false);
 
   // RTSP parameters
-  rtsp_url_ = nh_.param<std::string>("rtsp_url", "rtsp://192.168.1.65:554/");
-  latency_ = nh_.param<int>("latency", 200);
+  rtsp_url_ = nh_->declare_parameter<std::string>("rtsp_url",
+                                                  "rtsp://192.168.1.65:554/");
+  latency_ = nh_->declare_parameter<int>("latency", 200);
 
   // Load camera info if needed
   if (pub_camera_info_) {
     bool success = true;
-    success &= nh_.getParam("distortion_coefficients/data", cam_info_.D);
+    const auto get_vector = [this, &success](const std::string &name) {
+      const auto value = nh_->declare_parameter<std::vector<double>>(
+          name, std::vector<double>{});
+      success &= !value.empty();
+      return value;
+    };
+    cam_info_.d = get_vector("distortion_coefficients.data");
 
-    std::vector<double> K;
-    success &= nh_.getParam("camera_matrix/data", K);
-    boost::range::copy(K, cam_info_.K.begin());
+    std::vector<double> K = get_vector("camera_matrix.data");
+    boost::range::copy(K, cam_info_.k.begin());
 
-    std::vector<double> R;
-    success &= nh_.getParam("rectification_matrix/data", R);
-    boost::range::copy(R, cam_info_.R.begin());
+    std::vector<double> R = get_vector("rectification_matrix.data");
+    boost::range::copy(R, cam_info_.r.begin());
 
-    std::vector<double> P;
-    success &= nh_.getParam("projection_matrix/data", P);
-    boost::range::copy(P, cam_info_.P.begin());
+    std::vector<double> P = get_vector("projection_matrix.data");
+    boost::range::copy(P, cam_info_.p.begin());
 
-    success &= nh_.getParam("distortion_model", cam_info_.distortion_model);
+    cam_info_.distortion_model =
+        nh_->declare_parameter<std::string>("distortion_model", "");
     int width, height;
-    success &= nh_.getParam("image_width", width);
-    success &= nh_.getParam("image_height", height);
+    width = nh_->declare_parameter<int>("image_width", 0);
+    height = nh_->declare_parameter<int>("image_height", 0);
 
     cam_info_.width = static_cast<uint32_t>(width);
     cam_info_.height = static_cast<uint32_t>(height);
   }
 
   if (verbose_) {
-    ROS_INFO_STREAM("Opening RTSP Camera");
-    ROS_INFO_STREAM("rtsp_url: " << rtsp_url_);
-    ROS_INFO_STREAM("latency: " << latency_);
-    ROS_INFO_STREAM("width: " << width_);
-    ROS_INFO_STREAM("height: " << height_);
-    ROS_INFO_STREAM("fps: " << fps_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "Opening RTSP Camera");
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "rtsp_url: " << rtsp_url_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "latency: " << latency_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "width: " << width_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "height: " << height_);
+    RCLCPP_INFO_STREAM(nh_->get_logger(), "fps: " << fps_);
   }
 
   // Build GStreamer pipeline - MATCHING USB CAMERA PATTERN
@@ -96,52 +102,56 @@ RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh) : nh_(nh), it_(nh_) {
   const std::string gst_pipeline = ss.str();
 
   if (verbose_) {
-    ROS_INFO_STREAM("GStreamer pipeline: " << gst_pipeline);
+    RCLCPP_INFO_STREAM(nh_->get_logger(),
+                       "GStreamer pipeline: " << gst_pipeline);
   }
 
   // Open device
   capture_ = cv::VideoCapture(gst_pipeline, cv::CAP_GSTREAMER);
 
   if (!capture_.isOpened()) {
-    ROS_ERROR_STREAM("RTSP camera is not opened: " << rtsp_url_);
+    RCLCPP_ERROR_STREAM(nh_->get_logger(),
+                        "RTSP camera is not opened: " << rtsp_url_);
     throw std::runtime_error("RTSP camera is not opened.");
   }
 
   if (pub_camera_info_) {
-    cam_pub_ = it_.advertiseCamera("image_raw", 1);
+    cam_pub_ = it_.advertiseCamera("~/image_raw", 1);
   } else {
-    image_pub_ = it_.advertise("image_raw", 1);
+    image_pub_ = it_.advertise("~/image_raw", 1);
   }
 
-  ROS_INFO_STREAM("Started RTSP camera: " << rtsp_url_);
+  RCLCPP_INFO_STREAM(nh_->get_logger(), "Started RTSP camera: " << rtsp_url_);
 }
 
 void RTSPCameraROS::start() {
-  sensor_msgs::Image img_msg;
+  sensor_msgs::msg::Image img_msg;
 
-  while (ros::ok()) {
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(nh_);
+  while (rclcpp::ok()) {
     cv::Mat frame;
     capture_ >> frame;
 
     if (frame.empty()) {
-      ROS_ERROR_STREAM("Capture frame is empty.");
+      RCLCPP_ERROR_STREAM(nh_->get_logger(), "Capture frame is empty.");
       break;
     }
 
-    std_msgs::Header header;
-    header.stamp = ros::Time::now();
+    std_msgs::msg::Header header;
+    header.stamp = nh_->now();
 
     const auto img_bridge =
         cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, frame);
     img_bridge.toImageMsg(img_msg);
 
     if (pub_camera_info_) {
-      cam_pub_.publish(img_msg, cam_info_, ros::Time::now());
+      cam_pub_.publish(img_msg, cam_info_, nh_->now());
     } else {
       image_pub_.publish(img_msg);
     }
 
-    ros::spinOnce();
+    executor.spin_some();
   }
 }
 

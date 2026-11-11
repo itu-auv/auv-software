@@ -1,0 +1,4 @@
+# No expected positions: objects are placed by detections only (simulator runs that do
+# not start at the gate).
+reference_frame: odom
+objects: {}

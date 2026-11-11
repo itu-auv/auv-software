@@ -1,56 +1,61 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client, Rate
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import tf2_ros
-import tf.transformations
+import tf_transformations
 from geometry_msgs.msg import Pose, TransformStamped
-from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from std_srvs.srv import SetBool
+from auv_msgs.srv import SetObjectTransform
 
 
-class OctagonTransformServiceNode:
+class OctagonTransformServiceNode(Node):
     def __init__(self):
         self.enable = False
-        rospy.init_node("create_octagon_frame_node")
+        super().__init__("create_octagon_frame_node")
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_service = service_client(
+            self, SetObjectTransform, "set_object_transform"
         )
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
-        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
+        self.robot_frame = get_param(self, "~robot_frame", "taluy/base_link")
         self.octagon_frame = "octagon_link_kde"
-        self.middle_basket_frame = rospy.get_param(
-            "~middle_basket_frame", "middle_basket"
+        self.middle_basket_frame = get_param(
+            self, "~middle_basket_frame", "middle_basket"
         )
-        self.redcross_basket_segment_frame = rospy.get_param(
-            "~basket_redcross_segment_frame", "basket_redcross_segment_link"
+        self.redcross_basket_segment_frame = get_param(
+            self, "~basket_redcross_segment_frame", "basket_redcross_segment_link"
         )
-        self.warning_basket_segment_frame = rospy.get_param(
-            "~basket_warning_segment_frame", "basket_warning_segment_link"
+        self.warning_basket_segment_frame = get_param(
+            self, "~basket_warning_segment_frame", "basket_warning_segment_link"
         )
-        self.octagon_table_segment_frame = rospy.get_param(
-            "~octagon_table_segment_frame", "octagon_table_segment_link"
+        self.octagon_table_segment_frame = get_param(
+            self, "~octagon_table_segment_frame", "octagon_table_segment_link"
         )
 
-        self.octagon_closer_frame = rospy.get_param(
-            "~octagon_closer_frame", "octagon_closer_link"
+        self.octagon_closer_frame = get_param(
+            self, "~octagon_closer_frame", "octagon_closer_link"
         )
-        self.octagon_further_frame = rospy.get_param(
-            "~octagon_further_frame", "octagon_further_link"
+        self.octagon_further_frame = get_param(
+            self, "~octagon_further_frame", "octagon_further_link"
         )
-        self.closer_distance = rospy.get_param(
-            "~closer_distance", 2.0
+        self.closer_distance = get_param(
+            self, "~closer_distance", 2.0
         )  # distance from octagon to closer frame
-        self.further_distance = rospy.get_param(
-            "~further_distance", 2.0
+        self.further_distance = get_param(
+            self, "~further_distance", 2.0
         )  # distance from octagon to further frame
-        self.search_distance = rospy.get_param(
-            "~search_distance", 0.3
+        self.search_distance = get_param(
+            self, "~search_distance", 0.3
         )  # distance from octagon to search frames
         self.search_frames = {
             "octagon_search_forward": "forward",  # towards robot (back from octagon)
@@ -59,8 +64,8 @@ class OctagonTransformServiceNode:
             "octagon_search_right": "right",  # perpendicular right
         }
 
-        self.set_enable_service = rospy.Service(
-            "set_transform_octagon_frame", SetBool, self.handle_enable_service
+        self.set_enable_service = self.create_service(
+            SetBool, "set_transform_octagon_frame", self.handle_enable_service
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -73,7 +78,7 @@ class OctagonTransformServiceNode:
         self, child_frame_id: str, pose: Pose
     ) -> TransformStamped:
         t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
+        t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = self.odom_frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
@@ -81,18 +86,18 @@ class OctagonTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
+        req = SetObjectTransform.Request()
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
         if not resp.success:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
     def lookup_pose(self, frame_name: str):
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.odom_frame, frame_name, rospy.Time(0), rospy.Duration(0.5)
+                self.odom_frame, frame_name, Time(), Duration(seconds=0.5)
             )
             return self.get_pose(transform)
         except (
@@ -105,7 +110,7 @@ class OctagonTransformServiceNode:
     def build_pose_from_position_and_yaw(
         self, position: np.ndarray, yaw: float
     ) -> Pose:
-        quat = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        quat = tf_transformations.quaternion_from_euler(0, 0, yaw)
         pose = Pose()
         pose.position.x = position[0]
         pose.position.y = position[1]
@@ -154,17 +159,17 @@ class OctagonTransformServiceNode:
                 self.send_transform(middle_basket_transform)
                 return
 
-            rospy.logwarn_throttle(
-                5.0,
+            self.get_logger().warning(
                 "basket_redcross_segment_link and basket_warning_segment_link overlap; "
                 "falling back to octagon_table_segment_link for middle_basket.",
+                throttle_duration_sec=5.0,
             )
 
         table_pose = self.lookup_pose(self.octagon_table_segment_frame)
         if table_pose is None:
-            rospy.logwarn_throttle(
-                5.0,
+            self.get_logger().warning(
                 "middle_basket could not be created: octagon_table_segment_link not available yet.",
+                throttle_duration_sec=5.0,
             )
             return
 
@@ -179,13 +184,13 @@ class OctagonTransformServiceNode:
 
         try:
             transform_robot = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
+                self.odom_frame, self.robot_frame, Time(), Duration(seconds=4.0)
             )
             transform_octagon = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.octagon_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                self.get_clock().now(),
+                Duration(seconds=4.0),
             )
 
         except (
@@ -193,7 +198,7 @@ class OctagonTransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup failed: {e}")
+            self.get_logger().warning(f"TF lookup failed: {e}")
             return
 
         robot_pose = self.get_pose(transform_robot)
@@ -210,7 +215,7 @@ class OctagonTransformServiceNode:
         total_distance_2d = np.linalg.norm(direction_vector_2d)
 
         if total_distance_2d == 0:
-            rospy.logwarn(
+            self.get_logger().warning(
                 "Robot and octagon are at the same XY position! Cannot create frame."
             )
             return
@@ -219,7 +224,7 @@ class OctagonTransformServiceNode:
 
         # Calculate yaw from the direction vector (robot to octagon)
         yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
-        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        q = tf_transformations.quaternion_from_euler(0, 0, yaw)
 
         orientation = Pose().orientation
         orientation.x = q[0]
@@ -270,7 +275,7 @@ class OctagonTransformServiceNode:
         perpendicular_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
 
         yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
-        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        q = tf_transformations.quaternion_from_euler(0, 0, yaw)
 
         for frame_name, direction_type in self.search_frames.items():
             if direction_type == "forward":
@@ -299,25 +304,27 @@ class OctagonTransformServiceNode:
             search_transform = self.build_transform_message(frame_name, search_pose)
             self.send_transform(search_transform)
 
-    def handle_enable_service(self, req: SetBool):
+    def handle_enable_service(self, req: SetBool, response):
         self.enable = req.data
-        rospy.loginfo(
+        self.get_logger().info(
             f"Octagon frame publishing {'enabled' if self.enable else 'disabled'}"
         )
-        return SetBoolResponse(success=True)
+        return SetBool.Response(success=True)
 
     def run(self):
-        rate = rospy.Rate(10)  # 10 Hz
-        while not rospy.is_shutdown():
+        rate = Rate(self, 10)  # 10 Hz
+        while rclpy.ok():
             if self.enable:
                 self.create_middle_basket_frame()
             self.create_octagon_frame()
             rate.sleep()
 
 
+def main():
+    ros.init()
+    node = OctagonTransformServiceNode()
+    ros.spin(node, node.run)
+
+
 if __name__ == "__main__":
-    try:
-        node = OctagonTransformServiceNode()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

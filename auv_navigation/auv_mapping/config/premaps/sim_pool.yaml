@@ -1,0 +1,19 @@
+# The simulator's pool world (auv_sim_description/worlds/pool_harmonic.sdf), seen from
+# the start pose in front of the gate (world -7.0, -15.5, yaw 0).
+reference_frame: odom
+objects:
+  gate_search_rescue_link:
+    position: [5.0, 1.8, -0.5]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  gate_survey_repair_link:
+    position: [5.0, 1.8, -0.5]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  torpedo_map_link:
+    position: [12.25, 14.1, -1.5]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  bin_basket_front_link:
+    position: [16.25, 3.8, -2.0]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+  octagon_link:
+    position: [20.0, 11.25, -1.3]
+    orientation: [0.0, 0.0, 0.0, 1.0]

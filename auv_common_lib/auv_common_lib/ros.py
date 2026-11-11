@@ -1,0 +1,540 @@
+import faulthandler
+import inspect
+import os
+import signal
+import sys
+import threading
+import time
+
+import rclpy
+from rcl_interfaces.msg import ParameterDescriptor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.exceptions import ROSInterruptException
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
+
+_UNSET = object()
+
+
+def _param_name(name):
+    return name.lstrip("~/").replace("/", ".")
+
+
+def _nested_overrides(node, name):
+    """Parameter overrides below `name` as a nested dict (rospy returned dicts)."""
+    nested = {}
+    for key, parameter in getattr(node, "_parameter_overrides", {}).items():
+        if key.startswith(name + "."):
+            branch = nested
+            *parents, leaf = key[len(name) + 1 :].split(".")
+            for parent in parents:
+                branch = branch.setdefault(parent, {})
+            branch[leaf] = parameter.value
+    return nested
+
+
+def get_param(node, name, default=_UNSET):
+    """rospy.get_param for a node's own parameters; `~x`, `x/y` and `/x/y` all map to `x.y`."""
+    name = _param_name(name)
+    nested = _nested_overrides(node, name)
+    if nested or isinstance(default, dict):
+        return nested or default
+    if not node.has_parameter(name):
+        node.declare_parameter(
+            name,
+            None if default is _UNSET else default,
+            ParameterDescriptor(dynamic_typing=True),
+        )
+    value = node.get_parameter(name).value
+    if value is None:
+        if default is _UNSET:
+            raise KeyError(name)
+        return default
+    return value
+
+
+def has_param(node, name):
+    return get_param(node, name, None) is not None
+
+
+SERVICE_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_ALL, reliability=ReliabilityPolicy.RELIABLE
+)
+
+
+def latched_qos(depth=1):
+    """Equivalent of a ROS 1 latched publisher; late subscribers need the same profile."""
+    return QoSProfile(depth=depth, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+
+
+_node = None
+
+
+def set_node(node):
+    """Register the process's node for code that has no node at hand (see get_node)."""
+    global _node
+    _node = node
+
+
+def get_node():
+    """The node registered with set_node: for helper modules and SMACH states that
+    used rospy's implicit, process-wide node."""
+    if _node is None:
+        raise RuntimeError("auv_common_lib.ros.set_node() was not called")
+    return _node
+
+
+def init_node(name):
+    """rospy.init_node for code written around rospy's process-wide node: init(),
+    create the node and register it for get_node()."""
+    init()
+    node = rclpy.create_node(name)
+    set_node(node)
+    return node
+
+
+class ROSException(Exception):
+    pass
+
+
+class ServiceException(Exception):
+    pass
+
+
+class ServiceUnavailable(ROSException, ServiceException):
+    pass
+
+
+class ServiceProxy:
+    """rospy.ServiceProxy on an rclpy client.
+
+    Callable and blocking, also from inside callbacks (see spin). Like rospy, and
+    unlike a bare rclpy client, calling a service nobody serves raises instead of
+    waiting forever, and so does a server that goes away during the call.
+    """
+
+    DISCOVERY = 5.0  # seconds
+
+    def __init__(self, node, srv_type, name):
+        self.node = node
+        self.srv_type = srv_type
+        self.created = time.monotonic()
+        self.client = node.create_client(
+            srv_type,
+            name,
+            qos_profile=SERVICE_QOS,
+            callback_group=ReentrantCallbackGroup(),
+        )
+
+    def wait_for_service(self, timeout=None):
+        if timeout is not None:
+            # rospy asked the master and knew at once; a new client here needs a
+            # couple of seconds to discover the server, whatever the caller allows
+            timeout = max(timeout, self.DISCOVERY - (time.monotonic() - self.created))
+        if not self.client.wait_for_service(timeout_sec=timeout):
+            raise ServiceUnavailable(f"service {self.client.srv_name} is not available")
+
+    def call(self, *args, **kwargs):
+        if len(args) == 1 and isinstance(args[0], self.srv_type.Request):
+            request = args[0]
+        else:
+            fields = self.srv_type.Request.get_fields_and_field_types()
+            request = self.srv_type.Request(**dict(zip(fields, args)), **kwargs)
+        if not self.client.service_is_ready():
+            # after the discovery time a missing server fails at once, as with rospy
+            self.wait_for_service(timeout=0.0)
+        executor = self.node.executor
+        if executor is None or not executor.is_spinning:
+            # called before spin() (a constructor): nobody else processes the answer
+            future = self.client.call_async(request)
+            rclpy.spin_until_future_complete(self.node, future)
+            return future.result()
+        future = self.client.call_async(request)
+        answered = threading.Event()
+        future.add_done_callback(lambda _: answered.set())
+        while not answered.wait(1.0) and not future.done():
+            if not self.client.service_is_ready():  # rospy: the connection broke
+                self.client.remove_pending_request(future)
+                raise ServiceException(
+                    f"service {self.client.srv_name} went away during the call"
+                )
+        return future.result()
+
+    __call__ = call
+
+
+def service_client(node, srv_type, name):
+    """The node's ServiceProxy for a service; created on first use."""
+    proxies = node.__dict__.setdefault("_auv_service_proxies", {})
+    if (srv_type, name) not in proxies:
+        proxies[srv_type, name] = ServiceProxy(node, srv_type, name)
+    return proxies[srv_type, name]
+
+
+def wait_for_service(proxy, timeout=None):
+    """rospy.wait_for_service: raises ServiceUnavailable on timeout."""
+    proxy.wait_for_service(timeout)
+
+
+class Rate:
+    """rospy.Rate. Unlike node.create_rate() it owns no timer, so making one per
+    state execution or per call leaks nothing."""
+
+    def __init__(self, node, hz):
+        self.clock = node.get_clock()
+        self.period = Duration(seconds=1.0 / hz)
+        self.deadline = self.clock.now() + self.period
+
+    def sleep(self):
+        if not rclpy.ok() or not self.clock.sleep_until(self.deadline):
+            if not rclpy.ok():
+                raise ROSInterruptException()
+        now = self.clock.now()
+        self.deadline = self.deadline + self.period
+        if self.deadline < now:  # fell behind (or time jumped): start over from now
+            self.deadline = now + self.period
+
+
+def wait_for_message(node, topic, msg_type, timeout=None, latched=False):
+    """rospy.wait_for_message: raises ROSException on timeout."""
+    from rclpy.wait_for_message import wait_for_message as wait
+
+    received, msg = wait(
+        msg_type,
+        node,
+        topic,
+        qos_profile=latched_qos() if latched else 1,
+        time_to_wait=-1 if timeout is None else timeout,
+    )
+    if not received:
+        raise ROSException(f"timeout waiting for a message on {topic}")
+    return msg
+
+
+_shutdown_hooks = []
+
+
+def on_shutdown(callback):
+    """rospy.on_shutdown: `callback` runs when spin() ends, while the node can still
+    publish and call services."""
+    _shutdown_hooks.append(callback)
+
+
+def sim_time_arg(node):
+    """Launch argument that gives a child launch the same clock as this node."""
+    return "use_sim_time:=%s" % str(node.get_parameter("use_sim_time").value).lower()
+
+
+def _refuse_mixed_clocks(node):
+    """Stop a node that runs on wall time next to a simulation.
+
+    ROS 1 had one /use_sim_time for everything; here each launch has to pass it. A
+    mission started without it would stamp and time everything on the wrong clock.
+    """
+    if node.get_parameter("use_sim_time").value:
+        return
+    deadline = time.monotonic() + 20.0
+    while rclpy.ok() and time.monotonic() < deadline:
+        if node.count_publishers("/clock"):
+            node.get_logger().fatal(
+                "A simulation clock is running but this node uses wall time. "
+                "Start it with use_sim_time:=true."
+            )
+            os.kill(os.getpid(), signal.SIGINT)
+            return
+        time.sleep(0.5)
+
+
+def _warn_incompatible_qos(node):
+    """Say so when a subscription cannot hear a publisher (init() switched rclpy's own
+    QoS warnings off). The usual case is a driver publishing best effort."""
+    warned = set()
+    for wait in (5.0, 15.0, 40.0):
+        time.sleep(wait)
+        if not rclpy.ok():
+            return
+        try:
+            for subscription in list(node.subscriptions):
+                wanted = subscription.qos_profile
+                for publisher in node.get_publishers_info_by_topic(
+                    subscription.topic_name
+                ):
+                    offered = publisher.qos_profile
+                    reasons = []
+                    if (
+                        wanted.reliability == ReliabilityPolicy.RELIABLE
+                        and offered.reliability == ReliabilityPolicy.BEST_EFFORT
+                    ):
+                        reasons.append(
+                            "it is published best effort, we ask for reliable"
+                        )
+                    if (
+                        wanted.durability == DurabilityPolicy.TRANSIENT_LOCAL
+                        and offered.durability == DurabilityPolicy.VOLATILE
+                    ):
+                        reasons.append("it is not latched, we ask for a latched topic")
+                    key = (subscription.topic_name, publisher.node_name)
+                    if reasons and key not in warned:
+                        warned.add(key)
+                        node.get_logger().warning(
+                            f"will not receive {subscription.topic_name} from "
+                            f"{publisher.node_name}: {'; '.join(reasons)}"
+                        )
+        except Exception:
+            return  # the node is being destroyed
+
+
+def spin(node, loop=None):
+    """Run a node until shutdown, then clean up.
+
+    Callbacks run on executor threads. `loop`, if given, is the node's rospy-style
+    main loop (create_rate, blocking service calls); it runs in the calling thread.
+    """
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    threading.Thread(target=_refuse_mixed_clocks, args=(node,), daemon=True).start()
+    threading.Thread(target=_warn_incompatible_qos, args=(node,), daemon=True).start()
+
+    def spin_executor():
+        try:
+            executor.spin()
+        except (KeyboardInterrupt, ExternalShutdownException):
+            pass
+
+    thread = threading.Thread(target=spin_executor, daemon=True)
+    try:
+        if loop is None:
+            spin_executor()
+        else:
+            thread.start()
+            loop()
+    except (KeyboardInterrupt, ExternalShutdownException, ROSInterruptException):
+        pass
+    finally:
+        for hook in _shutdown_hooks:
+            try:
+                hook()
+            except Exception as error:
+                node.get_logger().error(f"shutdown hook failed: {error}")
+        executor.shutdown(timeout_sec=1.0)
+        if thread.is_alive():
+            thread.join(2.0)  # a still-spinning thread aborts the process at exit
+        node.destroy_node()
+        try:
+            rclpy.try_shutdown()
+        except Exception:
+            pass
+        threading.Thread(target=_exit_with_main_thread, daemon=True).start()
+
+
+def _exit_with_main_thread():
+    """A rospy node ended when its main function returned; its threads were daemons.
+    Here executor workers and TF listener threads are not, and one of them stuck in a
+    call would keep the finished process alive. Give them two seconds, then leave."""
+    main_thread = threading.main_thread()
+    while main_thread.is_alive():
+        time.sleep(0.2)
+    time.sleep(2.0)
+    sys.stderr.write("still running after main() returned; threads:\n")
+    faulthandler.dump_traceback(all_threads=True)
+    os._exit(0)
+
+
+# --- lenient message fields -------------------------------------------------
+# rospy accepted an int in a float field, a numpy scalar, or a Vector3 where a
+# Point belongs. rclpy aborts the whole process on those when the message is
+# serialized. coerce() repairs such fields; init() applies it to everything a
+# process publishes, requests or responds with.
+
+_FLOATS = ("float", "double", "long double")
+_classes = {}
+
+
+def _message_class(slot_type):
+    key = (*slot_type.namespaces, slot_type.name)
+    if key not in _classes:
+        import importlib
+
+        module = importlib.import_module(".".join(slot_type.namespaces))
+        _classes[key] = getattr(module, slot_type.name)
+    return _classes[key]
+
+
+def _coerce_value(value, slot_type):
+    from rosidl_parser.definition import (
+        AbstractNestedType,
+        BasicType,
+        NamespacedType,
+    )
+
+    if isinstance(slot_type, BasicType):
+        name = slot_type.typename
+        if name in _FLOATS:
+            return value if isinstance(value, float) else float(value)
+        if name == "boolean":
+            return value if isinstance(value, bool) else bool(value)
+        if name in ("octet", "char", "wchar"):
+            return value
+        return value if isinstance(value, int) else int(value)
+    if isinstance(slot_type, NamespacedType):
+        cls = _message_class(slot_type)
+        if hasattr(value, "to_msg"):  # rclpy Time / Duration
+            value = value.to_msg()
+        if type(value) is not cls:
+            converted = cls()
+            for slot in cls.__slots__:
+                if hasattr(value, slot):
+                    setattr(converted, slot, getattr(value, slot))
+            value = converted
+        return coerce(value)
+    if isinstance(slot_type, AbstractNestedType) and isinstance(
+        slot_type.value_type, NamespacedType
+    ):
+        return [_coerce_value(item, slot_type.value_type) for item in value]
+    return value
+
+
+def coerce(msg):
+    for slot, slot_type in zip(msg.__slots__, msg.SLOT_TYPES):
+        value = getattr(msg, slot)
+        fixed = _coerce_value(value, slot_type)
+        if fixed is not value:
+            setattr(msg, slot, fixed)
+    return msg
+
+
+def init(args=None):
+    """rclpy.init() plus rospy-like leniency for message field types."""
+    from rclpy.client import Client
+    from rclpy.publisher import Publisher
+    from rclpy.service import Service
+
+    if not getattr(Publisher, "_auv_lenient", False):
+        publish, call_async, send_response = (
+            Publisher.publish,
+            Client.call_async,
+            Service.send_response,
+        )
+
+        def lenient_publish(self, msg):
+            if isinstance(msg, bytes):
+                return publish(self, msg)
+            if not hasattr(msg, "SLOT_TYPES"):  # rospy: pub.publish(True)
+                first_field = next(iter(self.msg_type.get_fields_and_field_types()))
+                msg = self.msg_type(**{first_field: msg})
+            return publish(self, coerce(msg))
+
+        Publisher.publish = lenient_publish
+        Client.call_async = lambda self, request: call_async(self, coerce(request))
+        Service.send_response = lambda self, response, header: send_response(
+            self, coerce(response), header
+        )
+        Publisher._auv_lenient = True
+
+    # rclpy attaches QoS event handlers (they log incompatible-QoS warnings) to every
+    # publisher and subscription. With them in the wait set, a MultiThreadedExecutor
+    # spins hot while a callback waits for a worker thread: about 5 ms of CPU per
+    # message, a whole core at 200 messages per second. Leave them out.
+    import rclpy.event_handler
+
+    for callbacks in (
+        rclpy.event_handler.SubscriptionEventCallbacks,
+        rclpy.event_handler.PublisherEventCallbacks,
+    ):
+        if not getattr(callbacks, "_auv_quiet", False):
+
+            def quiet_init(self, *args, _init=callbacks.__init__, **kwargs):
+                kwargs.setdefault("use_default_callbacks", False)
+                _init(self, *args, **kwargs)
+
+            callbacks.__init__ = quiet_init
+            callbacks._auv_quiet = True
+
+    # A service reply is delivered to every client of that service, and by default a
+    # client keeps only the last 10 it has not processed. A node that stalls for a
+    # moment while others call the same service loses its own reply and waits for
+    # ever; rospy could not lose one. Keep every request and reply.
+    if not getattr(Node, "_auv_keep_all_services", False):
+        for create in ("create_client", "create_service"):
+
+            def keep_all(self, *args, _create=getattr(Node, create), **kwargs):
+                kwargs.setdefault("qos_profile", SERVICE_QOS)
+                return _create(self, *args, **kwargs)
+
+            setattr(Node, create, keep_all)
+        Node._auv_keep_all_services = True
+
+    # rospy's TF listener received transforms in a thread of its own from the moment
+    # it was created. Give each listener a private node and thread, so lookups also
+    # work in constructors and TF traffic does not wake the node's own executor.
+    import tf2_ros
+
+    if not getattr(tf2_ros.TransformListener, "_auv_threaded", False):
+        listener_init = tf2_ros.TransformListener.__init__
+
+        def threaded_listener(self, buffer, node, *args, spin_thread=None, **kwargs):
+            if spin_thread is None:
+                spin_thread = True
+                node = Node(
+                    node.get_name() + "_tf",
+                    namespace=node.get_namespace(),
+                    use_global_arguments=False,
+                    start_parameter_services=False,
+                    enable_rosout=False,
+                )  # wall time: a listener needs no clock, and so no /clock traffic
+                self._auv_private_node = True
+            listener_init(self, buffer, node, *args, spin_thread=spin_thread, **kwargs)
+
+        unregister = tf2_ros.TransformListener.unregister
+
+        def unregister_and_stop(self):
+            # also end the thread and node made above, or they outlive the listener
+            unregister(self)
+            if getattr(self, "_auv_private_node", False) and not sys.is_finalizing():
+                self._auv_private_node = False
+                self.executor.shutdown(timeout_sec=0.0)
+                threading.Thread(
+                    target=lambda: (
+                        self.dedicated_listener_thread.join(2.0),
+                        self.node.destroy_node(),
+                    ),
+                    daemon=True,
+                ).start()
+
+        tf2_ros.TransformListener.__init__ = threaded_listener
+        tf2_ros.TransformListener.unregister = unregister_and_stop
+        tf2_ros.TransformListener._auv_threaded = True
+
+    # rospy ran every subscriber, timer and service in its own thread. rclpy puts
+    # all of a node's callbacks in one mutually exclusive group, so one slow callback
+    # stalls the rest. Give each its own group unless the caller chose one.
+    if not getattr(Node, "_auv_own_groups", False):
+        for method in ("create_subscription", "create_timer", "create_service"):
+
+            def with_own_group(
+                self,
+                *args,
+                _create=getattr(Node, method),
+                _signature=inspect.signature(getattr(Node, method)),
+                **kwargs,
+            ):
+                call = _signature.bind(self, *args, **kwargs)
+                if call.arguments.get("callback_group") is None:
+                    call.arguments["callback_group"] = MutuallyExclusiveCallbackGroup()
+                return _create(*call.args, **call.kwargs)
+
+            setattr(Node, method, with_own_group)
+        Node._auv_own_groups = True
+
+    # Ctrl-C and SIGTERM end spin() with the node still usable, so shutdown hooks
+    # and `finally` blocks can talk to ROS (rclpy's own handlers shut down first).
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt()
+
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+    signal.signal(signal.SIGTERM, interrupt)
+    # kill -USR1 <pid>: what every thread of a stuck node is doing, into its log
+    faulthandler.register(signal.SIGUSR1, all_threads=True)

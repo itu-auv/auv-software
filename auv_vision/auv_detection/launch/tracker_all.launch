@@ -8,45 +8,45 @@
     <arg name="detection" default="false"/>
 
     <!-- Common settings -->
-    <arg name="sim" default="false"/>
     <arg name="use_gui" default="false"/>
 
     <!-- Front camera tracker -->
-    <group if="$(arg front)" ns="tracker_front">
-        <include file="$(find auv_detection)/launch/inc/tracker_front.launch">
-            <arg name="sim" value="$(arg sim)"/>
-            <arg name="use_gui" value="$(arg use_gui)"/>
+    <group if="$(var front)">
+      <push_ros_namespace namespace="tracker_front" />
+        <include file="$(find-pkg-share auv_detection)/launch/inc/tracker_front.launch">
+            <arg name="use_gui" value="$(var use_gui)"/>
         </include>
     </group>
 
     <!-- Bottom camera tracker -->
-    <group if="$(arg bottom)" ns="tracker_bottom">
-        <include file="$(find auv_detection)/launch/inc/tracker_bottom.launch">
-            <arg name="sim" value="$(arg sim)"/>
-            <arg name="use_gui" value="$(arg use_gui)"/>
+    <group if="$(var bottom)">
+      <push_ros_namespace namespace="tracker_bottom" />
+        <include file="$(find-pkg-share auv_detection)/launch/inc/tracker_bottom.launch">
+            <arg name="use_gui" value="$(var use_gui)"/>
         </include>
     </group>
 
-    <!-- RealSense camera tracker (no sim arg - uses fixed input topic) -->
-    <group if="$(arg realsense)" ns="tracker_realsense">
-        <include file="$(find auv_detection)/launch/inc/tracker_realsense.launch">
-            <arg name="use_gui" value="$(arg use_gui)"/>
+    <!-- RealSense camera tracker -->
+    <group if="$(var realsense)">
+      <push_ros_namespace namespace="tracker_realsense" />
+        <include file="$(find-pkg-share auv_detection)/launch/inc/tracker_realsense.launch">
+            <arg name="use_gui" value="$(var use_gui)"/>
         </include>
     </group>
 
     <!-- Segmentation tracker -->
-    <group if="$(arg segment)" ns="tracker_segment">
-        <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
-            <arg name="sim" value="$(arg sim)"/>
-            <arg name="use_gui" value="$(arg use_gui)"/>
+    <group if="$(var segment)">
+      <push_ros_namespace namespace="tracker_segment" />
+        <include file="$(find-pkg-share auv_detection)/launch/inc/tracker_segment.launch">
+            <arg name="use_gui" value="$(var use_gui)"/>
         </include>
     </group>
 
     <!-- Shape detection tracker -->
-    <group if="$(arg detection)" ns="tracker_detection">
-        <include file="$(find auv_detection)/launch/inc/tracker_detection.launch">
-            <arg name="sim" value="$(arg sim)"/>
-            <arg name="use_gui" value="$(arg use_gui)"/>
+    <group if="$(var detection)">
+      <push_ros_namespace namespace="tracker_detection" />
+        <include file="$(find-pkg-share auv_detection)/launch/inc/tracker_detection.launch">
+            <arg name="use_gui" value="$(var use_gui)"/>
         </include>
     </group>
 </launch>

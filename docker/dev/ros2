@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ROS 2 dev container. The colcon workspace (default: the directory holding src/auv-software;
+# override with AUV_WS) is mounted at /auv_ws.
+#   docker/dev/ros2              interactive shell (starts the container if needed)
+#   docker/dev/ros2 <cmd...>     run a command inside, ROS sourced
+#   docker/dev/ros2 --build      (re)build the image; ROS_DISTRO=jazzy docker/dev/ros2 --build for the old distro
+#   docker/dev/ros2 --stop       stop the container
+set -euo pipefail
+DISTRO=${ROS_DISTRO:-lyrical}
+HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+WS=${AUV_WS:-$(cd "$HERE/../../../.." && pwd)}
+IMAGE=localhost/auv-ros2:$DISTRO
+NAME=auv-ros2-$DISTRO
+
+case "${1:-}" in
+  --build) exec podman build --build-arg ROS_DISTRO="$DISTRO" -t "$IMAGE" "$HERE" ;;
+  --stop) exec podman rm -f "$NAME" ;;
+esac
+
+if ! podman container exists "$NAME" || [ "$(podman inspect -f '{{.State.Running}}' "$NAME")" != true ]; then
+  podman rm -f "$NAME" >/dev/null 2>&1 || true
+  gui=()
+  [ -n "${DISPLAY:-}" ] && gui+=(-e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix)
+  [ -n "${XAUTHORITY:-}" ] && gui+=(-e XAUTHORITY=/tmp/.xauth -v "$XAUTHORITY":/tmp/.xauth:ro)
+  podman run -d --name "$NAME" --init --replace \
+    --userns=keep-id --network host --ipc host --pids-limit=-1 \
+    --device nvidia.com/gpu=all --security-opt label=disable \
+    -e NVIDIA_DRIVER_CAPABILITIES=all -e HOME=/auv_ws/.home \
+    "${gui[@]}" -v "$WS":/auv_ws -w /auv_ws \
+    "$IMAGE" sleep infinity >/dev/null
+fi
+
+if [ $# -eq 0 ]; then
+  exec podman exec -it "$NAME" bash
+else
+  exec podman exec -i "$NAME" bash -c "source /opt/ros/$DISTRO/setup.bash; [ -f /auv_ws/install/setup.bash ] && source /auv_ws/install/setup.bash; $*"
+fi

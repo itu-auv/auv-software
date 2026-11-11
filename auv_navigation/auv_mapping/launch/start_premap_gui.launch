@@ -3,11 +3,12 @@
     <arg name="namespace" default="taluy" />
     <arg name="reference_frame" default="coin_flip_rescuer" />
 
-    <group ns="$(arg namespace)">
-        <node name="competition_map_gui" pkg="auv_mapping" type="competition_map_gui.py" output="screen">
+    <group>
+      <push_ros_namespace namespace="$(var namespace)" />
+        <node name="competition_map_gui" pkg="auv_mapping" exec="competition_map_gui.py" output="screen">
             <param name="set_premap_service" value="map/set_premap" />
             <param name="get_premap_service" value="map/get_premap" />
-            <param name="reference_frame" value="$(arg reference_frame)" />
+            <param name="reference_frame" value="$(var reference_frame)" />
         </node>
     </group>
 </launch>

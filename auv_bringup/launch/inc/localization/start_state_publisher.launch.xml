@@ -2,12 +2,13 @@
 <launch>
   <arg name="namespace"/>
   <arg name="use_gui" default="false"/>
-  <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')"/>
-  <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')"/>
-  <param name="robot_description" command="xacro $(arg model)"/>
-  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
-  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" unless="$(arg use_gui)"/>
+  <arg name="model" default="$(find-pkg-share $(var namespace)_description)/urdf/auv.urdf.xacro"/>
+  <arg name="rviz_config" default="$(find-pkg-share $(var namespace)_description)/rviz/araba.rviz"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" exec="robot_state_publisher">
+    <param name="robot_description" value="$(command 'xacro $(var model)')" type="str"/>
+  </node>
+  <node name="joint_state_publisher" pkg="joint_state_publisher" exec="joint_state_publisher" unless="$(var use_gui)"/>
   <!-- TODO: remove the joint_state_publisher_gui after debugging to reduce dependencies -->
-  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" if="$(arg use_gui)"/>
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)" if="$(arg use_gui)"/>
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" exec="joint_state_publisher_gui" if="$(var use_gui)"/>
+  <node name="rviz" pkg="rviz2" exec="rviz2" args="-d $(var rviz_config)" if="$(var use_gui)"/>
 </launch>

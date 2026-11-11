@@ -1,0 +1,513 @@
+import smach
+import rclpy
+from auv_common_lib.ros import get_node, Rate
+from rclpy.duration import Duration
+from rclpy.exceptions import ROSInterruptException
+from std_srvs.srv import SetBool
+from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Bool
+from nav_msgs.msg import Odometry
+from tf_transformations import euler_from_quaternion
+from .initialize import *
+import smach_ros
+import math
+from auv_smach.tf_utils import get_base_link
+from auv_smach.common import (
+    SetAlignControllerTargetState,
+    CancelAlignControllerState,
+    ClearObjectMapState,
+    AlignFrame,
+    RotationState,
+    SearchForPropState,
+    SetDepthState,
+)
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Bool
+
+
+class DvlOdometryServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            get_node(),
+            "dvl_to_odom_node/enable",
+            SetBool,
+            request=SetBool.Request(data=req),
+        )
+
+
+class PitchCorrection(smach.State):
+    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=5.0):
+        super(PitchCorrection, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        self.odometry_topic = "odometry"
+        self.wrench_topic = "wrench"
+        self.frame_id = get_base_link()
+
+        self.fixed_torque = -abs(fixed_torque)
+        self.timeout = Duration(seconds=timeout_s)
+        self.rate = Rate(get_node(), rate_hz)
+
+        self.current_pitch = 0.0
+        self.odom_ready = False
+        self.active = True
+        self.start_time = None
+
+        self.sub_odom = get_node().create_subscription(
+            Odometry, self.odometry_topic, self.odom_cb, 10
+        )
+        self.pub_wrench = get_node().create_publisher(
+            WrenchStamped, self.wrench_topic, 1
+        )
+
+    def odom_cb(self, msg: Odometry):
+        orientation = msg.pose.pose.orientation
+        q = [orientation.x, orientation.y, orientation.z, orientation.w]
+
+        try:
+            _, pitch, _ = euler_from_quaternion(q)
+            self.current_pitch = pitch
+            self.odom_ready = True
+        except:
+            get_node().get_logger().warning(
+                "PITCH_CORRECTION: Quaternion conversion failed!"
+            )
+
+    def execute(self, userdata):
+        get_node().get_logger().info("PITCH_CORRECTION: Waiting for odometry data...")
+        start_wait = get_node().get_clock().now()
+
+        while rclpy.ok() and not self.odom_ready:
+            if (get_node().get_clock().now() - start_wait) > Duration(seconds=5.0):
+                get_node().get_logger().error(
+                    "PITCH_CORRECTION: No odometry data → abort"
+                )
+                return "aborted"
+            if self.preempt_requested():
+                return "preempted"
+            self.rate.sleep()
+
+        if self.current_pitch <= 0:
+            get_node().get_logger().info(
+                "PITCH_CORRECTION: Pitch already corrected (%.2f°)"
+                % (math.degrees(self.current_pitch),)
+            )
+            return "succeeded"
+
+        get_node().get_logger().info(
+            "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm"
+            % (math.degrees(self.current_pitch), self.fixed_torque)
+        )
+
+        self.start_time = get_node().get_clock().now()
+
+        try:
+            while rclpy.ok() and self.active:
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+                if (get_node().get_clock().now() - self.start_time) > self.timeout:
+                    get_node().get_logger().warning(
+                        "PITCH_CORRECTION: Timeout after %.1f s. Continuing as if succeeded."
+                        % (self.timeout.nanoseconds / 1e9,)
+                    )
+                    return self._stop_and("succeeded")
+
+                if self.current_pitch <= 0:
+                    get_node().get_logger().info(
+                        "PITCH_CORRECTION: Pitch corrected to %.2f°"
+                        % (math.degrees(self.current_pitch),)
+                    )
+                    return self._stop_and("succeeded")
+
+                cmd = WrenchStamped()
+                cmd.header.stamp = get_node().get_clock().now().to_msg()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.y = self.fixed_torque
+                self.pub_wrench.publish(cmd)
+
+                get_node().get_logger().info(
+                    "PITCH_CORRECTION: Current pitch: %.2f°"
+                    % (math.degrees(self.current_pitch),),
+                    throttle_duration_sec=1.0,
+                )
+
+                self.rate.sleep()
+
+        except ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return "aborted"
+
+    def _stop_and(self, outcome):
+        stop_cmd = WrenchStamped()
+        stop_cmd.header.stamp = get_node().get_clock().now().to_msg()
+        stop_cmd.header.frame_id = self.frame_id
+        self.pub_wrench.publish(stop_cmd)
+        return outcome
+
+    def _abort_on_shutdown(self):
+        get_node().get_logger().warning("PITCH_CORRECTION: ROS shutdown → aborting")
+        return self._stop_and("aborted")
+
+
+class RollTwoTimes(smach.State):
+    def __init__(self, roll_torque, rate_hz=20, timeout_s=15.0):
+        super(RollTwoTimes, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        self.odometry_topic = "odometry"
+        self.wrench_topic = "wrench"
+        self.frame_id = get_base_link()
+
+        self.roll_torque = roll_torque
+        self.timeout = Duration(seconds=timeout_s)
+        self.rate = Rate(get_node(), rate_hz)
+
+        self.odom_ready = False
+        self.active = True
+        self.total_roll = 0.0
+        self.last_time = None
+
+        self.sub_odom = get_node().create_subscription(
+            Odometry, self.odometry_topic, self.odom_cb, 10
+        )
+        self.pub_wrench = get_node().create_publisher(
+            WrenchStamped, self.wrench_topic, 1
+        )
+
+    def odom_cb(self, msg: Odometry):
+        now = get_node().get_clock().now()
+
+        if not self.odom_ready:
+            self.last_time = now
+            self.odom_ready = True
+            return
+
+        if self.last_time is None:
+            self.last_time = now
+            return
+
+        dt = (now - self.last_time).nanoseconds / 1e9
+        self.last_time = now
+
+        omega_x = msg.twist.twist.angular.x
+        delta_angle = omega_x * dt
+        self.total_roll += abs(delta_angle)
+
+    def execute(self, userdata):
+        get_node().get_logger().info("ROLL_TWO_TIMES: waiting for odometry data…")
+        start_wait = get_node().get_clock().now()
+        while rclpy.ok() and not self.odom_ready:
+            if (get_node().get_clock().now() - start_wait).nanoseconds / 1e9 > 5.0:
+                get_node().get_logger().error(
+                    "ROLL_TWO_TIMES: No odometry data after 5 s → abort"
+                )
+                return "aborted"
+            if self.preempt_requested():
+                return "preempted"
+            try:
+                self.rate.sleep()
+            except ROSInterruptException:
+                return self._abort_on_shutdown()
+
+        self.total_roll = 0.0
+        self.last_time = get_node().get_clock().now()
+        self.start_time = get_node().get_clock().now()
+        target = math.radians(660.0)
+        get_node().get_logger().info(
+            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad"
+            % (self.roll_torque, target)
+        )
+
+        try:
+            while rclpy.ok() and self.total_roll < target and self.active:
+
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+
+                if (get_node().get_clock().now() - self.start_time) > self.timeout:
+                    get_node().get_logger().error(
+                        "ROLL_TWO_TIMES: timed out after %.1f s"
+                        % (self.timeout.nanoseconds / 1e9,)
+                    )
+                    return self._stop_and("aborted")
+
+                cmd = WrenchStamped()
+                cmd.header.stamp = get_node().get_clock().now().to_msg()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.x = self.roll_torque
+                self.pub_wrench.publish(cmd)
+
+                get_node().get_logger().info(
+                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f"
+                    % (self.total_roll, target),
+                    throttle_duration_sec=1.0,
+                )
+
+                self.rate.sleep()
+
+        except ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return self._stop_and("succeeded")
+
+    def _stop_and(self, outcome):
+        stop = WrenchStamped()
+        stop.header.stamp = get_node().get_clock().now().to_msg()
+        stop.header.frame_id = self.frame_id
+        stop.wrench.torque.x = 0.0
+        self.pub_wrench.publish(stop)
+        return outcome
+
+    def _abort_on_shutdown(self):
+        get_node().get_logger().warning(
+            "ROLL_TWO_TIMES: ROS shutdown detected → aborting state"
+        )
+        return self._stop_and("aborted")
+
+
+class TwoRollState(smach.StateMachine):
+    def __init__(self, gate_look_at_frame, roll_torque=50.0):
+        smach.StateMachine.__init__(
+            self, outcomes=["succeeded", "preempted", "aborted"]
+        )
+        self.roll_torque = roll_torque
+        self.gate_look_at_frame = gate_look_at_frame
+        self.base_link = get_base_link()
+
+        with self:
+            smach.StateMachine.add(
+                "DISABLE_DVL_ODOM",
+                DvlOdometryServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "WAIT_FOR_PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_PITCH_CORRECTION",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PITCH_CORRECTION",
+                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=3.0),
+                transitions={
+                    "succeeded": "ROLL_TWO_TIMES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ROLL_TWO_TIMES",
+                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
+                transitions={
+                    "succeeded": "WAIT_FOR_STABILIZATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_STABILIZATION",
+                DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "ENABLE_DVL_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_DVL_ODOM",
+                DvlOdometryServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_DVL_ODOM_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_DVL_ODOM_ENABLE",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ROLL_DEPTH",
+                SetDepthState(
+                    depth=-0.8,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_LOOK_AT_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_LOOK_AT_GATE",
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="gate_search_after_roll",
+                    full_rotation=True,
+                    source_frame=self.base_link,
+                    rotation_speed=0.25,
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_ALIGNMENT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ALIGNMENT",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE",
+                ResetOdometryState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class TwoYawState(smach.StateMachine):
+    def __init__(self, yaw_frame):
+        smach.StateMachine.__init__(
+            self, outcomes=["succeeded", "preempted", "aborted"]
+        )
+        self.yaw_frame = yaw_frame
+        self.base_link = get_base_link()
+
+        with self:
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_NONE_DURING_YAW",
+                SetDetectionFocusState(focus_object="none"),
+                transitions={
+                    "succeeded": "YAW_FIRST_360_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_FIRST_360_DEGREES",
+                RotationState(
+                    source_frame=self.base_link,
+                    look_at_frame=self.yaw_frame,
+                    rotation_speed=0.5,
+                    full_rotation=True,
+                    full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
+                ),
+                transitions={
+                    "succeeded": "YAW_SECOND_360_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_SECOND_360_DEGREES",
+                RotationState(
+                    source_frame=self.base_link,
+                    look_at_frame=self.yaw_frame,
+                    rotation_speed=0.5,
+                    full_rotation=True,
+                    full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE_AFTER_YAW",
+                ResetOdometryState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET_POSE",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP_AFTER_YAW",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
