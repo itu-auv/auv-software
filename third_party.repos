@@ -1,8 +1,8 @@
 repositories:
-  ../third_party/xsens_mti_driver:
+  ../third_party/xsens_mti_ros2_driver:
     type: git
     version: ros2
-    url: https://github.com/nobleo/xsens_mti_driver.git
+    url: https://github.com/xsenssupport/Xsens_MTi_ROS_Driver_and_Ntrip_Client.git
   ../third_party/ultralytics_ros:
     type: git
     version: lyrical-devel

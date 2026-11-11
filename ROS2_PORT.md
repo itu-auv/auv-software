@@ -18,7 +18,9 @@ Not done or not verified:
 
 - Nothing has run on the vehicle. Camera, DVL, IMU and hydrophone drivers build but
   have not met their devices. `vectornav` is the upstream ROS 2 driver, not the
-  team fork.
+  team fork. The Xsens driver is Movella's official ROS 2 driver (the nobleo fork
+  ROS 1 used has no ROS 2 version); its launch file keeps it from writing any
+  configuration to the sensor, and its `ntrip` package is not built.
 - In the simulator the default full mission (gate, torpedo, bin, octagon, acoustic
   send and receive, return through the gate) runs from start to end in one go. Also
   run: each task from its own start pose, the pinger task with the pinger at either

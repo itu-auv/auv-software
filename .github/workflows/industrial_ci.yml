@@ -28,7 +28,7 @@ jobs:
           UPSTREAM_WORKSPACE: third_party.repos
           TARGET_WORKSPACE: "."
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
-          AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src
+          AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src; touch $BASEDIR/upstream_ws/src/third_party/xsens_mti_ros2_driver/src/ntrip/COLCON_IGNORE
       - name: cleanup temp build directory
         if: always()
         run: rm -rf ${{ steps.make_temp_build_dir.outputs.build_directory }}

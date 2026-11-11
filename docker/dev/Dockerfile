@@ -25,6 +25,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     ros-${ROS_DISTRO}-joy ros-${ROS_DISTRO}-rqt-reconfigure ros-${ROS_DISTRO}-rqt-image-view \
     ros-${ROS_DISTRO}-realsense2-camera ros-${ROS_DISTRO}-rosbag2 \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-mavros-msgs ros-${ROS_DISTRO}-nmea-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 # Generated Python messages with a field named `range` call that field instead of the
