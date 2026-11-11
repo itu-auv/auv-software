@@ -78,11 +78,19 @@ void ObjectMapTFServerROS::run() {
 }
 
 void ObjectMapTFServerROS::broadcast_transforms() {
-  auto lock = std::scoped_lock{mutex_};
-  for (auto &entry : filters_) {
-    for (const auto &filter_ptr : entry.second) {
-      tf_broadcaster_.sendTransform(filter_ptr->getFilteredTransform());
+  // One message for the whole map: every TF listener pays per message, and the
+  // map only grows during a mission.
+  auto transforms = std::vector<geometry_msgs::msg::TransformStamped>{};
+  {
+    auto lock = std::scoped_lock{mutex_};
+    for (auto &entry : filters_) {
+      for (const auto &filter_ptr : entry.second) {
+        transforms.push_back(filter_ptr->getFilteredTransform());
+      }
     }
+  }
+  if (!transforms.empty()) {
+    tf_broadcaster_.sendTransform(transforms);
   }
 }
 

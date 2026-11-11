@@ -419,6 +419,7 @@ class PremapPublisher(Node):
 
     def broadcast_transforms(self):
         """Broadcast TF for all premap objects."""
+        transforms = []
         with self.lock:
             for label, data in self.premap.items():
                 tf_msg = TransformStamped()
@@ -433,7 +434,9 @@ class PremapPublisher(Node):
                 q = data.get("orientation", np.array([0.0, 0.0, 0.0, 1.0]))
                 tf_msg.transform.rotation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
-                self.tf_broadcaster.sendTransform(tf_msg)
+                transforms.append(tf_msg)
+        if transforms:
+            self.tf_broadcaster.sendTransform(transforms)
 
     def run(self):
         """Main loop: broadcast transforms at configured rate."""
