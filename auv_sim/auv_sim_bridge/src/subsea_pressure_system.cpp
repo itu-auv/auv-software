@@ -14,7 +14,7 @@
 
 namespace auv_sim_bridge {
 
-// Harmonic adapter for the legacy UUV SubseaPressureROSPlugin measurement.
+// gz-sim adapter for the legacy UUV SubseaPressureROSPlugin measurement.
 // The sensor reads physics pose directly; it does not subscribe to odometry.
 class SubseaPressureSystem : public gz::sim::System,
                              public gz::sim::ISystemConfigure,

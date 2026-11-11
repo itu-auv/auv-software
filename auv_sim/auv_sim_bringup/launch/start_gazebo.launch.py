@@ -1,4 +1,4 @@
-"""Jazzy/Harmonic simulation entry point; pool is the legacy default world."""
+"""Simulation entry point (ROS 2 + Gazebo gz-sim); pool is the legacy default world."""
 
 from pathlib import Path
 import tempfile

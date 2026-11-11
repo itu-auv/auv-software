@@ -5,7 +5,7 @@ repositories:
     url: https://github.com/nobleo/xsens_mti_driver.git
   ../third_party/ultralytics_ros:
     type: git
-    version: jazzy-devel
+    version: lyrical-devel
     url: https://github.com/itu-auv/ultralytics_ros.git
   ../third_party/vectornav:
     type: git

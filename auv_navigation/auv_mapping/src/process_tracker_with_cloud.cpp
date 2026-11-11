@@ -4,19 +4,18 @@
  * Inspired by ultralytics_ros tracker_with_cloud_node
  */
 
-#include <message_filters/subscriber.h>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/synchronizer.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_broadcaster.h>
-#include <tf2_ros/transform_listener.h>
-
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <message_filters/subscriber.hpp>
+#include <message_filters/sync_policies/approximate_time.hpp>
+#include <message_filters/synchronizer.hpp>
 #include <opencv2/core/core.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <tf2/LinearMath/Matrix3x3.hpp>
+#include <tf2_ros/buffer.hpp>
+#include <tf2_ros/transform_broadcaster.hpp>
+#include <tf2_ros/transform_listener.hpp>
 #include <vision_msgs/msg/detection2_d_array.hpp>
 #include <vision_msgs/msg/detection3_d_array.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
@@ -154,7 +153,7 @@ class ProcessTrackerWithCloud {
     }
 
     // Initialize subscribers
-    const auto qos = rclcpp::QoS(10).get_rmw_qos_profile();
+    const auto qos = rclcpp::QoS(10);
     camera_info_sub_.subscribe(nh_, camera_info_topic_, qos);
     lidar_sub_.subscribe(nh_, lidar_topic_, qos);
     yolo_result_sub_.subscribe(nh_, yolo_result_topic_, qos);
@@ -167,7 +166,7 @@ class ProcessTrackerWithCloud {
         std::placeholders::_2, std::placeholders::_3));
 
     // Create TF broadcaster
-    tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster(nh_));
+    tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster(*nh_));
     camera_optical_frame_ = nh_->declare_parameter<std::string>(
         "camera_optical_frame", "taluy/camera_depth_optical_frame");
     base_link_frame_ = nh_->declare_parameter<std::string>("base_link_frame",

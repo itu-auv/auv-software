@@ -26,7 +26,7 @@ class SimPressureDepthAdapter(Node):
         )
 
     def on_pressure(self, message):
-        # UUV's old ROS message was in kPa; the Harmonic bridge uses Pa.
+        # UUV's old ROS message was in kPa; the gz bridge uses Pa.
         fluid_pressure = message.fluid_pressure / 1000.0
         depth = (
             1000.0

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_msgs)
 
 find_package(ament_cmake REQUIRED)

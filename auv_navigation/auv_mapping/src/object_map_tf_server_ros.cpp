@@ -7,8 +7,8 @@
 // #include "rclcpp/rclcpp.hpp"
 // #include <std_srvs/srv/empty.hpp>
 // #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-// #include <tf2_ros/transform_broadcaster.h>
-// #include <tf2_ros/transform_listener.h>
+// #include <tf2_ros/transform_broadcaster.hpp>
+// #include <tf2_ros/transform_listener.hpp>
 
 // #include <cmath>
 // #include <memory>
@@ -30,7 +30,7 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const rclcpp::Node::SharedPtr &nh)
       rate_{10.0},
       distance_threshold_squared_{16.0},
       static_frame_{""},
-      tf_broadcaster_{nh} {
+      tf_broadcaster_{*nh} {
   static_frame_ = nh_->declare_parameter<std::string>("static_frame", "odom");
   rate_ = nh_->declare_parameter<double>("rate", 10.0);
 

@@ -6,17 +6,11 @@
  * then uses RANSAC to fit planes to detected objects and publishes their poses.
  */
 
-#include <message_filters/subscriber.h>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <message_filters/synchronizer.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
 
 #include <Eigen/Geometry>
 #include <algorithm>
@@ -24,12 +18,18 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <map>
+#include <message_filters/subscriber.hpp>
+#include <message_filters/sync_policies/approximate_time.hpp>
+#include <message_filters/synchronizer.hpp>
 #include <mutex>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <string>
+#include <tf2/LinearMath/Matrix3x3.hpp>
+#include <tf2_ros/buffer.hpp>
+#include <tf2_ros/transform_listener.hpp>
 #include <vector>
 #include <vision_msgs/msg/detection2_d_array.hpp>
 
@@ -100,7 +100,7 @@ class ObjectPlaneFitter {
                       std::placeholders::_1));
 
     // Synchronized subscribers for depth and detections
-    const auto qos = rclcpp::QoS(sync_queue_size_).get_rmw_qos_profile();
+    const auto qos = rclcpp::QoS(sync_queue_size_);
     depth_sub_.subscribe(nh_, "depth", qos);
     detection_sub_.subscribe(nh_, "detections", qos);
 

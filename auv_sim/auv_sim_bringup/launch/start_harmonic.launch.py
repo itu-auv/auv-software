@@ -1,4 +1,4 @@
-"""Taluy and Mini physics/sensors using native Harmonic systems."""
+"""Taluy and Mini physics/sensors using native gz-sim systems."""
 
 import os
 from pathlib import Path
@@ -116,7 +116,7 @@ def start(context):
     model = ET.tostring(entity, encoding="unicode")
     world_name = LaunchConfiguration("world").perform(context)
     if world_name not in ("taluy_harmonic", "pool"):
-        raise RuntimeError("Unknown Harmonic world: " + world_name)
+        raise RuntimeError("Unknown gz-sim world: " + world_name)
     sim_share = Path(get_package_share_directory("auv_sim_description"))
     filename = (
         "taluy_harmonic.sdf"

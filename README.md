@@ -1,5 +1,5 @@
 # auv-software
-ITU AUV Team main software stack, on ROS 2 Jazzy and Gazebo Harmonic.
+ITU AUV Team main software stack, on ROS 2 Lyrical Luth and Gazebo Jetty.
 
 - [ROS2_PORT.md](ROS2_PORT.md): state of the ROS 2 port, how to build and run it, and
   how to port a ROS 1 branch.

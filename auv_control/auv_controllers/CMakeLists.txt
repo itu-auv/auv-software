@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_controllers)
 
 add_compile_options(-std=c++17)
@@ -19,7 +19,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
-ament_target_dependencies(${PROJECT_NAME} angles auv_common_lib pluginlib rclcpp tf2)
+target_link_libraries(${PROJECT_NAME} angles::angles auv_common_lib::auv_common_lib pluginlib::pluginlib rclcpp::rclcpp tf2::tf2)
 pluginlib_export_plugin_description_file(auv_controllers controller_plugins.xml)
 
 install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}

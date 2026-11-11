@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_common_lib)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -27,7 +27,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
-ament_target_dependencies(${PROJECT_NAME} geometry_msgs nav_msgs rclcpp tf2)
+target_link_libraries(${PROJECT_NAME} ${geometry_msgs_TARGETS} ${nav_msgs_TARGETS} rclcpp::rclcpp tf2::tf2)
 
 install(TARGETS ${PROJECT_NAME} EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib

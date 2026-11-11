@@ -3,10 +3,10 @@
 # override with AUV_WS) is mounted at /auv_ws.
 #   docker/dev/ros2              interactive shell (starts the container if needed)
 #   docker/dev/ros2 <cmd...>     run a command inside, ROS sourced
-#   docker/dev/ros2 --build      (re)build the image; ROS_DISTRO=lyrical docker/dev/ros2 --build to switch
+#   docker/dev/ros2 --build      (re)build the image; ROS_DISTRO=jazzy docker/dev/ros2 --build for the old distro
 #   docker/dev/ros2 --stop       stop the container
 set -euo pipefail
-DISTRO=${ROS_DISTRO:-jazzy}
+DISTRO=${ROS_DISTRO:-lyrical}
 HERE=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
 WS=${AUV_WS:-$(cd "$HERE/../../../.." && pwd)}
 IMAGE=localhost/auv-ros2:$DISTRO

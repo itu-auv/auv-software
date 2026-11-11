@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_control)
 
 add_compile_options(-std=c++17)
@@ -34,12 +34,12 @@ install(PROGRAMS
 
 add_executable(${PROJECT_NAME}_node src/controller_node.cpp src/controller_ros.cpp)
 target_include_directories(${PROJECT_NAME}_node PRIVATE include)
-ament_target_dependencies(${PROJECT_NAME}_node auv_common_lib auv_controllers geometry_msgs nav_msgs pluginlib rclcpp std_msgs tf2_ros tf2_geometry_msgs)
+target_link_libraries(${PROJECT_NAME}_node auv_common_lib::auv_common_lib auv_controllers::auv_controllers ${geometry_msgs_TARGETS} ${nav_msgs_TARGETS} pluginlib::pluginlib rclcpp::rclcpp ${std_msgs_TARGETS} tf2_ros::tf2_ros tf2_geometry_msgs::tf2_geometry_msgs)
 
 add_executable(thruster_manager_node src/thruster_manager_node.cpp src/thruster_manager_ros.cpp)
 target_include_directories(thruster_manager_node PRIVATE include)
 target_link_libraries(thruster_manager_node Eigen3::Eigen fmt::fmt)
-ament_target_dependencies(thruster_manager_node geometry_msgs sensor_msgs std_msgs rclcpp tf2_ros tf2_geometry_msgs)
+target_link_libraries(thruster_manager_node ${geometry_msgs_TARGETS} ${sensor_msgs_TARGETS} ${std_msgs_TARGETS} rclcpp::rclcpp tf2_ros::tf2_ros tf2_geometry_msgs::tf2_geometry_msgs)
 
 install(TARGETS ${PROJECT_NAME}_node thruster_manager_node DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})

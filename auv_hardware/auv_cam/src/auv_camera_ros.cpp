@@ -36,7 +36,7 @@
 
 namespace auv_cam {
 USBGStreamerCameraROS::USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh)
-    : nh_(nh), it_(nh_) {
+    : nh_(nh), it_(*nh_) {
   width_ = nh_->declare_parameter<int>("width", 1920);
   height_ = nh_->declare_parameter<int>("height", 1080);
   fps_ = nh_->declare_parameter<int>("fps", 30);
@@ -113,6 +113,8 @@ USBGStreamerCameraROS::USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh)
 
 void USBGStreamerCameraROS::start() {
   sensor_msgs::msg::Image img_msg;
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(nh_);
   while (rclcpp::ok()) {
     cv::Mat frame;
     capture_ >> frame;
@@ -134,7 +136,7 @@ void USBGStreamerCameraROS::start() {
     } else {
       image_pub_.publish(img_msg);
     }
-    rclcpp::spin_some(nh_);
+    executor.spin_some();
   }
 }
 }  // namespace auv_cam

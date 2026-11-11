@@ -521,7 +521,7 @@ class GazeboInterface:
         self._pose_buffer: deque = deque(maxlen=self._BUFFER_SIZE)
         self._state_lock = threading.Lock()
 
-        # Gazebo Harmonic publishes entity poses on /world/<world>/pose/info; the
+        # gz-sim publishes entity poses on /world/<world>/pose/info; the
         # launch files bridge it to ROS as a TFMessage (child_frame_id = entity name).
         world = get_param(get_node(), "~world", "pool")
         get_node().create_subscription(

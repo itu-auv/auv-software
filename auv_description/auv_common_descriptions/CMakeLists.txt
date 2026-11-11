@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 project(auv_common_descriptions)
 find_package(ament_cmake REQUIRED)
 install(DIRECTORY meshes urdf DESTINATION share/${PROJECT_NAME})

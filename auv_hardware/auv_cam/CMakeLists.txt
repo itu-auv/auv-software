@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_cam)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
@@ -9,18 +9,18 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED CONFIG)
 find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 
 include_directories(include)
 
 add_library(auv_camera_ros src/auv_camera_ros.cpp)
 target_link_libraries(auv_camera_ros ${OpenCV_LIBRARIES})
-ament_target_dependencies(auv_camera_ros cv_bridge image_transport rclcpp sensor_msgs)
+target_link_libraries(auv_camera_ros cv_bridge::cv_bridge image_transport::image_transport rclcpp::rclcpp ${sensor_msgs_TARGETS})
 
 add_library(rtsp_camera_ros src/rtsp_camera_ros.cpp)
 target_link_libraries(rtsp_camera_ros ${OpenCV_LIBRARIES})
-ament_target_dependencies(rtsp_camera_ros cv_bridge image_transport rclcpp sensor_msgs)
+target_link_libraries(rtsp_camera_ros cv_bridge::cv_bridge image_transport::image_transport rclcpp::rclcpp ${sensor_msgs_TARGETS})
 
 add_executable(auv_gst_cam_node src/auv_gst_cam_node.cpp)
 target_link_libraries(auv_gst_cam_node auv_camera_ros)

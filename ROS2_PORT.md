@@ -1,6 +1,6 @@
 # ROS 2 port
 
-`auv-software` on ROS 2 Jazzy with Gazebo Harmonic. The port is a translation of
+`auv-software` on ROS 2 Lyrical Luth (Ubuntu 26.04) with Gazebo Jetty. The port is a translation of
 the ROS 1 code, as close to line by line as ROS 2 allows: same packages, nodes,
 topics, parameters and algorithms. Bugs found on the way are listed in
 [BUGS.md](BUGS.md) and left alone unless keeping them was more work than fixing.
@@ -26,15 +26,16 @@ Not done or not verified:
   The roll does not finish in the simulator (BUGS.md). The three GUIs start, but
   nobody has clicked through them.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
-  images (they wait on the choice of vehicle OS); `industrial_ci` builds on Jazzy.
-- The simulator part of the port (Gazebo Classic + UUV simulator → Gazebo Harmonic)
+  images (they wait on the choice of vehicle OS); `industrial_ci` builds on Lyrical.
+- The simulator part of the port (Gazebo Classic + UUV simulator → gz-sim, written
+  for Harmonic and now run on Jetty)
   is a rewrite by necessity. The ROS 1 sim files it replaced are still in
   `auv_sim/` for reference and are not installed.
 
 ## Build and run
 
 ```bash
-docker/dev/ros2 --build          # once: podman image with Jazzy, Gazebo, dependencies
+docker/dev/ros2 --build          # once: podman image with Lyrical, Gazebo, dependencies
 docker/dev/ros2                  # shell in the container, workspace at /auv_ws
 vcs import src < src/auv-software/third_party.repos
 colcon build --symlink-install
@@ -59,11 +60,9 @@ There is no global parameter server, and so no global `/use_sim_time` either. Th
 simulator launch sets it for its own nodes; anything started separately against the
 simulator needs `use_sim_time:=true` (the mission and teleop launch files take it).
 A node of ours that finds a `/clock` while on wall time stops with an error instead
-of running on mixed clocks.
-
-There is no global parameter server. `start.launch` and the simulator launch push
-`use_sim_time` and `environment.yaml` to every node they start; a node reads
-`/env/pool_depth` as its own parameter `env.pool_depth`.
+of running on mixed clocks. `start.launch` and the simulator launch also push
+`environment.yaml` to every node they start; a node reads `/env/pool_depth` as its
+own parameter `env.pool_depth`.
 
 `.cfg` files became parameter lists next to the node that serves them
 (`auv_common_lib.reconfigure.Server`); other nodes use `reconfigure.Client`.
@@ -132,7 +131,7 @@ Things ROS 2 does differently that bit during the port:
   checks for incompatible publishers itself, so a best-effort driver feeding a
   reliable subscription still gets a warning. The cause is in the Fast DDS layer
   ([rclpy#1223](https://github.com/ros2/rclpy/issues/1223), fixed on Rolling by
-  [rmw_fastrtps#930](https://github.com/ros2/rmw_fastrtps/pull/930)); once a Jazzy
+  [rmw_fastrtps#930](https://github.com/ros2/rmw_fastrtps/pull/930)); once a Lyrical
   release carries the backport the workaround can go.
 - Service replies go to every client of the service and queues are 10 deep by
   default, so replies and requests can be lost under load and a blocking call then
@@ -147,3 +146,26 @@ Things ROS 2 does differently that bit during the port:
   BUGS.md); use `auv_smach.common.Concurrence`.
 - `ros_gz_bridge` drops entity names from `gz.msgs.Pose_V`; `world_pose_bridge` keeps
   them.
+
+## Lyrical
+
+The port was written on Jazzy and moved to Lyrical. What changed, for anyone moving
+other code:
+
+- `ament_target_dependencies()` is gone. Link targets:
+  `target_link_libraries(t rclcpp::rclcpp ${std_msgs_TARGETS} tf2_ros::tf2_ros)`.
+- The `.h` headers of `tf2`, `tf2_ros` and `message_filters` are gone; use `.hpp`.
+- `message_filters::Subscriber::subscribe` needs an `rclcpp::QoS` (no default, no
+  `rmw_qos_profile_t`). `rclcpp::QoS(10)` is the old default.
+- Gazebo CMake packages have no version in their names: `gz-sim::gz-sim`,
+  `gz-transport::gz-transport` (Jazzy's vendor packages accept the same spelling).
+- `${OpenCV_LIBRARIES}` after `cv_bridge` holds every OpenCV module, `opencv_viz`
+  included, which drags in a VTK whose JsonCpp target PCL never created: CMake fails
+  at generate time. Link the modules you use (`opencv_core`, ...).
+- rclpy has no `logger.warn`; `smach_ros` still calls it, so `auv_smach/__init__.py`
+  adds it back.
+- Generated Python messages with a field named `range` break
+  (`marine_acoustic_msgs/Dvl`; [rosidl_python#275](https://github.com/ros2/rosidl_python/issues/275)).
+  The dev image patches the generated file.
+- The `osrf/ros` base image lags the apt repository; mixing its packages with newer
+  ones gives `undefined symbol` errors at run time, so the image upgrades first.

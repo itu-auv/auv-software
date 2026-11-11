@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16)
 project(taluy_mini_sim_description)
 find_package(ament_cmake REQUIRED)
 install(DIRECTORY urdf DESTINATION share/${PROJECT_NAME})

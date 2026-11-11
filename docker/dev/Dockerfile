@@ -1,10 +1,10 @@
-# Desktop dev image for the ROS 2 port. Switch distro with --build-arg ROS_DISTRO=lyrical.
-ARG ROS_DISTRO=jazzy
+# Desktop dev image for the ROS 2 port. Switch distro with --build-arg ROS_DISTRO=jazzy.
+ARG ROS_DISTRO=lyrical
 FROM docker.io/osrf/ros:${ROS_DISTRO}-desktop-full
 
 ENV DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     git curl vim less gdb clang-format \
     python3-pip python3-vcstool python3-colcon-common-extensions python3-rosdep \
     python3-numpy python3-yaml python3-scipy python3-opencv python3-transforms3d \
@@ -26,6 +26,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-realsense2-camera ros-${ROS_DISTRO}-rosbag2 \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
+
+# Generated Python messages with a field named `range` call that field instead of the
+# built-in (marine_acoustic_msgs/Dvl). Remove once https://github.com/ros2/rosidl_python/pull/276 is released.
+RUN grep -rl --include='_*.py' 'for x in range(' /opt/ros/${ROS_DISTRO}/lib/python3*/site-packages \
+    | xargs -r sed -i 's/for x in range(/for x in builtins.range(/'
 
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /etc/bash.bashrc && \
     echo '[ -f /auv_ws/install/setup.bash ] && source /auv_ws/install/setup.bash' >> /etc/bash.bashrc
