@@ -254,6 +254,10 @@ Dead or broken leftovers:
   missing, which is the controller's enable timeout).
 - `joy_manager` `use_vel` mode zeroes the X/Y position gains of the controller and
   restores them on a clean shutdown only.
+- `taluy_gui` simulation tab: the `buoy` test-state checkbox has no entry in the
+  mission's `state_map`, so it is dropped without a message (ticked alone, the test
+  mission is empty). `acoustic_tx`, `acoustic_rx`, `return` and `path1`-`path4` are
+  in the map and have no checkbox. Same on ROS 1.
 - `dynamic_roll_compensation` rotates the image about its centre pixel, not about the
   principal point of the camera, while the detections are later projected with the
   camera matrix.

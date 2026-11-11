@@ -26,8 +26,9 @@ Not done or not verified:
   send and receive, return through the gate) runs from start to end in one go. Also
   run: each task from its own start pose, the pinger task with the pinger at either
   place, the gate with `coin_flip` and `yaw`, and a path drawn in the waypoint GUI.
-  The roll does not finish in the simulator (BUGS.md). The three GUIs start, but
-  nobody has clicked through them.
+  The roll does not finish in the simulator (BUGS.md). The taluy GUI's service
+  buttons and Launch SMACH work against the simulator; its other tabs and the
+  premap GUI start, but nobody has clicked through them.
 - `docker/Dockerfile.auv*` and the image-building workflows still build ROS 1
   images (they wait on the choice of vehicle OS); `industrial_ci` builds on Lyrical.
 - The simulator part of the port (Gazebo Classic + UUV simulator → gz-sim, written
@@ -146,14 +147,21 @@ Things ROS 2 does differently that bit during the port:
   many nodes call need `rclcpp::ServicesQoS().keep_all()`.
 - In simulation every rclpy node wakes up for each `/clock` message. Gazebo ticks at 1 kHz, so
   `auv_sim_bridge/clock_bridge` forwards the clock at 100 Hz of simulation time
-  (`period` parameter). On Jetty, gz-transport sometimes stops delivering the Gazebo
-  clock to it with the connection still up; it subscribes again after 2 s of silence
-  and logs a warning. On the vehicle there is no `/clock` and an idle node costs
+  (`period` parameter). On the vehicle there is no `/clock` and an idle node costs
   about 1.5 % of a core.
 - smach for ROS 2 resolves `Concurrence` outcomes differently from ROS 1 (see
   BUGS.md); use `auv_smach.common.Concurrence`.
 - `ros_gz_bridge` drops entity names from `gz.msgs.Pose_V`; `world_pose_bridge` keeps
   them.
+- On Jetty, Gazebo sometimes stops sending a topic to a subscriber whose connection
+  is still up (it sends only to subscribers in its own registry, and a second
+  subscriber on the topic hides the loss). `auv_sim_bridge/gz_sensor_bridge` carries
+  the sensor streams instead of `ros_gz_bridge` and subscribes again after 2 s of
+  simulation time without data; `world_pose_bridge` does the same, and `clock_bridge`
+  after 5 s of wall time. Each logs a warning when it does.
+- Every Python TF listener pays for each `/tf` message, so a node that broadcasts
+  many frames sends them as one message per tick (`object_map_tf_server`,
+  `premap_publisher`): 800 messages a second became 90 five minutes into a mission.
 
 ## Lyrical
 
