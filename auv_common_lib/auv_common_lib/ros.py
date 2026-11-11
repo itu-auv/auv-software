@@ -116,6 +116,8 @@ class ServiceProxy:
     waiting forever, and so does a server that goes away during the call.
     """
 
+    DISCOVERY = 5.0  # seconds
+
     def __init__(self, node, srv_type, name):
         self.node = node
         self.srv_type = srv_type
@@ -128,6 +130,10 @@ class ServiceProxy:
         )
 
     def wait_for_service(self, timeout=None):
+        if timeout is not None:
+            # rospy asked the master and knew at once; a new client here needs a
+            # couple of seconds to discover the server, whatever the caller allows
+            timeout = max(timeout, self.DISCOVERY - (time.monotonic() - self.created))
         if not self.client.wait_for_service(timeout_sec=timeout):
             raise ServiceUnavailable(f"service {self.client.srv_name} is not available")
 
@@ -138,13 +144,10 @@ class ServiceProxy:
             fields = self.srv_type.Request.get_fields_and_field_types()
             request = self.srv_type.Request(**dict(zip(fields, args)), **kwargs)
         if not self.client.service_is_ready():
-            # a new client needs a few seconds to discover the server in a large
-            # system; after that a missing server fails at once, as it did with rospy
-            self.wait_for_service(
-                timeout=max(0.0, 5.0 - (time.monotonic() - self.created))
-            )
+            # after the discovery time a missing server fails at once, as with rospy
+            self.wait_for_service(timeout=0.0)
         executor = self.node.executor
-        if executor is None or executor is rclpy.get_global_executor():
+        if executor is None or not executor.is_spinning:
             # called before spin() (a constructor): nobody else processes the answer
             future = self.client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future)
