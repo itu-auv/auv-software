@@ -1,5 +1,5 @@
-# Desktop dev image for the ROS 2 port. Switch distro with --build-arg ROS_DISTRO=jazzy.
-ARG ROS_DISTRO=lyrical
+# Desktop dev image for the ROS 2 port. Override the distro with --build-arg ROS_DISTRO=<distro>.
+ARG ROS_DISTRO=jazzy
 FROM docker.io/osrf/ros:${ROS_DISTRO}-desktop-full
 
 ENV DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC

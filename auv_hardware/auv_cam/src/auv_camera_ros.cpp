@@ -36,7 +36,7 @@
 
 namespace auv_cam {
 USBGStreamerCameraROS::USBGStreamerCameraROS(const rclcpp::Node::SharedPtr &nh)
-    : nh_(nh), it_(*nh_) {
+    : nh_(nh), it_(nh_) {
   width_ = nh_->declare_parameter<int>("width", 1920);
   height_ = nh_->declare_parameter<int>("height", 1080);
   fps_ = nh_->declare_parameter<int>("fps", 30);

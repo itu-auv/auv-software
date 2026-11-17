@@ -43,16 +43,19 @@ target_link_libraries(object_map_tf_server_node object_position_filter)
 target_link_libraries(object_map_tf_server_node ${auv_msgs_TARGETS} ${geometry_msgs_TARGETS} rclcpp::rclcpp ${std_srvs_TARGETS} tf2::tf2 tf2_geometry_msgs::tf2_geometry_msgs tf2_ros::tf2_ros)
 
 add_executable(process_tracker_with_cloud src/process_tracker_with_cloud.cpp)
+ament_target_dependencies(process_tracker_with_cloud pcl_conversions)
 target_link_libraries(process_tracker_with_cloud ${PCL_LIBRARIES} opencv_core opencv_imgproc)
-target_link_libraries(process_tracker_with_cloud ${geometry_msgs_TARGETS} message_filters::message_filters pcl_conversions::pcl_conversions pcl_ros::pcl_ros_tf rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_srvs_TARGETS} tf2::tf2 tf2_ros::tf2_ros ${vision_msgs_TARGETS} ${visualization_msgs_TARGETS})
+target_link_libraries(process_tracker_with_cloud ${geometry_msgs_TARGETS} message_filters::message_filters pcl_ros::pcl_ros_tf rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_srvs_TARGETS} tf2::tf2 tf2_ros::tf2_ros ${vision_msgs_TARGETS} ${visualization_msgs_TARGETS})
 
 add_executable(realsense_filter_node src/realsense_filter.cpp)
+ament_target_dependencies(realsense_filter_node pcl_conversions)
 target_link_libraries(realsense_filter_node ${PCL_LIBRARIES})
-target_link_libraries(realsense_filter_node ${nav_msgs_TARGETS} pcl_conversions::pcl_conversions rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_msgs_TARGETS})
+target_link_libraries(realsense_filter_node ${nav_msgs_TARGETS} rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_msgs_TARGETS})
 
 add_executable(object_plane_fitter_node src/object_plane_fitter_node.cpp)
+ament_target_dependencies(object_plane_fitter_node pcl_conversions)
 target_link_libraries(object_plane_fitter_node ${PCL_LIBRARIES})
-target_link_libraries(object_plane_fitter_node cv_bridge::cv_bridge ${geometry_msgs_TARGETS} message_filters::message_filters pcl_conversions::pcl_conversions rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_srvs_TARGETS} tf2::tf2 tf2_ros::tf2_ros ${vision_msgs_TARGETS})
+target_link_libraries(object_plane_fitter_node cv_bridge::cv_bridge ${geometry_msgs_TARGETS} message_filters::message_filters rclcpp::rclcpp ${sensor_msgs_TARGETS} ${std_srvs_TARGETS} tf2::tf2 tf2_ros::tf2_ros ${vision_msgs_TARGETS})
 
 install(PROGRAMS
   scripts/gate_trajectory_publisher.py

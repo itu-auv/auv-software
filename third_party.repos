@@ -5,9 +5,9 @@ repositories:
     url: https://github.com/xsenssupport/Xsens_MTi_ROS_Driver_and_Ntrip_Client.git
   ../third_party/ultralytics_ros:
     type: git
-    version: lyrical-devel
+    version: jazzy-devel
     url: https://github.com/itu-auv/ultralytics_ros.git
   ../third_party/vectornav:
     type: git
-    version: lyrical
-    url: https://github.com/Ufuk-a/vectornav.git
+    version: ros2
+    url: https://github.com/dawonn/vectornav.git

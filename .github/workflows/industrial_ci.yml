@@ -24,7 +24,7 @@ jobs:
           echo build_directory=$directory >> $GITHUB_ENV
       - uses: ros-industrial/industrial_ci@master
         env:
-          ROS_DISTRO: lyrical
+          ROS_DISTRO: jazzy
           UPSTREAM_WORKSPACE: third_party.repos
           TARGET_WORKSPACE: "."
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}

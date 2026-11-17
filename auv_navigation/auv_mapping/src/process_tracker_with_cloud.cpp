@@ -153,7 +153,7 @@ class ProcessTrackerWithCloud {
     }
 
     // Initialize subscribers
-    const auto qos = rclcpp::QoS(10);
+    const auto qos = rclcpp::QoS(10).get_rmw_qos_profile();
     camera_info_sub_.subscribe(nh_, camera_info_topic_, qos);
     lidar_sub_.subscribe(nh_, lidar_topic_, qos);
     yolo_result_sub_.subscribe(nh_, yolo_result_topic_, qos);

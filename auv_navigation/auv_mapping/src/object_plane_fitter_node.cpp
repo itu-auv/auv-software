@@ -100,7 +100,7 @@ class ObjectPlaneFitter {
                       std::placeholders::_1));
 
     // Synchronized subscribers for depth and detections
-    const auto qos = rclcpp::QoS(sync_queue_size_);
+    const auto qos = rclcpp::QoS(sync_queue_size_).get_rmw_qos_profile();
     depth_sub_.subscribe(nh_, "depth", qos);
     detection_sub_.subscribe(nh_, "detections", qos);
 
