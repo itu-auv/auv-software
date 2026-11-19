@@ -1,27 +1,25 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="camera_namespace" default="image_raw"/>
-  <arg name="manager" default="image_proc_manager"/>
-  <arg name="create_manager" default="true"/>
   <arg name="respawn" default="false"/>
   <arg name="publish_monochrome" default="false"/>
   <arg name="debayer" default="false"/>
-  <group ns="$(arg camera_namespace)">
-    <node if="$(arg create_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager"/>
-    <arg if="$(arg respawn)" name="bond" value=""/>
-    <arg unless="$(arg respawn)" name="bond" value="--no-bond"/>
-    <arg if="$(arg debayer)" name="rectify_input" value="image_color"/>
-    <arg unless="$(arg debayer)" name="rectify_input" value="image_raw"/>
+  <group>
+    <push_ros_namespace namespace="$(var camera_namespace)"/>
+    <let if="$(var debayer)" name="rectify_input" value="image_color"/>
+    <let unless="$(var debayer)" name="rectify_input" value="image_raw"/>
     <!-- Debayered images -->
-    <group if="$(arg debayer)">
-      <node pkg="nodelet" type="nodelet" name="debayer" args="load image_proc/debayer $(arg manager) $(arg bond)" respawn="$(arg respawn)"/>
+    <group if="$(var debayer)">
+      <node pkg="image_proc" exec="debayer_node" name="debayer" respawn="$(var respawn)"/>
     </group>
     <!-- Monochrome rectified image -->
-    <group if="$(arg publish_monochrome)">
-      <node pkg="nodelet" type="nodelet" name="rectify_mono" args="load image_proc/rectify $(arg manager) $(arg bond)" respawn="$(arg respawn)"/>
+    <group if="$(var publish_monochrome)">
+      <node pkg="image_proc" exec="rectify_node" name="rectify_mono" respawn="$(var respawn)">
+        <remap from="image" to="image_mono"/>
+      </node>
     </group>
-    <node pkg="nodelet" type="nodelet" name="rectify_color" args="load image_proc/rectify $(arg manager) $(arg bond)" respawn="$(arg respawn)">
-      <remap from="image_mono" to="$(arg rectify_input)"/>
+    <node pkg="image_proc" exec="rectify_node" name="rectify_color" respawn="$(var respawn)">
+      <remap from="image" to="$(var rectify_input)"/>
       <remap from="image_rect" to="image_rect_color"/>
     </node>
   </group>

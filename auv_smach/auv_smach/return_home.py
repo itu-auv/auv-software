@@ -1,0 +1,126 @@
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from .initialize import *
+import smach
+import smach_ros
+import rclpy
+from auv_common_lib.ros import get_param, get_node
+import tf2_ros
+from auv_navigation.path_planning.path_planners import PathPlanners
+from geometry_msgs.msg import PoseStamped
+from auv_smach.common import (
+    CancelAlignControllerState,
+    SetDepthState,
+    SearchForPropState,
+    AlignFrame,
+    DynamicPathState,
+)
+from auv_smach.acoustic import AcousticTransmitter
+
+
+class NavigateReturnThroughGateState(smach.State):
+    def __init__(
+        self,
+        station_frame: str = "bin_whole_link",
+        gate_search_frame: str = "gate_middle_part",
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
+
+        self.gate_look_at_frame = gate_search_frame
+        self.station_frame = station_frame
+
+        # Initialize the state machine container
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        with self.state_machine:
+            # smach.StateMachine.add(
+            #     "SET_RETURN_DEPTH",
+            #     SetDepthState(
+            #         depth=-1.2,
+            #         sleep_duration=get_param(get_node(), "~set_depth_sleep_duration", 3.0),
+            #     ),
+            #     transitions={
+            #         "succeeded": "LOOK_AT_GATE",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            smach.StateMachine.add(
+                "LOOK_AT_GATE",
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="look_at_gate",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_GATE_RETURN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_GATE_RETURN",
+                DynamicPathState(
+                    plan_target_frame=self.gate_look_at_frame,
+                    angle_offset=3.14,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_ENTRANCE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_ENTRANCE",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="gate_entrance",
+                    angle_offset=3.14,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_7",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_7",
+                AcousticTransmitter(acoustic_data=7),
+                transitions={
+                    "succeeded": "FINISHED_ROBOSUB",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FINISHED_ROBOSUB",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+    def execute(self, userdata):
+        get_node().get_logger().debug(
+            "[NavigateReturnThroughGateState] Starting state machine execution."
+        )
+
+        outcome = self.state_machine.execute()
+
+        if outcome is None:
+            return "preempted"
+        return outcome

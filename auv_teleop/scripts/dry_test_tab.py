@@ -16,7 +16,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QFont
 import subprocess
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node, Rate, sim_time_arg
 from std_msgs.msg import Bool, UInt16MultiArray
 import threading
 from sensor_msgs.msg import BatteryState
@@ -72,21 +73,21 @@ class DryTestTab(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
-        self.topic_dvl_validity = rospy.get_param(
-            "~topic_dvl_validity", "sensors/dvl/is_valid"
+        self.topic_imu = get_param(get_node(), "~topic_imu", "imu/data")
+        self.topic_dvl_validity = get_param(
+            get_node(), "~topic_dvl_validity", "sensors/dvl/is_valid"
         )
-        self.topic_pressure = rospy.get_param("~topic_pressure", "depth")
-        self.topic_camera_bottom = rospy.get_param(
-            "~topic_camera_bottom", "cam_bottom/image_raw"
+        self.topic_pressure = get_param(get_node(), "~topic_pressure", "depth")
+        self.topic_camera_bottom = get_param(
+            get_node(), "~topic_camera_bottom", "cam_bottom/image_raw"
         )
-        self.topic_camera_front = rospy.get_param(
-            "~topic_camera_front", "cam_front/image_raw"
+        self.topic_camera_front = get_param(
+            get_node(), "~topic_camera_front", "cam_front/image_raw"
         )
 
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
-        self.thruster_pub = rospy.Publisher(
-            "drive_pulse", UInt16MultiArray, queue_size=10
+        self.enable_pub = get_node().create_publisher(Bool, "enable", 10)
+        self.thruster_pub = get_node().create_publisher(
+            UInt16MultiArray, "drive_pulse", 10
         )
 
         self.voltage = None
@@ -102,7 +103,9 @@ class DryTestTab(QWidget):
         self.voltage_timer = QTimer()
         self.voltage_timer.timeout.connect(self.update_voltage_display)
         self.voltage_timer.start(1000)  # Update every second
-        self.power_sub = rospy.Subscriber("power", BatteryState, self.power_callback)
+        self.power_sub = get_node().create_subscription(
+            BatteryState, "power", self.power_callback, 10
+        )
 
         # Warning thresholds
         self.warning_threshold = 15.2
@@ -205,7 +208,7 @@ class DryTestTab(QWidget):
             self.output.append("IMU echo is already running")
             return
 
-        cmd = f"rostopic echo {self.topic_imu}"
+        cmd = f"ros2 topic echo {self.topic_imu}"
         self.output.append(f"Running: {cmd}")
         self.imu_thread = CommandThread(cmd)
         self.imu_thread.output_signal.connect(self.output.append)
@@ -223,7 +226,7 @@ class DryTestTab(QWidget):
             self.output.append("Bar30 echo is already running")
             return
 
-        cmd = f"rostopic echo {self.topic_pressure}"
+        cmd = f"ros2 topic echo {self.topic_pressure}"
         self.output.append(f"Running: {cmd}")
         self.bar30_thread = CommandThread(cmd)
         self.bar30_thread.output_signal.connect(self.output.append)
@@ -241,7 +244,7 @@ class DryTestTab(QWidget):
             self.output.append("DVL validity echo is already running")
             return
 
-        cmd = f"rostopic echo {self.topic_dvl_validity}"
+        cmd = f"ros2 topic echo {self.topic_dvl_validity}"
         self.output.append(f"Running: {cmd}")
         self.dvl_validity_thread = CommandThread(cmd)
         self.dvl_validity_thread.output_signal.connect(self.output.append)
@@ -265,7 +268,7 @@ class DryTestTab(QWidget):
             self.topic_pressure: "Bar30",
         }
 
-        active_topics = rospy.get_published_topics()
+        active_topics = get_node().get_topic_names_and_types()
         active_topics = [t[0] for t in active_topics]
 
         failed_topics = []
@@ -326,7 +329,13 @@ class DryTestTab(QWidget):
             self.output.append(f"Error stopping thrusters: {str(e)}")
 
     def start_teleop(self):
-        cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
+        cmd = [
+            "ros2",
+            "launch",
+            "auv_teleop",
+            "start_teleop.launch",
+            sim_time_arg(get_node()),
+        ]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")
@@ -357,14 +366,14 @@ class DryTestTab(QWidget):
             self.enable_thread = None
 
     def publish_enable(self):
-        rate = rospy.Rate(20)
-        while self.enable_publishing and not rospy.is_shutdown():
+        rate = Rate(get_node(), 20)
+        while self.enable_publishing and rclpy.ok():
             self.enable_pub.publish(True)
             rate.sleep()
 
     def publish_thrusters(self, motor_cmd):
-        rate = rospy.Rate(20)  # 20 Hz
-        while self.thruster_publishing and not rospy.is_shutdown():
+        rate = Rate(get_node(), 20)  # 20 Hz
+        while self.thruster_publishing and rclpy.ok():
             self.thruster_pub.publish(motor_cmd)
             rate.sleep()
 

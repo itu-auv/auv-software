@@ -5,13 +5,21 @@ import signal
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-import rospy
+import threading
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import (
+    ServiceUnavailable,
+    get_param,
+    service_client,
+    wait_for_service,
+)
 import yaml
 from auv_msgs.msg import WaypointPath
-from auv_msgs.srv import SetWaypoint, SetWaypointRequest
+from auv_msgs.srv import SetWaypoint
 from geometry_msgs.msg import Pose
-from std_srvs.srv import Trigger, TriggerRequest
-from tf.transformations import quaternion_from_euler
+from std_srvs.srv import Trigger
+from tf_transformations import quaternion_from_euler
 
 
 PATH_COLORS = [
@@ -61,34 +69,40 @@ class PathData:
 
 
 class WaypointGUI:
-    def __init__(self, root):
+    def __init__(self, root, node):
         self.root = root
+        self.node = node
         self.root.title("Waypoint GUI")
         self.root.attributes("-zoomed", True)
         self._is_closing = False
 
-        self.service_name = rospy.get_param("~set_waypoint_service", "set_waypoint")
-        self.get_service_name = rospy.get_param("~get_waypoint_service", "get_waypoint")
+        self.service_name = get_param(
+            self.node, "~set_waypoint_service", "set_waypoint"
+        )
+        self.get_service_name = get_param(
+            self.node, "~get_waypoint_service", "get_waypoint"
+        )
         self.reference_frame_options = list(
-            rospy.get_param(
+            get_param(
+                self.node,
                 "~reference_frame_options",
                 ["odom", "coin_flip"],
             )
         )
-        self.waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
-        self.default_z = float(rospy.get_param("~default_waypoint_z", -1.0))
+        self.waypoint_prefix = get_param(self.node, "~waypoint_prefix", "path")
+        self.default_z = float(get_param(self.node, "~default_waypoint_z", -1.0))
 
-        self.x_min = float(rospy.get_param("~canvas_x_min", -8.0))
-        self.x_max = float(rospy.get_param("~canvas_x_max", 8.0))
-        self.y_min = float(rospy.get_param("~canvas_y_min", -2.0))
-        self.y_max = float(rospy.get_param("~canvas_y_max", 18.0))
+        self.x_min = float(get_param(self.node, "~canvas_x_min", -8.0))
+        self.x_max = float(get_param(self.node, "~canvas_x_max", 8.0))
+        self.y_min = float(get_param(self.node, "~canvas_y_min", -2.0))
+        self.y_max = float(get_param(self.node, "~canvas_y_max", 18.0))
         if self.x_max <= self.x_min or self.y_max <= self.y_min:
             raise ValueError("Invalid canvas bounds")
         self.pool_width = self.x_max - self.x_min
         self.pool_height = self.y_max - self.y_min
-        self.b_arrow_length = float(rospy.get_param("~b_arrow_length", 12.0))
+        self.b_arrow_length = float(get_param(self.node, "~b_arrow_length", 12.0))
         self.default_b_mode = self._normalize_b_mode(
-            rospy.get_param("~default_b_mode", B_MODE_FIXED)
+            get_param(self.node, "~default_b_mode", B_MODE_FIXED)
         )
 
         self.paths = []
@@ -118,24 +132,28 @@ class WaypointGUI:
         if self._is_closing:
             return
         self._is_closing = True
-        if not rospy.is_shutdown():
-            rospy.signal_shutdown("Waypoint GUI closed")
+        if rclpy.ok():
+            rclpy.try_shutdown()
         self.root.quit()
         self.root.destroy()
 
     def check_ros_service(self):
         was_connected = self.service_connected
         try:
-            rospy.wait_for_service(self.service_name, timeout=1.0)
+            wait_for_service(
+                service_client(self.node, SetWaypoint, self.service_name), timeout=1.0
+            )
             self.service_connected = True
             self.status_label.config(text="ROS: Connected", fg="green")
             if not was_connected:
-                rospy.loginfo(f"[WaypointGUI] Service connected: {self.service_name}")
-        except rospy.ROSException:
+                self.node.get_logger().info(
+                    f"[WaypointGUI] Service connected: {self.service_name}"
+                )
+        except ServiceUnavailable:
             self.service_connected = False
             self.status_label.config(text="ROS: Not connected", fg="red")
             if was_connected:
-                rospy.logwarn(
+                self.node.get_logger().warning(
                     f"[WaypointGUI] Service disconnected: {self.service_name}"
                 )
 
@@ -724,7 +742,7 @@ class WaypointGUI:
             )
 
     def _build_service_request(self):
-        req = SetWaypointRequest()
+        req = SetWaypoint.Request()
         req.paths = [self._path_to_msg(path) for path in self.paths if path.waypoints]
         return req
 
@@ -760,9 +778,9 @@ class WaypointGUI:
 
     def get_from_vehicle(self):
         try:
-            rospy.wait_for_service(self.get_service_name, timeout=2.0)
-            get_waypoint = rospy.ServiceProxy(self.get_service_name, Trigger)
-            resp = get_waypoint(TriggerRequest())
+            get_waypoint = service_client(self.node, Trigger, self.get_service_name)
+            wait_for_service(get_waypoint, timeout=2.0)
+            resp = get_waypoint.call(Trigger.Request())
 
             if not resp.success:
                 messagebox.showerror("Error", resp.message)
@@ -780,10 +798,10 @@ class WaypointGUI:
                 "Success",
                 f"Loaded {len(self.paths)} path(s), {waypoint_count} waypoint(s).",
             )
-        except rospy.ServiceException as exc:
-            messagebox.showerror("Error", f"Service call failed:\n{exc}")
-        except rospy.ROSException as exc:
+        except ServiceUnavailable as exc:
             messagebox.showerror("Error", f"Service unavailable:\n{exc}")
+        except Exception as exc:
+            messagebox.showerror("Error", f"Service call failed:\n{exc}")
         except Exception as exc:
             messagebox.showerror("Error", f"Failed to get waypoints:\n{exc}")
 
@@ -863,23 +881,25 @@ class WaypointGUI:
             return
 
         try:
-            rospy.wait_for_service(self.service_name, timeout=2.0)
-            set_waypoint = rospy.ServiceProxy(self.service_name, SetWaypoint)
-            resp = set_waypoint(self._build_service_request())
+            set_waypoint = service_client(self.node, SetWaypoint, self.service_name)
+            wait_for_service(set_waypoint, timeout=2.0)
+            resp = set_waypoint.call(self._build_service_request())
             if resp.success:
                 messagebox.showinfo("Success", resp.message)
             else:
                 messagebox.showerror("Error", resp.message)
-        except rospy.ServiceException as exc:
-            messagebox.showerror("Error", f"Service call failed:\n{exc}")
-        except rospy.ROSException as exc:
+        except ServiceUnavailable as exc:
             messagebox.showerror("Error", f"Service unavailable:\n{exc}")
+        except Exception as exc:
+            messagebox.showerror("Error", f"Service call failed:\n{exc}")
 
 
 def main():
-    rospy.init_node("waypoint_gui", anonymous=True)
+    ros.init()
+    node = rclpy.create_node("waypoint_gui")
+    threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
     root = tk.Tk()
-    gui = WaypointGUI(root)
+    gui = WaypointGUI(root, node)
     signal.signal(signal.SIGINT, lambda _sig, _frame: root.after(0, gui.close))
     root.mainloop()
 

@@ -14,11 +14,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <uri>model://robosub_octagon_animals/materials/textures</uri>
-            <name>Task5RepairMaterial</name>
-          </script>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon_animals/materials/textures/Task5_Repair.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 1.5708</pose>
@@ -32,10 +37,9 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>Task5BackMaterial</name>
-          </script>
+          <ambient>0.5 0.5 0.5 1.0</ambient>
+          <diffuse>0.5 0.5 0.5 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 1.5708</pose>
@@ -54,11 +58,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <uri>model://robosub_octagon_animals/materials/textures</uri>
-            <name>Task5RescueMaterial</name>
-          </script>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon_animals/materials/textures/Task5_Rescue.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
@@ -72,10 +81,9 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>Task5BackMaterial</name>
-          </script>
+          <ambient>0.5 0.5 0.5 1.0</ambient>
+          <diffuse>0.5 0.5 0.5 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
@@ -94,11 +102,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <uri>model://robosub_octagon_animals/materials/textures</uri>
-            <name>Task5SearchMaterial</name>
-          </script>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon_animals/materials/textures/Task5_Search.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 0</pose>
@@ -112,10 +125,9 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>Task5BackMaterial</name>
-          </script>
+          <ambient>0.5 0.5 0.5 1.0</ambient>
+          <diffuse>0.5 0.5 0.5 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 0</pose>
@@ -134,11 +146,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <uri>model://robosub_octagon_animals/materials/textures</uri>
-            <name>Task5SurveyMaterial</name>
-          </script>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon_animals/materials/textures/Task5_Survey.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 3.14159</pose>
@@ -152,10 +169,9 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>Task5BackMaterial</name>
-          </script>
+          <ambient>0.5 0.5 0.5 1.0</ambient>
+          <diffuse>0.5 0.5 0.5 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
         <cast_shadows>false</cast_shadows>
         <pose>0 0 0.1525 1.5708 0 3.14159</pose>

@@ -5,107 +5,121 @@ import math
 from collections import deque
 from threading import Lock
 
-import dynamic_reconfigure.client
-import rospy
+import rclpy
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
+from auv_control.control_clients import (
+    ControlClients,
+    ControllerParameters,
+    log,
+    log_throttle,
+    parameter,
+    init_ros,
+)
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, Float64, String
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool
+
+SetBoolResponse = SetBool.Response
 
 
-class GravityCompensationEstimatorNode:
+class GravityCompensationEstimatorNode(Node):
     def __init__(self):
+        super().__init__("gravity_compensation_estimator")
+        self._control_clients = ControlClients(self.get_namespace())
         self.lock = Lock()
 
-        self.controller_reconfigure_server = rospy.resolve_name(
-            rospy.get_param("~controller_reconfigure_server", "auv_control_node")
+        self.controller_reconfigure_server = parameter(
+            self, "controller_reconfigure_server", "auv_control_node"
         )
-        self.status_rate = float(rospy.get_param("~status_rate", 1.0))
+        self.status_rate = float(parameter(self, "~status_rate", 1.0))
 
-        self.active_min_z = float(rospy.get_param("~active_min_z", -1.60))
-        self.active_max_z = float(rospy.get_param("~active_max_z", -0.35))
+        self.active_min_z = float(parameter(self, "~active_min_z", -1.60))
+        self.active_max_z = float(parameter(self, "~active_max_z", -0.35))
 
-        self.stable_window = rospy.Duration(
-            float(rospy.get_param("~stable_window", 5.0))
+        self.stable_window = Duration(
+            seconds=float(parameter(self, "~stable_window", 5.0))
         )
-        self.sample_window_slack = rospy.Duration(
-            float(rospy.get_param("~sample_window_slack", 1.0))
+        self.sample_window_slack = Duration(
+            seconds=float(parameter(self, "~sample_window_slack", 1.0))
         )
-        self.min_samples = int(rospy.get_param("~min_samples", 80))
+        self.min_samples = int(parameter(self, "~min_samples", 80))
         self.z_stability_threshold = float(
-            rospy.get_param("~z_stability_threshold", 0.03)
+            parameter(self, "~z_stability_threshold", 0.03)
         )
         self.max_vertical_velocity = float(
-            rospy.get_param("~max_vertical_velocity", 0.01)
+            parameter(self, "~max_vertical_velocity", 0.01)
         )
-        self.max_wrench_z_stddev = float(rospy.get_param("~max_wrench_z_stddev", 3.0))
+        self.max_wrench_z_stddev = float(parameter(self, "~max_wrench_z_stddev", 3.0))
         self.max_horizontal_velocity = float(
-            rospy.get_param("~max_horizontal_velocity", 0.05)
+            parameter(self, "~max_horizontal_velocity", 0.05)
         )
         self.max_horizontal_wrench = float(
-            rospy.get_param("~max_horizontal_wrench", 5.0)
+            parameter(self, "~max_horizontal_wrench", 5.0)
         )
         self.use_odometry_twist = self._get_bool_param("~use_odometry_twist", False)
 
-        self.min_update_interval = rospy.Duration(
-            float(rospy.get_param("~min_update_interval", 2.0))
+        self.min_update_interval = Duration(
+            seconds=float(parameter(self, "~min_update_interval", 2.0))
         )
-        self.update_alpha = float(rospy.get_param("~update_alpha", 0.8))
-        self.max_update_step = float(rospy.get_param("~max_update_step", 5.0))
-        self.update_deadband = float(rospy.get_param("~update_deadband", 0.2))
+        self.update_alpha = float(parameter(self, "~update_alpha", 0.8))
+        self.max_update_step = float(parameter(self, "~max_update_step", 5.0))
+        self.update_deadband = float(parameter(self, "~update_deadband", 0.2))
         self.min_gravity_compensation_z = float(
-            rospy.get_param("~min_gravity_compensation_z", -20.0)
+            parameter(self, "~min_gravity_compensation_z", -20.0)
         )
         self.max_gravity_compensation_z = float(
-            rospy.get_param("~max_gravity_compensation_z", 20.0)
+            parameter(self, "~max_gravity_compensation_z", 20.0)
         )
         self.apply_updates = True
 
-        self.data_timeout = rospy.Duration(1.0)
+        self.data_timeout = Duration(seconds=1.0)
         self.samples = deque()
         self.latest_odometry = None
-        self.latest_odometry_time = rospy.Time(0)
-        self.latest_wrench_time = rospy.Time(0)
-        self.latest_enable_time = rospy.Time(0)
+        self.latest_odometry_time = Time(clock_type=self.get_clock().clock_type)
+        self.latest_wrench_time = Time(clock_type=self.get_clock().clock_type)
+        self.latest_enable_time = Time(clock_type=self.get_clock().clock_type)
         self.control_enabled = False
-        self.last_update_time = rospy.Time(0)
+        self.last_update_time = Time(clock_type=self.get_clock().clock_type)
         self.reconfigure_client = None
         self.current_gravity_compensation_z = None
         self.estimated_gravity_compensation_z = None
         self.estimated_wrench_z_stddev = None
         self.status_reason = "waiting_for_data"
 
-        self.odometry_sub = rospy.Subscriber(
-            "odometry", Odometry, self.odometry_callback, queue_size=1, tcp_nodelay=True
+        self.odometry_sub = self.create_subscription(
+            Odometry, "odometry", self.odometry_callback, 1
         )
-        self.wrench_sub = rospy.Subscriber(
-            "wrench",
-            WrenchStamped,
-            self.wrench_callback,
-            queue_size=1,
-            tcp_nodelay=True,
+        self.wrench_sub = self.create_subscription(
+            WrenchStamped, "wrench", self.wrench_callback, 1
         )
-        self.enable_sub = rospy.Subscriber(
-            "enable", Bool, self.enable_callback, queue_size=1, tcp_nodelay=True
+        self.enable_sub = self.create_subscription(
+            Bool, "enable", self.enable_callback, 1
         )
-        self.status_pub = rospy.Publisher(
-            "gravity_compensation_estimator/status", String, queue_size=1
+        self.status_pub = self.create_publisher(
+            String, "gravity_compensation_estimator/status", 1
         )
-        self.estimate_pub = rospy.Publisher(
-            "gravity_compensation_estimator/estimated_z", Float64, queue_size=1
+        self.estimate_pub = self.create_publisher(
+            Float64, "gravity_compensation_estimator/estimated_z", 1
         )
-        self.current_pub = rospy.Publisher(
-            "gravity_compensation_estimator/current_z", Float64, queue_size=1
+        self.current_pub = self.create_publisher(
+            Float64, "gravity_compensation_estimator/current_z", 1
         )
-        self.set_apply_updates_srv = rospy.Service(
-            "~set_apply_updates", SetBool, self.set_apply_updates_callback
+        self.set_apply_updates_srv = self.create_service(
+            SetBool,
+            "~/set_apply_updates",
+            lambda req, res: self.set_apply_updates_callback(req),
         )
 
-        self.status_timer = rospy.Timer(
-            rospy.Duration(1.0 / max(self.status_rate, 0.1)), self.status_timer_callback
+        self.status_timer = self.create_timer(
+            1.0 / max(self.status_rate, 0.1), self.status_timer_callback
         )
 
-        rospy.loginfo(
+        log(
+            self,
+            "info",
             "Gravity compensation estimator started: active z range [%.3f, %.3f], "
             "controller reconfigure server %s",
             self.active_min_z,
@@ -122,7 +136,7 @@ class GravityCompensationEstimatorNode:
     def enable_callback(self, msg: Bool) -> None:
         with self.lock:
             self.control_enabled = msg.data
-            self.latest_enable_time = rospy.Time.now()
+            self.latest_enable_time = self.get_clock().now()
             if not self.control_enabled:
                 self._reject_locked("control_disabled")
 
@@ -154,18 +168,17 @@ class GravityCompensationEstimatorNode:
             self._prune_samples_locked(now)
             self._maybe_update_locked(now)
 
-    def status_timer_callback(self, event) -> None:
-        del event
+    def status_timer_callback(self) -> None:
         with self.lock:
-            now = rospy.Time.now()
-            if self.latest_wrench_time.is_zero():
+            now = self.get_clock().now()
+            if self.latest_wrench_time.nanoseconds == 0:
                 if not self.samples:
                     self.status_reason = "waiting_for_wrench"
             elif not self._is_recent(self.latest_wrench_time, now, self.data_timeout):
                 self._reject_locked("wrench_stale")
             self._publish_status_locked(now)
 
-    def _make_sample_locked(self, msg: WrenchStamped, now: rospy.Time):
+    def _make_sample_locked(self, msg: WrenchStamped, now: Time):
         if self.latest_odometry is None:
             self._reject_locked("waiting_for_odometry")
             return None
@@ -228,7 +241,7 @@ class GravityCompensationEstimatorNode:
             "world_wrench_z": world_force[2],
         }
 
-    def _maybe_update_locked(self, now: rospy.Time) -> None:
+    def _maybe_update_locked(self, now: Time) -> None:
         if len(self.samples) < self.min_samples:
             self.status_reason = "collecting_samples"
             return
@@ -265,7 +278,7 @@ class GravityCompensationEstimatorNode:
             return
 
         if (
-            not self.last_update_time.is_zero()
+            self.last_update_time.nanoseconds != 0
             and now - self.last_update_time < self.min_update_interval
         ):
             self.status_reason = "cooldown"
@@ -296,7 +309,9 @@ class GravityCompensationEstimatorNode:
 
         if not self.apply_updates:
             self.status_reason = "dry_run_update_ready"
-            rospy.loginfo_throttle(
+            log_throttle(
+                self,
+                "info",
                 5.0,
                 "Gravity compensation dry-run update ready: current %.3f, "
                 "estimated %.3f, proposed %.3f",
@@ -310,7 +325,9 @@ class GravityCompensationEstimatorNode:
             self.last_update_time = now
             self.samples.clear()
             self.status_reason = "updated"
-            rospy.loginfo(
+            log(
+                self,
+                "info",
                 "Updated gravity_compensation_z: %.3f -> %.3f "
                 "(estimated %.3f, stddev %.3f, z range %.3f)",
                 current,
@@ -327,16 +344,20 @@ class GravityCompensationEstimatorNode:
             return True
 
         try:
-            self.reconfigure_client = dynamic_reconfigure.client.Client(
-                self.controller_reconfigure_server, timeout=5
+            self.reconfigure_client = ControllerParameters(
+                self._control_clients, self.controller_reconfigure_server, timeout=5
             )
-            rospy.loginfo(
+            log(
+                self,
+                "info",
                 "Connected to dynamic reconfigure server: %s",
                 self.controller_reconfigure_server,
             )
             return True
         except Exception as exc:
-            rospy.logwarn_throttle(
+            log_throttle(
+                self,
+                "warning",
                 5.0,
                 "Failed to connect to controller reconfigure server %s: %s",
                 self.controller_reconfigure_server,
@@ -355,8 +376,12 @@ class GravityCompensationEstimatorNode:
             )
             return self.current_gravity_compensation_z
         except Exception as exc:
-            rospy.logwarn_throttle(
-                5.0, "Failed to read gravity compensation configuration: %s", exc
+            log_throttle(
+                self,
+                "warning",
+                5.0,
+                "Failed to read gravity compensation configuration: %s",
+                exc,
             )
             self.reconfigure_client = None
             return None
@@ -374,8 +399,12 @@ class GravityCompensationEstimatorNode:
             )
             return True
         except Exception as exc:
-            rospy.logwarn_throttle(
-                5.0, "Failed to update gravity compensation configuration: %s", exc
+            log_throttle(
+                self,
+                "warning",
+                5.0,
+                "Failed to update gravity compensation configuration: %s",
+                exc,
             )
             self.reconfigure_client = None
             return False
@@ -384,17 +413,20 @@ class GravityCompensationEstimatorNode:
         self.status_reason = reason
         self.samples.clear()
 
-    def _prune_samples_locked(self, now: rospy.Time) -> None:
-        max_sample_age = self.stable_window + self.sample_window_slack
+    def _prune_samples_locked(self, now: Time) -> None:
+        max_sample_age = Duration(
+            nanoseconds=self.stable_window.nanoseconds
+            + self.sample_window_slack.nanoseconds
+        )
         while self.samples and now - self.samples[0]["stamp"] > max_sample_age:
             self.samples.popleft()
 
-    def _publish_status_locked(self, now: rospy.Time) -> None:
+    def _publish_status_locked(self, now: Time) -> None:
         window_duration = 0.0
         if len(self.samples) >= 2:
             window_duration = (
                 self.samples[-1]["stamp"] - self.samples[0]["stamp"]
-            ).to_sec()
+            ).nanoseconds / 1e9
 
         max_horizontal_velocity = 0.0
         max_horizontal_wrench = 0.0
@@ -410,7 +442,7 @@ class GravityCompensationEstimatorNode:
             "reason": self.status_reason,
             "sample_count": len(self.samples),
             "window_duration": window_duration,
-            "stable_window": self.stable_window.to_sec(),
+            "stable_window": self.stable_window.nanoseconds / 1e9,
             "active_min_z": self.active_min_z,
             "active_max_z": self.active_max_z,
             "current_gravity_compensation_z": self.current_gravity_compensation_z,
@@ -431,13 +463,13 @@ class GravityCompensationEstimatorNode:
         if self.current_gravity_compensation_z is not None:
             self.current_pub.publish(Float64(data=self.current_gravity_compensation_z))
 
-    @staticmethod
-    def _message_time(stamp: rospy.Time) -> rospy.Time:
-        return rospy.Time.now() if stamp.is_zero() else stamp
+    def _message_time(self, stamp) -> Time:
+        value = Time.from_msg(stamp)
+        return self.get_clock().now() if value.nanoseconds == 0 else value
 
     @staticmethod
-    def _is_recent(stamp: rospy.Time, now: rospy.Time, timeout: rospy.Duration) -> bool:
-        if stamp.is_zero():
+    def _is_recent(stamp: Time, now: Time, timeout: Duration) -> bool:
+        if stamp.nanoseconds == 0:
             return False
         return now - stamp <= timeout
 
@@ -480,9 +512,8 @@ class GravityCompensationEstimatorNode:
     def _clamp(value: float, min_value: float, max_value: float) -> float:
         return max(min_value, min(max_value, value))
 
-    @staticmethod
-    def _get_bool_param(name: str, default: bool) -> bool:
-        value = rospy.get_param(name, default)
+    def _get_bool_param(self, name: str, default: bool) -> bool:
+        value = parameter(self, name, default)
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -490,13 +521,21 @@ class GravityCompensationEstimatorNode:
         return bool(value)
 
     def spin(self) -> None:
-        rospy.spin()
+        rclpy.spin(self)
+
+
+def main():
+    init_ros()
+    node = GravityCompensationEstimatorNode()
+    try:
+        node.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node._control_clients.shutdown()
+        node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
-    try:
-        rospy.init_node("gravity_compensation_estimator")
-        node = GravityCompensationEstimatorNode()
-        node.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

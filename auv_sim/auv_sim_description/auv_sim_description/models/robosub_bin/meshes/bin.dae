@@ -247,16 +247,16 @@
   </library_effects>
   <library_images>
     <image id="Task3_Blood_png" name="Task3_Blood_png">
-      <init_from>Task3_Blood.png</init_from>
+      <init_from>../materials/textures/Task3_Blood.png</init_from>
     </image>
     <image id="Task3_Blood_png_001" name="Task3_Blood_png_001">
-      <init_from>Task3_Blood.png.001.png</init_from>
+      <init_from>../materials/textures/Task3_Blood.png.001.png</init_from>
     </image>
     <image id="Task3_Fire_png" name="Task3_Fire_png">
-      <init_from>Task3_Fire.png</init_from>
+      <init_from>../materials/textures/Task3_Fire.png</init_from>
     </image>
     <image id="Task3_Fire_png_001" name="Task3_Fire_png_001">
-      <init_from>Task3_Fire.png.001.png</init_from>
+      <init_from>../materials/textures/Task3_Fire.png.001.png</init_from>
     </image>
   </library_images>
   <library_materials>

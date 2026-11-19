@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import (
+    get_param,
+    service_client,
+    ROSException,
+    Rate,
+    on_shutdown,
+)
+from auv_common_lib import ros
+from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import threading
-from std_srvs.srv import Trigger, TriggerRequest
-import dynamic_reconfigure.client
+from std_srvs.srv import Trigger
+from auv_common_lib.reconfigure import Client as ReconfigureClient
 
 
 class JoystickEvent:
@@ -21,106 +30,112 @@ class JoystickEvent:
         self.previous_value = value
 
 
-class JoystickNode:
+class JoystickNode(Node):
     def __init__(self):
-        rospy.init_node("joystick_node", anonymous=True)
+        super().__init__("joystick_node")
 
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
+        self.cmd_vel_pub = self.create_publisher(Twist, "cmd_vel", 10)
+        self.enable_pub = self.create_publisher(Bool, "enable", 10)
 
         self.joy_data = None
         self.lock = threading.Lock()
 
         self.publish_rate = 50  # 50 Hz
-        self.rate = rospy.Rate(self.publish_rate)
+        self.rate = Rate(self, self.publish_rate)
 
-        self.buttons = rospy.get_param("~buttons")
-        self.axes = rospy.get_param("~axes")
-        self.rov_mode = rospy.get_param("~rov_mode", 0)
+        self.buttons = get_param(self, "~buttons")
+        self.axes = get_param(self, "~axes")
+        self.rov_mode = get_param(self, "~rov_mode", 0)
 
         if self.rov_mode == 1:
-            rospy.loginfo("ROV mode enabled - using buttons for pitch/roll control")
+            self.get_logger().info(
+                "ROV mode enabled - using buttons for pitch/roll control"
+            )
             self.reset_orientation_button_event = JoystickEvent(
                 0.1, self.reset_orientation
             )
-            self.reset_orientation_service = rospy.ServiceProxy(
-                "reset_command_orientation", Trigger
+            self.reset_orientation_service = service_client(
+                self, Trigger, "reset_command_orientation"
             )
         else:
             self.torpedo1_button_event = JoystickEvent(0.1, self.launch_torpedo1)
             self.torpedo2_button_event = JoystickEvent(0.1, self.launch_torpedo2)
             self.dropper_button_event = JoystickEvent(0.1, self.drop_dropper)
 
-            self.dropper_service = rospy.ServiceProxy("ball_dropper/drop", Trigger)
+            self.dropper_service = service_client(self, Trigger, "ball_dropper/drop")
 
-            self.torpedo1_service = rospy.ServiceProxy("torpedo_1/launch", Trigger)
+            self.torpedo1_service = service_client(self, Trigger, "torpedo_1/launch")
 
-            self.torpedo2_service = rospy.ServiceProxy("torpedo_2/launch", Trigger)
+            self.torpedo2_service = service_client(self, Trigger, "torpedo_2/launch")
 
-        self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
-        rospy.loginfo("Joystick node initialized")
+        self.joy_sub = self.create_subscription(Joy, "joy", self.joy_callback, 10)
+        # smach_monitor_node stops teleop through this (ROS 2 has no `rosnode kill`)
+        self.shutdown_service = self.create_service(
+            Trigger, "~/shutdown", self.handle_shutdown
+        )
+        self.get_logger().info("Joystick node initialized")
 
         # use_vel mode: zero position PID gains for X and Y
-        self.use_vel = rospy.get_param("~use_vel", False)
+        self.use_vel = get_param(self, "~use_vel", False)
         self.original_pid_gains = None
         self.reconfigure_client = None
 
         if self.use_vel:
             self._setup_use_vel_mode()
-            rospy.on_shutdown(self._restore_pid_gains)
+            on_shutdown(self._restore_pid_gains)
+
+    def handle_shutdown(self, request, response):
+        self.get_logger().info("Shutdown requested, stopping joystick node")
+        self.shutdown_requested = True
+        response.success = True
+        return response
 
     def _setup_use_vel_mode(self):
         """Setup use_vel mode by connecting to controller reconfigure and zeroing X/Y position gains."""
         try:
-            controller_server = rospy.get_param(
-                "~controller_reconfigure_server", "auv_control_node"
+            controller_server = get_param(
+                self, "~controller_reconfigure_server", "auv_control_node"
             )
-            target_server = rospy.resolve_name(controller_server)
-            self.reconfigure_client = dynamic_reconfigure.client.Client(
-                target_server, timeout=5
+            target_server = controller_server
+            self.reconfigure_client = ReconfigureClient(self, target_server, timeout=5)
+            self.get_logger().info(
+                f"Connected to dynamic reconfigure server: {target_server}"
             )
-            rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
 
             # Setup sync_cmd_pose service to reset cmd_pose on shutdown
-            self.sync_cmd_pose_service = rospy.ServiceProxy("sync_cmd_pose", Trigger)
+            self.sync_cmd_pose_service = service_client(self, Trigger, "sync_cmd_pose")
 
             # Read and store original PID gains
+            # (the ROS 2 controller exposes kp/ki/kd as 12-element arrays)
             current_cfg = self.reconfigure_client.get_configuration()
             if current_cfg:
                 self.original_pid_gains = {
-                    "kp_0": current_cfg.get("kp_0", 0.0),
-                    "kp_1": current_cfg.get("kp_1", 0.0),
-                    "ki_0": current_cfg.get("ki_0", 0.0),
-                    "ki_1": current_cfg.get("ki_1", 0.0),
-                    "kd_0": current_cfg.get("kd_0", 0.0),
-                    "kd_1": current_cfg.get("kd_1", 0.0),
+                    "kp": list(current_cfg.get("kp", [0.0] * 12)),
+                    "ki": list(current_cfg.get("ki", [0.0] * 12)),
+                    "kd": list(current_cfg.get("kd", [0.0] * 12)),
                 }
-                rospy.loginfo(
+                self.get_logger().info(
                     f"Stored original PID gains for X/Y: "
-                    f"kp=[{self.original_pid_gains['kp_0']}, {self.original_pid_gains['kp_1']}], "
-                    f"ki=[{self.original_pid_gains['ki_0']}, {self.original_pid_gains['ki_1']}], "
-                    f"kd=[{self.original_pid_gains['kd_0']}, {self.original_pid_gains['kd_1']}]"
+                    f"kp=[{self.original_pid_gains['kp'][0]}, {self.original_pid_gains['kp'][1]}], "
+                    f"ki=[{self.original_pid_gains['ki'][0]}, {self.original_pid_gains['ki'][1]}], "
+                    f"kd=[{self.original_pid_gains['kd'][0]}, {self.original_pid_gains['kd'][1]}]"
                 )
 
                 # Zero the X and Y position PID gains (kp, ki, kd)
                 self.reconfigure_client.update_configuration(
                     {
-                        "kp_0": 0.0,
-                        "kp_1": 0.0,
-                        "ki_0": 0.0,
-                        "ki_1": 0.0,
-                        "kd_0": 0.0,
-                        "kd_1": 0.0,
+                        name: [0.0, 0.0] + gains[2:]
+                        for name, gains in self.original_pid_gains.items()
                     }
                 )
-                rospy.loginfo(
+                self.get_logger().info(
                     "use_vel mode: X and Y position PID gains (kp, ki, kd) set to 0"
                 )
             else:
-                rospy.logwarn("Failed to read controller configuration")
+                self.get_logger().warning("Failed to read controller configuration")
                 self.use_vel = False
         except Exception as e:
-            rospy.logwarn(f"Failed to setup use_vel mode: {e}")
+            self.get_logger().warning(f"Failed to setup use_vel mode: {e}")
             self.use_vel = False
 
     def _restore_pid_gains(self):
@@ -132,31 +147,33 @@ class JoystickNode:
         # This prevents the robot from jumping to old cmd_pose when PID gains are restored
         try:
             self.sync_cmd_pose_service.wait_for_service(timeout=1.0)
-            self.sync_cmd_pose_service(TriggerRequest())
-            rospy.loginfo("Synced cmd_pose to current position")
-        except (rospy.ServiceException, rospy.ROSException) as e:
-            rospy.logwarn(f"Failed to sync cmd_pose: {e}")
+            self.sync_cmd_pose_service(Trigger.Request())
+            self.get_logger().info("Synced cmd_pose to current position")
+        except (Exception, ROSException) as e:
+            self.get_logger().warning(f"Failed to sync cmd_pose: {e}")
 
         # Then restore original PID gains
         try:
             self.reconfigure_client.update_configuration(self.original_pid_gains)
-            rospy.loginfo(
-                f"Restored original PID gains: kp_0={self.original_pid_gains['kp_0']}, "
-                f"kp_1={self.original_pid_gains['kp_1']}"
+            self.get_logger().info(
+                f"Restored original PID gains: kp_0={self.original_pid_gains['kp'][0]}, "
+                f"kp_1={self.original_pid_gains['kp'][1]}"
             )
         except Exception as e:
-            rospy.logwarn(f"Failed to restore PID gains: {e}")
+            self.get_logger().warning(f"Failed to restore PID gains: {e}")
 
     def call_service_if_available(self, service, success_message, failure_message):
         try:
             service.wait_for_service(timeout=1)
-            response = service(TriggerRequest())
+            response = service(Trigger.Request())
             if response.success:
-                rospy.loginfo(success_message)
+                self.get_logger().info(success_message)
             else:
-                rospy.logwarn(failure_message)
-        except rospy.exceptions.ROSException:
-            rospy.logwarn(f"Service {service.resolved_name} is not available")
+                self.get_logger().warning(failure_message)
+        except ROSException:
+            self.get_logger().warning(
+                f"Service {service.resolved_name} is not available"
+            )
 
     def launch_torpedo1(self):
         self.call_service_if_available(
@@ -229,7 +246,7 @@ class JoystickNode:
         return 0.0
 
     def run(self):
-        while not rospy.is_shutdown():
+        while rclpy.ok() and not getattr(self, "shutdown_requested", False):
             twist = Twist()
 
             with self.lock:
@@ -294,14 +311,16 @@ class JoystickNode:
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
 
-            self.enable_pub.publish(Bool(True))
+            self.enable_pub.publish(Bool(data=True))
             self.cmd_vel_pub.publish(twist)
             self.rate.sleep()
 
 
+def main():
+    ros.init()
+    node = JoystickNode()
+    ros.spin(node, node.run)
+
+
 if __name__ == "__main__":
-    try:
-        joystick_node = JoystickNode()
-        joystick_node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

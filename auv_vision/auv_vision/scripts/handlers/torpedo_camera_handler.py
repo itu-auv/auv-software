@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
+from rclpy.duration import Duration
 import tf2_ros
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
 from ultralytics_ros.msg import YoloResult
@@ -54,7 +56,7 @@ class TorpedoCameraHandler:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
                 if check_inside_image_torpedo(
@@ -70,9 +72,9 @@ class TorpedoCameraHandler:
 
         reference_positions = self._lookup_reference_hole_positions(stamp)
         if len(reference_positions) != len(self.reference_hole_frames):
-            rospy.logwarn_throttle(
-                5,
+            get_node().get_logger().warning(
                 "Could not read all torpedo reference hole frames. Skipping close holes.",
+                throttle_duration_sec=5,
             )
             return
 
@@ -88,9 +90,9 @@ class TorpedoCameraHandler:
 
     def _publish_reference_holes(self, detected_holes, stamp):
         if len(detected_holes) != len(self.reference_hole_frames):
-            rospy.logwarn_throttle(
-                5,
+            get_node().get_logger().warning(
                 f"Expected {len(self.reference_hole_frames)} torpedo holes, but found {len(detected_holes)}. Skipping.",
+                throttle_duration_sec=5,
             )
             return
 
@@ -120,7 +122,7 @@ class TorpedoCameraHandler:
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
         prop = self._prop_for_hole_frame(child_frame_id)
         if not prop:
-            rospy.logerr(f"Prop for '{child_frame_id}' not found.")
+            get_node().get_logger().error(f"Prop for '{child_frame_id}' not found.")
             return None
 
         distance = prop.estimate_distance(
@@ -133,7 +135,7 @@ class TorpedoCameraHandler:
             return None
 
         _, offset_x, offset_y = calculate_angles_and_offsets(
-            self.calibration, detection.bbox.center, distance
+            self.calibration, detection.bbox.center.position, distance
         )
 
         return self._publish_odom_transform(
@@ -163,7 +165,7 @@ class TorpedoCameraHandler:
     def _project_hole_to_realsense_target(self, detection, stamp, reference_frame):
         prop = self._prop_for_hole_frame(reference_frame)
         if not prop:
-            rospy.logerr(f"Prop for '{reference_frame}' not found.")
+            get_node().get_logger().error(f"Prop for '{reference_frame}' not found.")
             return None
 
         distance = prop.estimate_distance(
@@ -175,7 +177,7 @@ class TorpedoCameraHandler:
             return None
 
         _, offset_x, offset_y = calculate_angles_and_offsets(
-            self.calibration, detection.bbox.center, distance
+            self.calibration, detection.bbox.center.position, distance
         )
         return self._transform_camera_point_to_realsense_target(
             offset_x, offset_y, distance, stamp
@@ -187,7 +189,7 @@ class TorpedoCameraHandler:
                 "odom",
                 "torpedo_target_realsense",
                 stamp,
-                rospy.Duration(1.0),
+                Duration(seconds=1.0),
             )
             return realsense_tf.transform.rotation
         except (
@@ -195,8 +197,9 @@ class TorpedoCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(
-                5.0, f"Cannot lookup torpedo_target_realsense quaternion: {e}"
+            get_node().get_logger().warning(
+                f"Cannot lookup torpedo_target_realsense quaternion: {e}",
+                throttle_duration_sec=5.0,
             )
             return None
 
@@ -218,7 +221,7 @@ class TorpedoCameraHandler:
         transform_stamped_msg.header.frame_id = "odom"
         transform_stamped_msg.child_frame_id = child_frame_id
         transform_stamped_msg.transform.translation = Vector3(
-            position.x, position.y, position.z
+            x=position.x, y=position.y, z=position.z
         )
         transform_stamped_msg.transform.rotation = realsense_quat
         self.object_transform_pub.publish(transform_stamped_msg)
@@ -228,12 +231,12 @@ class TorpedoCameraHandler:
         pose_stamped = PoseStamped()
         pose_stamped.header.stamp = stamp
         pose_stamped.header.frame_id = self.camera_frame
-        pose_stamped.pose.position = Point(offset_x, offset_y, distance)
-        pose_stamped.pose.orientation = Quaternion(0, 0, 0, 1)
+        pose_stamped.pose.position = Point(x=offset_x, y=offset_y, z=distance)
+        pose_stamped.pose.orientation = Quaternion(x=0, y=0, z=0, w=1)
 
         try:
             transformed_pose_stamped = self.tf_buffer.transform(
-                pose_stamped, "odom", rospy.Duration(4.0)
+                pose_stamped, "odom", Duration(seconds=4.0)
             )
             return transformed_pose_stamped.pose.position
         except (
@@ -241,7 +244,9 @@ class TorpedoCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(5.0, f"Transform error for torpedo hole: {e}")
+            get_node().get_logger().warning(
+                f"Transform error for torpedo hole: {e}", throttle_duration_sec=5.0
+            )
             return None
 
     def _transform_camera_point_to_realsense_target(
@@ -250,12 +255,12 @@ class TorpedoCameraHandler:
         pose_stamped = PoseStamped()
         pose_stamped.header.stamp = stamp
         pose_stamped.header.frame_id = self.camera_frame
-        pose_stamped.pose.position = Point(offset_x, offset_y, distance)
-        pose_stamped.pose.orientation = Quaternion(0, 0, 0, 1)
+        pose_stamped.pose.position = Point(x=offset_x, y=offset_y, z=distance)
+        pose_stamped.pose.orientation = Quaternion(x=0, y=0, z=0, w=1)
 
         try:
             transformed_pose_stamped = self.tf_buffer.transform(
-                pose_stamped, "torpedo_target_realsense", rospy.Duration(4.0)
+                pose_stamped, "torpedo_target_realsense", Duration(seconds=4.0)
             )
             return transformed_pose_stamped.pose.position
         except (
@@ -263,8 +268,9 @@ class TorpedoCameraHandler:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(
-                5.0, f"Transform error for torpedo hole (realsense target): {e}"
+            get_node().get_logger().warning(
+                f"Transform error for torpedo hole (realsense target): {e}",
+                throttle_duration_sec=5.0,
             )
             return None
 
@@ -277,7 +283,7 @@ class TorpedoCameraHandler:
                     "torpedo_target_realsense",
                     frame_id,
                     stamp,
-                    rospy.Duration(1.0),
+                    Duration(seconds=1.0),
                 )
                 reference_positions[frame_id] = transform.transform.translation
             except (
@@ -285,14 +291,16 @@ class TorpedoCameraHandler:
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logwarn_throttle(5.0, f"Transform error for {frame_id}: {e}")
+                get_node().get_logger().warning(
+                    f"Transform error for {frame_id}: {e}", throttle_duration_sec=5.0
+                )
                 continue
 
         return reference_positions
 
     def _can_transform_all_reference_holes(self, stamp):
         return all(
-            self.tf_buffer.can_transform("odom", frame_id, stamp, rospy.Duration(0.1))
+            self.tf_buffer.can_transform("odom", frame_id, stamp, Duration(seconds=0.1))
             for frame_id in self.reference_hole_frames
         )
 
@@ -310,11 +318,11 @@ class TorpedoCameraHandler:
 
     @staticmethod
     def _bbox_center_x(detection):
-        return detection.bbox.center.x
+        return detection.bbox.center.position.x
 
     @staticmethod
     def _bbox_center_y(detection):
-        return detection.bbox.center.y
+        return detection.bbox.center.position.y
 
     @staticmethod
     def _distance_squared(point_a, point_b):

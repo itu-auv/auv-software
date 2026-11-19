@@ -92,11 +92,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon/materials/scripts</uri>
-            <uri>model://robosub_octagon/materials/textures</uri>
-            <name>OctagonRedCrossMaterial</name>
-          </script>
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon/materials/textures/Task5_RedCross.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <pose>0 0 0 0 0 0</pose>
       </visual>
@@ -113,11 +118,16 @@
           </plane>
         </geometry>
         <material>
-          <script>
-            <uri>model://robosub_octagon/materials/scripts</uri>
-            <uri>model://robosub_octagon/materials/textures</uri>
-            <name>OctagonWarningMaterial</name>
-          </script>
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://robosub_octagon/materials/textures/Task5_Warning.png</albedo_map>
+              <metalness>0</metalness>
+              <roughness>0.8</roughness>
+            </metal>
+          </pbr>
         </material>
         <pose>0 0 0 0 0 0</pose>
       </visual>

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, get_node, wait_for_message, ROSException
+from auv_common_lib import ros
+from rclpy.duration import Duration
 import smach
 import auv_smach
 import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
-from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -14,13 +16,12 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
-from auv_smach.pipeline import NavigateThroughPipelineState
-from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
-from dynamic_reconfigure.client import Client
-from auv_bringup.cfg import SmachParametersConfig
+from auv_common_lib.reconfigure import Client
+from std_msgs.msg import String
+import json
 
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
@@ -57,6 +58,7 @@ class MainStateMachineNode:
 
         # Initialize dynamic reconfigure client
         self.dynamic_reconfigure_client = Client(
+            get_node(),
             "smach_parameters_server",
             timeout=10,
             config_callback=self.dynamic_reconfigure_callback,
@@ -68,14 +70,11 @@ class MainStateMachineNode:
         self.selected_role = DEFAULT_SELECTED_ROLE
         self.torpedo_map = DEFAULT_TORPEDO_MAP
         self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
-        self.slalom_mode = "close"
-        self.slalom_direction = "left"
         self.octagon_start_from_table = False
         self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
-        self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
 
@@ -92,22 +91,17 @@ class MainStateMachineNode:
                 self.torpedo_priority = current_config.get(
                     "torpedo_priority", DEFAULT_TORPEDO_PRIORITY
                 )
-                self.slalom_mode = current_config.get("slalom_mode", "close")
-                self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
-                self.slalom_exit_angle_deg = current_config.get(
-                    "slalom_exit_angle", 0.0
-                )
                 self.bin_exit_angle_deg = current_config.get("bin_exit_angle", 0.0)
                 self.torpedo_exit_angle_deg = current_config.get(
                     "torpedo_exit_angle", 0.0
                 )
-                rospy.loginfo(
-                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                get_node().get_logger().info(
+                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, angles=({self.gate_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
-            rospy.logwarn(f"Could not get current configuration: {e}")
-            rospy.loginfo("Using default values")
+            get_node().get_logger().warning(f"Could not get current configuration: {e}")
+            get_node().get_logger().info("Using default values")
 
         self.gate_search_depth = -0.4
         self.gate_depth = -0.7
@@ -116,21 +110,17 @@ class MainStateMachineNode:
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
         )
-        self.ignore_kde = rospy.get_param("~ignore_kde", False)
+        self.ignore_kde = get_param(get_node(), "~ignore_kde", False)
         if self.ignore_kde:
             self.torpedo_search_frame = "torpedo_map_link"
             self.bin_search_frame = "bin_basket_front_link"
             self.octagon_search_frame = "octagon_link"
             self.red_buoy_search_frame = "red_buoy_link"
-            self.slalom_search_frame = "slalom_red_pipe_link"
         else:
             self.torpedo_search_frame = "torpedo_map_link_kde"
             self.bin_search_frame = "bin_basket_front_link_kde"
             self.octagon_search_frame = "octagon_link_kde"
             self.red_buoy_search_frame = "red_buoy_link_kde"
-            self.slalom_search_frame = "slalom_red_pipe_link_kde"
-
-        self.slalom_depth = -1.1
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -144,12 +134,6 @@ class MainStateMachineNode:
 
         self.octagon_depth = -0.6
 
-        self.pipeline_depth = -0.75
-
-        # GPS parameters
-        self.gps_depth = -1.0
-        self.gps_target_frame = "gps_target"
-
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
         self.acoustic_tx_topic = "acoustic/modem/transmit"
@@ -160,13 +144,13 @@ class MainStateMachineNode:
         self.acoustic_rx_topic = "acoustic/modem/received"
         self.acoustic_rx_accept_any_data = False
 
-        test_mode = rospy.get_param("~test_mode", False)
+        test_mode = get_param(get_node(), "~test_mode", False)
         # Get test states from ROS param
         if test_mode:
-            state_map = rospy.get_param("~state_map")
+            state_map = get_param(get_node(), "~state_map")
 
             short_state_list = self.parse_state_list_param(
-                rospy.get_param("~test_states", "")
+                get_param(get_node(), "~test_states", "")
             )
 
             # Parse state mapping
@@ -183,44 +167,42 @@ class MainStateMachineNode:
             ]
         else:
             self.state_list = self.parse_state_list_param(
-                rospy.get_param("~full_mission_states")
+                get_param(get_node(), "~full_mission_states")
             )
 
         self.apply_random_pinger_state_rules()
 
         # Subscribe to propulsion status
-        rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
+        get_node().create_subscription(
+            Bool, "propulsion_board/status", self.enabled_callback, 10
+        )
 
     def dynamic_reconfigure_callback(self, config):
         """
         Dynamic reconfigure callback for updating mission parameters
         """
         if config is None:
-            rospy.logwarn("Could not get parameters from server")
+            get_node().get_logger().warning("Could not get parameters from server")
             return
 
         selected_role = config.selected_role
-        rospy.loginfo(
-            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
-            selected_role,
-            config.torpedo_map,
-            config.torpedo_priority,
-            config.slalom_mode,
-            config.slalom_direction,
-            config.gate_exit_angle,
-            config.slalom_exit_angle,
-            config.bin_exit_angle,
-            config.torpedo_exit_angle,
+        get_node().get_logger().info(
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, gate_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f"
+            % (
+                selected_role,
+                config.torpedo_map,
+                config.torpedo_priority,
+                config.gate_exit_angle,
+                config.bin_exit_angle,
+                config.torpedo_exit_angle,
+            )
         )
 
         # Update parameters
         self.selected_role = selected_role
         self.torpedo_map = config.torpedo_map
         self.torpedo_priority = config.torpedo_priority
-        self.slalom_mode = config.slalom_mode
-        self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
-        self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
@@ -262,11 +244,9 @@ class MainStateMachineNode:
             filtered_state_list.append(state_name)
 
         if removed_states:
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 "%s includes torpedo and octagon internally; removing direct task "
-                "states from mission list: %s",
-                "RANDOM_PINGER_TASK",
-                removed_states,
+                "states from mission list: %s" % ("RANDOM_PINGER_TASK", removed_states)
             )
 
         self.state_list = filtered_state_list
@@ -299,9 +279,9 @@ class MainStateMachineNode:
                 else LEFT_TOP_TORPEDO_FIRE_FRAMES
             )
 
-        rospy.logwarn(
-            "Unknown torpedo_map '%s'. Using default fire-frame order.",
-            self.torpedo_map,
+        get_node().get_logger().warning(
+            "Unknown torpedo_map '%s'. Using default fire-frame order."
+            % (self.torpedo_map,)
         )
         return LEFT_TOP_TORPEDO_FIRE_FRAMES
 
@@ -312,10 +292,9 @@ class MainStateMachineNode:
     def _build_path_state(self, token, gui_paths):
         cfg = (gui_paths or {}).get(token)
         if not cfg:
-            rospy.logwarn(
+            get_node().get_logger().warning(
                 "No GUI path config found for '%s' at /waypoint_gui/paths. "
-                "Draw it in the waypoint GUI before running this mission.",
-                token,
+                "Draw it in the waypoint GUI before running this mission." % (token,)
             )
             return None
 
@@ -324,12 +303,14 @@ class MainStateMachineNode:
             count = int(cfg["waypoints"])
             waypoint_frames = [f"{token}_wp{i + 1}" for i in range(count)]
         if not waypoint_frames:
-            rospy.logwarn("GUI path '%s' has no waypoints; skipping.", token)
+            get_node().get_logger().warning(
+                "GUI path '%s' has no waypoints; skipping." % (token,)
+            )
             return None
 
         reference_frame = cfg.get("reference_frame", f"{token}_ref")
-        rospy.loginfo(
-            "[main] %s: ref=%s, wps=%s", token, reference_frame, waypoint_frames
+        get_node().get_logger().info(
+            "[main] %s: ref=%s, wps=%s" % (token, reference_frame, waypoint_frames)
         )
         return DynamicPathExecutionState(
             path_name=token,
@@ -341,24 +322,27 @@ class MainStateMachineNode:
     def execute_state_machine(self):
         # Convert degrees to radians
         gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
-        slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
         bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
         torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
 
-        rospy.loginfo(
-            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
+        get_node().get_logger().info(
+            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
         bin_target_frames = self.get_bin_target_frames()
-        rospy.loginfo(f"Bin target frames order: {bin_target_frames}")
+        get_node().get_logger().info(f"Bin target frames order: {bin_target_frames}")
         legacy_target_selection = self.get_legacy_target_selection()
         octagon_target_role_frame = self.get_octagon_target_role_frame()
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
-        rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
-        rospy.loginfo(f"Octagon target role frame: {octagon_target_role_frame}")
-        rospy.loginfo(
-            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
+        get_node().get_logger().info(
+            f"Torpedo fire frames order: {torpedo_fire_frames}"
+        )
+        get_node().get_logger().info(
+            f"Octagon target role frame: {octagon_target_role_frame}"
+        )
+        get_node().get_logger().info(
+            f"Exit angles (radians): gate={gate_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
         )
 
         torpedo_task_params = {
@@ -391,14 +375,6 @@ class MainStateMachineNode:
                     "gate_look_at_frame": self.gate_look_at_frame,
                 },
             ),
-            "NAVIGATE_THROUGH_SLALOM": (
-                NavigateThroughSlalomState,
-                {
-                    "slalom_depth": self.slalom_depth,
-                    "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_direction": self.slalom_direction,
-                },
-            ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 torpedo_task_params,
@@ -424,13 +400,6 @@ class MainStateMachineNode:
                     "octagon_params": octagon_task_params,
                 },
             ),
-            "NAVIGATE_TO_GPS_TARGET": (
-                NavigateToGpsTargetState,
-                {
-                    "gps_depth": self.gps_depth,
-                    "gps_target_frame": self.gps_target_frame,
-                },
-            ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
                 {
@@ -454,27 +423,34 @@ class MainStateMachineNode:
                     "gate_search_frame": self.gate_look_at_frame,
                 },
             ),
-            "NAVIGATE_THROUGH_PIPELINE": (
-                NavigateThroughPipelineState,
-                {"pipeline_depth": self.pipeline_depth},
-            ),
         }
 
         # Validate and execute state machine
         if not self.state_list:
-            rospy.logerr("No states to execute")
+            get_node().get_logger().error("No states to execute")
             return
 
-        rospy.loginfo("Executing state machine with states: %s", self.state_list)
+        get_node().get_logger().info(
+            "Executing state machine with states: %s" % (self.state_list,)
+        )
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
-        gui_paths_ns = rospy.get_param("~gui_paths_rosparam", "/waypoint_gui/paths")
-        gui_paths = rospy.get_param(gui_paths_ns, None) or {}
+        gui_paths_ns = get_param(
+            get_node(), "~gui_paths_rosparam", "/waypoint_gui/paths"
+        )
+        # waypoint_publisher latches this as JSON (there is no global parameter server)
+        try:
+            gui_paths = json.loads(
+                wait_for_message(
+                    get_node(), gui_paths_ns, String, timeout=2.0, latched=True
+                ).data
+            )
+        except ROSException:
+            gui_paths = {}
         if gui_paths:
-            rospy.loginfo(
-                "Loaded GUI path configs from %s: %s",
-                gui_paths_ns,
-                list(gui_paths.keys()),
+            get_node().get_logger().info(
+                "Loaded GUI path configs from %s: %s"
+                % (gui_paths_ns, list(gui_paths.keys()))
             )
 
         with self.sm:
@@ -492,7 +468,7 @@ class MainStateMachineNode:
                 else:
                     state_class, params = state_mapping.get(state_name, (None, {}))
                     if state_class is None:
-                        rospy.logerr(f"Unknown state: {state_name}")
+                        get_node().get_logger().error(f"Unknown state: {state_name}")
                         continue
                     state_instance = state_class(**params)
 
@@ -509,9 +485,11 @@ class MainStateMachineNode:
         # Execute the state machine
         try:
             outcome = self.sm.execute()
-            rospy.loginfo(f"State machine exited with outcome: {outcome}")
+            get_node().get_logger().info(
+                f"State machine exited with outcome: {outcome}"
+            )
         except Exception as e:
-            rospy.logerr(f"Error executing state machine: {e}")
+            get_node().get_logger().error(f"Error executing state machine: {e}")
 
     def enabled_callback(self, msg):
         falling_edge = self.previous_enabled and not msg.data
@@ -520,16 +498,25 @@ class MainStateMachineNode:
 
         if falling_edge:
             # TODO: maybe add restart logic
-            rospy.logerr("KILLSWITCH!")
-            rospy.signal_shutdown("Force stopping state machine")
+            get_node().get_logger().error("KILLSWITCH!")
+            rclpy.try_shutdown()
+
+
+def run():
+    node = MainStateMachineNode()
+    get_node().get_clock().sleep_for(Duration(seconds=1.0))
+    get_node().get_logger().info(
+        f"Final selected role before execution: {node.selected_role}"
+    )
+    node.execute_state_machine()
+
+
+def main():
+    ros.init()
+    node = rclpy.create_node("main_state_machine")
+    ros.set_node(node)
+    ros.spin(node, run)
 
 
 if __name__ == "__main__":
-    rospy.init_node("main_state_machine")
-    try:
-        node = MainStateMachineNode()
-        rospy.sleep(1.0)
-        rospy.loginfo(f"Final selected role before execution: {node.selected_role}")
-        node.execute_state_machine()
-    except KeyboardInterrupt:
-        rospy.loginfo("State machine node interrupted")
+    main()

@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy">
   <!-- create xacro property -->
   <xacro:property name="namespace" value="taluy"/>
-  <xacro:macro name="taluy_base" params="use_models">
+  <xacro:macro name="taluy_base" params="use_models **base_link_extra">
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
@@ -28,6 +28,7 @@
           <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/>
         </geometry>
       </collision>
+      <xacro:insert_block name="base_link_extra"/>
     </link>
 
     <!-- Thrusters -->
@@ -88,7 +89,6 @@
     <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_1" parent="${namespace}/base_link" position="0.315 -0.1675 0.1715" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_2" parent="${namespace}/base_link" position="-0.315 0.1675 0.1715" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_3" parent="${namespace}/base_link" position="-0.315 -0.1675 0.1715" orientation="0 0 0" use_models="$(arg use_models)"/>
-    <xacro:ping360 name="${namespace}/base_link/ping360" parent="${namespace}/base_link" position="0.2 0 0.134" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.079" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.40125 0 0" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:logitech_c920_camera

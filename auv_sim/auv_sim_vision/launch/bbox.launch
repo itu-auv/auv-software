@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Simulation ground truth bbox tracker.
+       Replaces tracker_robosub.launch when running in Gazebo.
+       Publishes YoloResult on /yolo_result_front, /yolo_result_bottom, /yolo_result_torpedo.
+       Publishes annotated debug images on /yolo_image_front, /yolo_image_bottom, /yolo_image_torpedo. -->
+
+  <arg name="namespace" default="taluy"/>
+  <arg name="world" default="pool"/>
+  <set_parameter name="use_sim_time" value="true"/>
+  <!-- ground-truth poses of the simulated objects (was /gazebo/model_states) -->
+  <node name="sim_pose_bridge" pkg="auv_sim_bridge" exec="world_pose_bridge">
+    <param name="world" value="$(var world)"/>
+  </node>
+
+  <node name="sim_bbox_node" pkg="auv_sim_vision" exec="bbox_node.py" output="screen">
+    <param name="namespace" value="$(var namespace)"/>
+    <param name="world" value="$(var world)"/>
+  </node>
+</launch>

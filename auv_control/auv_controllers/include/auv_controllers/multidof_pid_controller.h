@@ -89,7 +89,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
    * @param state current velocity vector
    * @param desired_state desired velocity vector
    * @param d_state current acceleration vector
-   * @param dt delta time
+   * @param dt control period in seconds
    * @return Vector control output(force and torque)
    */
   WrenchVector control(const StateVector& state,
@@ -217,7 +217,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   Vectornd limit_pid_output(const Vectornd& raw_pid_output, const double dt) {
     auto limited_pid_output = raw_pid_output;
-    const double rate_limit_dt = dt > 1.0 ? 1.0 / dt : dt;
 
     for (size_t i = 0; i < N; ++i) {
       const double acceleration_limit = max_acceleration_limits_(i);
@@ -227,8 +226,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
       }
 
       const double rate_limit = max_acceleration_rate_limits_(i);
-      if (rate_limit > 0 && rate_limit_dt > 0) {
-        const double max_delta = rate_limit * rate_limit_dt;
+      if (rate_limit > 0 && dt > 0) {
+        const double max_delta = rate_limit * dt;
         const double delta =
             std::clamp(limited_pid_output(i) - previous_pid_output_(i),
                        -max_delta, max_delta);

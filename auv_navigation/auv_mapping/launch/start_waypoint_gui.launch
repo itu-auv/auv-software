@@ -18,27 +18,21 @@
     <arg name="canvas_y_max" default="18.0" />
     <arg name="b_arrow_length" default="12.0" />
 
-    <group ns="$(arg namespace)">
-        <node name="waypoint_gui" pkg="auv_mapping" type="waypoint_gui.py" output="screen">
-            <param name="set_waypoint_service" value="$(arg set_waypoint_service)" />
-            <param name="get_waypoint_service" value="$(arg get_waypoint_service)" />
-            <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
-            <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
+    <group>
+      <push_ros_namespace namespace="$(var namespace)" />
+        <node name="waypoint_gui" pkg="auv_mapping" exec="waypoint_gui.py" output="screen">
+            <param name="set_waypoint_service" value="$(var set_waypoint_service)" />
+            <param name="get_waypoint_service" value="$(var get_waypoint_service)" />
+            <param name="waypoint_prefix" value="$(var waypoint_prefix)" />
+            <param name="default_waypoint_z" value="$(var default_waypoint_z)" />
 
-            <param name="canvas_x_min" value="$(arg canvas_x_min)" />
-            <param name="canvas_x_max" value="$(arg canvas_x_max)" />
-            <param name="canvas_y_min" value="$(arg canvas_y_min)" />
-            <param name="canvas_y_max" value="$(arg canvas_y_max)" />
-            <param name="b_arrow_length" value="$(arg b_arrow_length)" />
+            <param name="canvas_x_min" value="$(var canvas_x_min)" />
+            <param name="canvas_x_max" value="$(var canvas_x_max)" />
+            <param name="canvas_y_min" value="$(var canvas_y_min)" />
+            <param name="canvas_y_max" value="$(var canvas_y_max)" />
+            <param name="b_arrow_length" value="$(var b_arrow_length)" />
 
-            <rosparam param="reference_frame_options">
-                - "odom"
-                - "coin_flip"
-                - "gate_exit"
-                - "torpedo_map_link_kde"
-                - "octagon_link_kde"
-                - "bin_basket_front_link_kde"
-            </rosparam>
+            <param name="reference_frame_options" value="[odom, coin_flip, gate_exit, torpedo_map_link_kde, octagon_link_kde, bin_basket_front_link_kde]" />
         </node>
     </group>
 </launch>

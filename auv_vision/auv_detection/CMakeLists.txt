@@ -1,19 +1,9 @@
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.16)
 project(auv_detection)
 
-find_package(catkin REQUIRED COMPONENTS
-)
+find_package(ament_cmake REQUIRED)
 
-catkin_package()
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY models DESTINATION share/${PROJECT_NAME} OPTIONAL)
 
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
-catkin_install_python(PROGRAMS
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-install(DIRECTORY
-  launch
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+ament_package()

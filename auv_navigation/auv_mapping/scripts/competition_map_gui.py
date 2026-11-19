@@ -5,12 +5,20 @@ from tkinter import messagebox
 import math
 import yaml
 
-import rospy
+import threading
+import rclpy
+from auv_common_lib import ros
+from auv_common_lib.ros import (
+    ServiceUnavailable,
+    get_param,
+    service_client,
+    wait_for_service,
+)
 from geometry_msgs.msg import Pose
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from tf_transformations import euler_from_quaternion, quaternion_from_euler
 from auv_msgs.msg import ObjectPose
-from auv_msgs.srv import SetPremap, SetPremapRequest
-from std_srvs.srv import Trigger, TriggerRequest
+from auv_msgs.srv import SetPremap
+from std_srvs.srv import Trigger
 
 
 class CompetitionMapGUI:
@@ -49,19 +57,24 @@ class CompetitionMapGUI:
     REFERENCE_FRAME = "coin_flip_rescuer"
     REFERENCE_FRAME_OPTIONS = ("coin_flip_rescuer", "odom")
 
-    def __init__(self, root):
+    def __init__(self, root, node):
         self.root = root
+        self.node = node
         self.root.title("Competition Pool Map")
         self.root.attributes("-zoomed", True)
 
-        self.service_name = rospy.get_param("~set_premap_service", "map/set_premap")
-        self.get_service_name = rospy.get_param("~get_premap_service", "map/get_premap")
+        self.service_name = get_param(
+            self.node, "~set_premap_service", "map/set_premap"
+        )
+        self.get_service_name = get_param(
+            self.node, "~get_premap_service", "map/get_premap"
+        )
         default_reference_frame = str(
-            rospy.get_param("~reference_frame", self.REFERENCE_FRAME)
+            get_param(self.node, "~reference_frame", self.REFERENCE_FRAME)
         )
 
         if default_reference_frame not in self.REFERENCE_FRAME_OPTIONS:
-            rospy.logwarn(
+            self.node.get_logger().warning(
                 f"Invalid ~reference_frame='{default_reference_frame}', "
                 f"falling back to '{self.REFERENCE_FRAME}'."
             )
@@ -84,16 +97,20 @@ class CompetitionMapGUI:
         """Check if ROS service is available"""
         was_connected = self.service_connected
         try:
-            rospy.wait_for_service(self.service_name, timeout=1.0)
+            wait_for_service(
+                service_client(self.node, SetPremap, self.service_name), timeout=1.0
+            )
             self.service_connected = True
             self.status_label.config(text="ROS: Connected", fg="green")
             if not was_connected:
-                rospy.loginfo(f"Service connected: {self.service_name}")
+                self.node.get_logger().info(f"Service connected: {self.service_name}")
         except Exception:
             self.service_connected = False
             self.status_label.config(text="ROS: Not connected", fg="red")
             if was_connected:
-                rospy.logwarn(f"Service disconnected: {self.service_name}")
+                self.node.get_logger().warning(
+                    f"Service disconnected: {self.service_name}"
+                )
 
         self.root.after(5000, self.check_ros_service)
 
@@ -627,14 +644,16 @@ class CompetitionMapGUI:
     def log_request_positions(self, selected_frame, request_positions):
         if "reference" in self.placed_objects:
             ref_data = self.placed_objects["reference"]
-            rospy.loginfo(
+            self.node.get_logger().info(
                 "[PremapGUI] Reference absolute in pool-map: "
                 f"x={ref_data[0]:.3f}, y={ref_data[1]:.3f}, yaw={ref_data[5]:.1f}"
             )
         else:
-            rospy.loginfo("[PremapGUI] Reference absolute in pool-map: <not placed>")
+            self.node.get_logger().info(
+                "[PremapGUI] Reference absolute in pool-map: <not placed>"
+            )
 
-        rospy.loginfo(
+        self.node.get_logger().info(
             f"[PremapGUI] Request poses in '{selected_frame}' frame "
             f"(count={len(request_positions)}):"
         )
@@ -642,7 +661,7 @@ class CompetitionMapGUI:
         for obj_name in sorted(request_positions.keys()):
             pose_data = request_positions[obj_name]
             service_labels = self.SERVICE_LABEL_MAP.get(obj_name, [obj_name])
-            rospy.loginfo(
+            self.node.get_logger().info(
                 f"[PremapGUI]   {obj_name}: x={pose_data['x']:.3f}, "
                 f"y={pose_data['y']:.3f}, z={pose_data['z']:.3f}, "
                 f"yaw={pose_data['yaw']:.1f}, labels={service_labels}"
@@ -668,7 +687,7 @@ class CompetitionMapGUI:
             return
 
         try:
-            req = SetPremapRequest()
+            req = SetPremap.Request()
             req.reference_frame = selected_frame
             req.objects = []
 
@@ -701,16 +720,16 @@ class CompetitionMapGUI:
             self.add_gui_metadata_to_request(req, selected_frame)
             self.log_request_positions(selected_frame, relative_positions)
 
-            rospy.loginfo(
+            self.node.get_logger().info(
                 f"[PremapGUI] Sending SetPremap: reference_frame='{req.reference_frame}', "
                 f"objects={[obj.label for obj in req.objects]}"
             )
 
-            rospy.wait_for_service(self.service_name, timeout=2.0)
-            set_premap = rospy.ServiceProxy(self.service_name, SetPremap)
-            resp = set_premap(req)
+            set_premap = service_client(self.node, SetPremap, self.service_name)
+            wait_for_service(set_premap, timeout=2.0)
+            resp = set_premap.call(req)
 
-            rospy.loginfo(
+            self.node.get_logger().info(
                 f"[PremapGUI] SetPremap response: success={resp.success}, "
                 f"message='{resp.message}'"
             )
@@ -724,7 +743,7 @@ class CompetitionMapGUI:
                     "Error", f"Service returned error:\n{resp.message}"
                 )
 
-        except rospy.ServiceException as e:
+        except Exception as e:
             messagebox.showerror("Error", f"Service call failed:\n{e}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send:\n{e}")
@@ -751,9 +770,9 @@ class CompetitionMapGUI:
 
     def get_from_vehicle(self):
         try:
-            rospy.wait_for_service(self.get_service_name, timeout=2.0)
-            get_premap = rospy.ServiceProxy(self.get_service_name, Trigger)
-            resp = get_premap(TriggerRequest())
+            get_premap = service_client(self.node, Trigger, self.get_service_name)
+            wait_for_service(get_premap, timeout=2.0)
+            resp = get_premap.call(Trigger.Request())
 
             if not resp.success:
                 messagebox.showerror(
@@ -787,7 +806,7 @@ class CompetitionMapGUI:
                 f"Loaded {loaded_count} object(s) from vehicle.",
             )
 
-        except rospy.ServiceException as e:
+        except Exception as e:
             messagebox.showerror("Error", f"Service call failed:\n{e}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to get premap:\n{e}")
@@ -875,10 +894,12 @@ class CompetitionMapGUI:
 
 
 def main():
-    rospy.init_node("competition_map_gui", anonymous=True)
+    ros.init()
+    node = rclpy.create_node("competition_map_gui")
+    threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
 
     root = tk.Tk()
-    CompetitionMapGUI(root)
+    CompetitionMapGUI(root, node)
     root.mainloop()
 
 

@@ -4,7 +4,8 @@ import math
 
 import cv2
 import numpy as np
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
 from sensor_msgs.msg import CompressedImage
 
 
@@ -300,8 +301,9 @@ def publish_debug_image(
         out_msg = _cv2_to_compressed_msg(vis, header)
         publisher.publish(out_msg)
     except Exception as e:
-        rospy.logwarn_throttle(
-            5.0, f"Failed to publish compressed segment pose debug image: {e}"
+        get_node().get_logger().warning(
+            f"Failed to publish compressed segment pose debug image: {e}",
+            throttle_duration_sec=5.0,
         )
 
 
@@ -408,6 +410,7 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
         out_msg = _cv2_to_compressed_msg(vis, header)
         publisher.publish(out_msg)
     except Exception as e:
-        rospy.logwarn_throttle(
-            5.0, f"Failed to publish compressed merged segment pose debug image: {e}"
+        get_node().get_logger().warning(
+            f"Failed to publish compressed merged segment pose debug image: {e}",
+            throttle_duration_sec=5.0,
         )

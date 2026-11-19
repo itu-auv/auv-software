@@ -1,83 +1,113 @@
 #!/usr/bin/env python
 
-import rospy
+import rclpy
+from rclpy.executors import ExternalShutdownException
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
+import tf2_ros
 from geometry_msgs.msg import Twist, WrenchStamped
 from std_msgs.msg import Bool
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool
 from nav_msgs.msg import Odometry
 import numpy as np
 import yaml
 import math
 import message_filters
 import time
-import tf
-import tf.transformations
-from auv_common_lib.logging.terminal_color_utils import TerminalColors
+from types import SimpleNamespace
+import tf_transformations
 
 
-class DvlToOdom:
+class DvlToOdom(Node):
     def __init__(self):
-        rospy.init_node("dvl_to_odom_node", anonymous=True)
+        super().__init__("dvl_to_odom_node")
 
-        self.enabled = rospy.get_param("~enabled", True)
-        self.enable_service = rospy.Service(
-            "dvl_to_odom_node/enable", SetBool, self.enable_cb
+        self.enabled = self.declare_parameter("enabled", True).value
+        self.enable_service = self.create_service(
+            SetBool, "dvl_to_odom_node/enable", self.enable_cb
         )
 
-        self.namespace = rospy.get_param("~namespace", "taluy")
-        self.base_frame = rospy.get_param("~base_frame", f"{self.namespace}/base_link")
-        self.dvl_frame = rospy.get_param(
-            "~dvl_frame", f"{self.namespace}/base_link/dvl_link"
-        )
+        self.namespace = self.declare_parameter("namespace", "taluy").value
+        self.base_frame = self.declare_parameter(
+            "base_frame", f"{self.namespace}/base_link"
+        ).value
+        self.dvl_frame = self.declare_parameter(
+            "dvl_frame", f"{self.namespace}/base_link/dvl_link"
+        ).value
 
-        self.tf_listener = tf.TransformListener()
+        self.tf_node = Node("dvl_tf_listener", use_global_arguments=False)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer, self.tf_node, spin_thread=True
+        )
         self.dvl_yaw = self.get_dvl_yaw()
 
-        self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
-        self.linear_x_covariance = rospy.get_param(
-            "sensors/dvl/covariance/linear_x", 0.000015
-        )
-        self.linear_y_covariance = rospy.get_param(
-            "sensors/dvl/covariance/linear_y", 0.000015
-        )
-        self.linear_z_covariance = rospy.get_param(
-            "sensors/dvl/covariance/linear_z", 0.00005
-        )
+        self.cmdvel_tau = self.declare_parameter("cmdvel_tau", 0.1).value
+        self.linear_x_covariance = self.declare_parameter(
+            "sensors.dvl.covariance.linear_x", 0.000015
+        ).value
+        self.linear_y_covariance = self.declare_parameter(
+            "sensors.dvl.covariance.linear_y", 0.000015
+        ).value
+        self.linear_z_covariance = self.declare_parameter(
+            "sensors.dvl.covariance.linear_z", 0.00005
+        ).value
 
-        self.model_covariance_multiplier = rospy.get_param(
-            "~model_covariance_multiplier", 10.0
-        )
+        self.model_covariance_multiplier = self.declare_parameter(
+            "model_covariance_multiplier", 10.0
+        ).value
 
         self.load_dynamic_model()
 
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
-            "dvl/velocity_raw", Twist, tcp_nodelay=True
+            self, Twist, "dvl/velocity_raw"
         )
         self.is_valid_subscriber = message_filters.Subscriber(
-            "dvl/is_valid", Bool, tcp_nodelay=True
+            self, Bool, "dvl/is_valid"
         )
-        self.desired_velocity_subscriber = rospy.Subscriber(
-            "desired_velocity", Twist, self.desired_velocity_callback, tcp_nodelay=True
-        )
-
-        self.odom_sub = rospy.Subscriber(
-            "odometry", Odometry, self.odom_callback, tcp_nodelay=True
+        self.desired_velocity_subscriber = self.create_subscription(
+            Twist, "desired_velocity", self.desired_velocity_callback, 10
         )
 
-        self.wrench_sub = rospy.Subscriber(
-            "wrench", WrenchStamped, self.wrench_callback, tcp_nodelay=True
+        self.odom_sub = self.create_subscription(
+            Odometry, "odometry", self.odom_callback, 10
         )
 
+        self.wrench_sub = self.create_subscription(
+            WrenchStamped, "wrench", self.wrench_callback, 10
+        )
+
+        self.velocity_arrival_filter = message_filters.SimpleFilter()
+        self.valid_arrival_filter = message_filters.SimpleFilter()
+        self.dvl_velocity_subscriber.registerCallback(
+            lambda msg: self.velocity_arrival_filter.signalMessage(
+                SimpleNamespace(
+                    header=SimpleNamespace(stamp=self.get_clock().now().to_msg()),
+                    message=msg,
+                )
+            )
+        )
+        self.is_valid_subscriber.registerCallback(
+            lambda msg: self.valid_arrival_filter.signalMessage(
+                SimpleNamespace(
+                    header=SimpleNamespace(stamp=self.get_clock().now().to_msg()),
+                    message=msg,
+                )
+            )
+        )
         self.sync = message_filters.ApproximateTimeSynchronizer(
-            [self.dvl_velocity_subscriber, self.is_valid_subscriber],
+            [self.velocity_arrival_filter, self.valid_arrival_filter],
             queue_size=10,
             slop=0.1,
             allow_headerless=True,
         )
-        self.sync.registerCallback(self.dvl_callback)
+        self.sync.registerCallback(
+            lambda velocity, valid: self.dvl_callback(velocity.message, valid.message)
+        )
 
-        self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
+        self.odom_publisher = self.create_publisher(Odometry, "odom_dvl", 10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
@@ -90,67 +120,72 @@ class DvlToOdom:
         self.update_twist_covariance(False)
 
         # Logging
-        DVL_odometry_colored = TerminalColors.color_text(
-            "DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE
+        self.get_logger().info(
+            "\033[38;5;110mDVL Odometry Calibration data loaded\033[0m:"
         )
-        rospy.loginfo(f"{DVL_odometry_colored} : cmdvel_tau: {self.cmdvel_tau}")
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}"
-        )
-        rospy.loginfo(
-            f"{DVL_odometry_colored} : model covariance multiplier: {self.model_covariance_multiplier}"
+        self.get_logger().info(f"\tcmdvel_tau: {self.cmdvel_tau}")
+        self.get_logger().info(f"\tlinear x covariance: {self.linear_x_covariance}")
+        self.get_logger().info(f"\tlinear y covariance: {self.linear_y_covariance}")
+        self.get_logger().info(f"\tlinear z covariance: {self.linear_z_covariance}")
+        self.get_logger().info(
+            f"\tmodel covariance multiplier: {self.model_covariance_multiplier}"
         )
 
         # Fallback variables
         self.desired_velocity_twist = Twist()
         self.filtered_desired_velocity = Twist()
-        self.last_update_time = rospy.Time.now()
+        self.last_update_time = self.get_clock().now()
         self.is_dvl_enabled = False
 
         # Model-based velocity estimator variables
         self.current_wrench = np.zeros(6)
-        self.last_wrench_time = rospy.Time.now()
+        self.last_wrench_time = self.get_clock().now()
         self.estimated_velocity = np.zeros(6)
         self.odom_velocity = np.zeros(6)
-        self.last_model_update = rospy.Time.now()
+        self.last_model_update = self.get_clock().now()
         self.odom_received = False
 
     def load_dynamic_model(self):
         try:
             # Mass-inertia matrix
-            M_list = rospy.get_param("model/mass_inertia_matrix")
-            self.M = np.array(M_list)
+            M_list = self.declare_parameter(
+                "model.mass_inertia_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
+            self.M = np.array(M_list).reshape(6, 6)
             self.M_inv = np.linalg.inv(self.M)
 
             # Damping matrices
-            D_linear_list = rospy.get_param("model/linear_damping_matrix")
-            self.D_linear = np.array(D_linear_list)
+            D_linear_list = self.declare_parameter(
+                "model.linear_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
+            self.D_linear = np.array(D_linear_list).reshape(6, 6)
 
-            D_quad_list = rospy.get_param("model/quadratic_damping_matrix")
-            self.D_quadratic = np.array(D_quad_list)
+            D_quad_list = self.declare_parameter(
+                "model.quadratic_damping_matrix", rclpy.Parameter.Type.DOUBLE_ARRAY
+            ).value
+            self.D_quadratic = np.array(D_quad_list).reshape(6, 6)
+            if not all(
+                np.isfinite(matrix).all()
+                for matrix in (self.M, self.D_linear, self.D_quadratic)
+            ):
+                raise ValueError("dynamic model matrices must be finite")
 
             self.dynamic_model_available = True
 
-            model_loaded_colored = TerminalColors.color_text(
-                "Dynamic model loaded successfully", TerminalColors.PASTEL_GREEN
+            self.get_logger().info(
+                "\033[38;5;157mDynamic model loaded successfully\033[0m"
             )
-            rospy.loginfo(model_loaded_colored)
-            rospy.loginfo(f"Mass matrix diagonal: {np.diag(self.M)}")
-            rospy.loginfo(f"Linear damping diagonal: {np.diag(self.D_linear)}")
-            rospy.loginfo(f"Quadratic damping diagonal: {np.diag(self.D_quadratic)}")
+            self.get_logger().info(f"Mass matrix diagonal: {np.diag(self.M)}")
+            self.get_logger().info(f"Linear damping diagonal: {np.diag(self.D_linear)}")
+            self.get_logger().info(
+                f"Quadratic damping diagonal: {np.diag(self.D_quadratic)}"
+            )
 
         except Exception as e:
-            model_error_colored = TerminalColors.color_text(
-                f"Failed to load dynamic model: {e}", TerminalColors.PASTEL_RED
+            self.get_logger().error(
+                f"\033[38;5;203mFailed to load dynamic model: {e}\033[0m"
             )
-            rospy.logerr(model_error_colored)
-            rospy.logwarn("Using identity/zero matrices as fallback")
+            self.get_logger().warning("Using identity/zero matrices as fallback")
             # Fallback to safe defaults
             self.M = np.eye(6)
             self.M_inv = np.eye(6)
@@ -166,28 +201,31 @@ class DvlToOdom:
         self.odom_msg.twist.covariance[7] = self.linear_y_covariance * multiplier
         self.odom_msg.twist.covariance[14] = self.linear_z_covariance * multiplier
 
-    def enable_cb(self, req):
+    def enable_cb(self, req, response):
         """Service callback to enable/disable DVL->Odom processing"""
         self.enabled = req.data
         state = "enabled" if self.enabled else "disabled"
-        rospy.loginfo(f"DVL->Odom node {state} via service call.")
-        return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
+        self.get_logger().info(f"DVL->Odom node {state} via service call.")
+        response.success = True
+        response.message = f"DVL->Odom {state}"
+        return response
 
     def get_dvl_yaw(self):
-        rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {self.dvl_frame}")
+        self.get_logger().info(f"Waiting for TF: {self.base_frame} <- {self.dvl_frame}")
         try:
-            self.tf_listener.waitForTransform(
-                self.base_frame, self.dvl_frame, rospy.Time(0), rospy.Duration(10.0)
+            transform = self.tf_buffer.lookup_transform(
+                self.base_frame, self.dvl_frame, Time(), timeout=Duration(seconds=10.0)
             )
-            (trans, rot) = self.tf_listener.lookupTransform(
-                self.base_frame, self.dvl_frame, rospy.Time(0)
-            )
-            euler = tf.transformations.euler_from_quaternion(rot)
+            q = transform.transform.rotation
+            rot = (q.x, q.y, q.z, q.w)
+            euler = tf_transformations.euler_from_quaternion(rot)
             yaw = euler[2]
-            rospy.loginfo(f"Loaded {self.dvl_frame} yaw from TF: {yaw} radians")
+            self.get_logger().info(
+                f"Loaded {self.dvl_frame} yaw from TF: {yaw} radians"
+            )
             return yaw
         except Exception as e:
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"Could not get TF for {self.dvl_frame} relative to {self.base_frame}: {e}. Falling back to default -45 degrees."
             )
             return np.radians(-45)
@@ -216,7 +254,7 @@ class DvlToOdom:
         self.odom_received = True
 
     def wrench_callback(self, wrench_msg):
-        self.last_wrench_time = rospy.Time.now()
+        self.last_wrench_time = self.get_clock().now()
         self.current_wrench[0] = wrench_msg.wrench.force.x
         self.current_wrench[1] = wrench_msg.wrench.force.y
         self.current_wrench[2] = wrench_msg.wrench.force.z
@@ -225,8 +263,8 @@ class DvlToOdom:
         self.current_wrench[5] = wrench_msg.wrench.torque.z
 
     def filter_desired_velocity(self):
-        current_time = rospy.Time.now()
-        dt = (current_time - self.last_update_time).to_sec()
+        current_time = self.get_clock().now()
+        dt = (current_time - self.last_update_time).nanoseconds / 1e9
         self.alpha = dt / (self.cmdvel_tau + dt)
 
         self.filtered_desired_velocity.linear.x = (
@@ -289,7 +327,7 @@ class DvlToOdom:
             v = self.estimated_velocity.copy()
 
         # Check for stale wrench (timeout > 0.5s)
-        if (rospy.Time.now() - self.last_wrench_time).to_sec() > 0.5:
+        if (self.get_clock().now() - self.last_wrench_time).nanoseconds / 1e9 > 0.5:
             self.current_wrench = np.zeros(6)
 
         # Linear damping
@@ -320,8 +358,8 @@ class DvlToOdom:
         if not self.enabled:
             return
 
-        current_time = rospy.Time.now()
-        dt = (current_time - self.last_model_update).to_sec()
+        current_time = self.get_clock().now()
+        dt = (current_time - self.last_model_update).nanoseconds / 1e9
         self.last_model_update = current_time
 
         if is_valid_msg.data:
@@ -348,8 +386,9 @@ class DvlToOdom:
             self.filter_desired_velocity()
 
             if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
-                rospy.loginfo_throttle(
-                    1.0, "DVL invalid: Using dynamic model for velocity estimation"
+                self.get_logger().info(
+                    "DVL invalid: Using dynamic model for velocity estimation",
+                    throttle_duration_sec=1.0,
                 )
                 model_vel = self.compute_model_based_velocity(dt)
 
@@ -363,9 +402,9 @@ class DvlToOdom:
                 self.update_twist_covariance(use_model_based=True)
 
             else:
-                rospy.logwarn_throttle(
-                    1.0,
+                self.get_logger().warning(
                     "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
+                    throttle_duration_sec=1.0,
                 )
                 velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
                 velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
@@ -376,7 +415,7 @@ class DvlToOdom:
 
                 self.update_twist_covariance(use_model_based=True)
 
-        self.odom_msg.header.stamp = current_time
+        self.odom_msg.header.stamp = current_time.to_msg()
         self.odom_msg.twist.twist = velocity_msg
 
         # Set position to zero as we are not computing it here
@@ -388,19 +427,29 @@ class DvlToOdom:
         self.odom_publisher.publish(self.odom_msg)
 
     def run(self):
-        rate = rospy.Rate(20)
-        while not rospy.is_shutdown():
+        def publish_initial():
             if not self.is_dvl_enabled:
-                self.odom_msg.header.stamp = rospy.Time.now()
+                self.odom_msg.header.stamp = self.get_clock().now().to_msg()
                 self.odom_msg.twist.twist = Twist()
                 self.odom_publisher.publish(self.odom_msg)
-            rate.sleep()
-        rospy.spin()
+
+        self.timer = self.create_timer(0.05, publish_initial)
+        rclpy.spin(self)
+
+
+def main():
+    rclpy.init()
+    dvl_to_odom = DvlToOdom()
+    try:
+        dvl_to_odom.run()
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        dvl_to_odom.tf_listener.unregister()
+        dvl_to_odom.tf_node.destroy_node()
+        dvl_to_odom.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == "__main__":
-    try:
-        dvl_to_odom = DvlToOdom()
-        dvl_to_odom.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

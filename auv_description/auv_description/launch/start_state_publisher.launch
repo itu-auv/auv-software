@@ -16,6 +16,6 @@
     type="joint_state_publisher_gui" if="$(arg use_gui)" /> -->
 
   <node name="rviz" pkg="rviz" type="rviz"
-    args="$(eval '-d ' + find(arg('namespace') + '_description') + '/rviz/default.rviz')"
+    args="$(eval '-d ' + find(arg('namespace') + '_description') + '/rviz/araba.rviz')"
     if="$(arg use_gui)" />
 </launch>

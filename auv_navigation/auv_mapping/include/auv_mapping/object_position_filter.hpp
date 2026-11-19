@@ -1,14 +1,14 @@
 #pragma once
 
-#include <geometry_msgs/TransformStamped.h>
-#include <ros/ros.h>
-#include <tf2/LinearMath/Quaternion.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <memory>
 #include <opencv2/core/core.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <string>
+#include <tf2/LinearMath/Quaternion.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace auv_mapping {
 
@@ -26,8 +26,9 @@ class ObjectPositionFilter {
    * @param initial_transform The initial transform message.
    * @param dt The initial time step.
    */
-  ObjectPositionFilter(const geometry_msgs::TransformStamped &initial_transform,
-                       const double dt);
+  ObjectPositionFilter(
+      const geometry_msgs::msg::TransformStamped &initial_transform,
+      const double dt, rclcpp::Clock::SharedPtr clock);
 
   ~ObjectPositionFilter() = default;
 
@@ -39,11 +40,11 @@ class ObjectPositionFilter {
    * @param measurement The incoming transform message.
    * @param dt Time step since last update.
    */
-  void update(const geometry_msgs::TransformStamped &measurement,
+  void update(const geometry_msgs::msg::TransformStamped &measurement,
               const double dt);
   void updateFrameIndex(const std::string &new_frame_id);
   /// Get the filtered transform.
-  geometry_msgs::TransformStamped getFilteredTransform() const;
+  geometry_msgs::msg::TransformStamped getFilteredTransform() const;
 
  private:
   /**
@@ -61,6 +62,7 @@ class ObjectPositionFilter {
   tf2::Quaternion filtered_orientation_;  // Filtered orientation
   std::string static_frame_;              // Parent (static) frame id
   std::string child_frame_;               // Child frame id for this object
+  rclcpp::Clock::SharedPtr clock_;
 };
 
 }  // namespace auv_mapping

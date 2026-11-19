@@ -109,3 +109,51 @@ TEST(MultiDOFPIDController, LimitsAccelerationCommandRate) {
   EXPECT_NEAR(second_force_torque(0), 1.0, kEpsilon);
   EXPECT_NEAR(second_force_torque(5), 1.0, kEpsilon);
 }
+
+TEST(MultiDOFPIDController, IntegratesBothLoopsInSeconds) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+  model.mass_inertia_matrix = Matrix6d::Identity();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+  controller.set_model(model);
+  controller.set_kp(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+  controller.set_ki(Vector12d::Ones());
+
+  const Vector12d state = Vector12d::Zero();
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state(2) = 0.1;
+
+  // At 20 Hz, position integral = 0.1 * 0.05 = 0.005 m/s.
+  // Velocity integral = 0.005 * 0.05 = 0.00025 m/s^2.
+  const auto first = controller.control(state, desired_state, state, 0.05);
+  EXPECT_NEAR(controller.get_desired_velocity()(2), 0.005, kEpsilon);
+  EXPECT_NEAR(first(2), 0.00025, kEpsilon);
+
+  const auto second = controller.control(state, desired_state, state, 0.05);
+  EXPECT_NEAR(controller.get_desired_velocity()(2), 0.01, kEpsilon);
+  EXPECT_NEAR(second(2), 0.00075, kEpsilon);
+}
+
+TEST(MultiDOFPIDController, RateLimitAcceptsPeriodsLongerThanOneSecond) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+  model.mass_inertia_matrix = Matrix6d::Identity();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+  controller.set_model(model);
+  Vector12d kp = Vector12d::Zero();
+  kp.tail(6).setOnes();
+  controller.set_kp(kp);
+  controller.set_ki(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+  controller.set_max_acceleration_rate_limits(Vector6d::Ones());
+
+  const Vector12d state = Vector12d::Zero();
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state.tail(6).setConstant(10.0);
+  const auto output = controller.control(state, desired_state, state, 2.0);
+  EXPECT_NEAR(output(0), 2.0, kEpsilon);
+  EXPECT_NEAR(output(5), 2.0, kEpsilon);
+}

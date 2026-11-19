@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_node
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from utils.detection_utils import (
@@ -53,7 +54,7 @@ class BottomCameraHandler:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            detection_id = int(detection.results[0].hypothesis.class_id)
 
             if detection_id not in self.active_ids:
                 continue
@@ -75,8 +76,9 @@ class BottomCameraHandler:
                     continue
                 distance = self.shared_state.get("altitude")
                 if distance is None:
-                    rospy.logwarn_throttle(
-                        5, "No altitude data for bottom camera bin detection"
+                    get_node().get_logger().warning(
+                        "No altitude data for bottom camera bin detection",
+                        throttle_duration_sec=5,
                     )
                     continue
             else:
@@ -94,7 +96,7 @@ class BottomCameraHandler:
                 continue
 
             angles, offset_x, offset_y = calculate_angles_and_offsets(
-                self.calibration, detection.bbox.center, distance
+                self.calibration, detection.bbox.center.position, distance
             )
 
             # Publish props yaw
@@ -106,7 +108,9 @@ class BottomCameraHandler:
 
             # Max distance check
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:
-                rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
+                get_node().get_logger().debug(
+                    f"Detection for {prop_name} is too far away. Skipping."
+                )
                 continue
 
             transform_to_odom_and_publish(

@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib import ros
+from rclpy.node import Node
 from ultralytics_ros.msg import YoloResult
 from vision_msgs.msg import Detection2DArray
 
 
-class YoloBridge:
+class YoloBridge(Node):
     def __init__(self):
-        rospy.init_node("yolo_result_bridge", anonymous=True)
+        super().__init__("yolo_result_bridge")
 
-        self.detection_pub = rospy.Publisher(
-            "/yolo_detections", Detection2DArray, queue_size=10
+        self.detection_pub = self.create_publisher(
+            Detection2DArray, "/yolo_detections", 10
         )
-        self.detection_pub_torpedo = rospy.Publisher(
-            "/yolo_detections_torpedo", Detection2DArray, queue_size=10
+        self.detection_pub_torpedo = self.create_publisher(
+            Detection2DArray, "/yolo_detections_torpedo", 10
         )
 
         # Subscriber to the custom YoloResult message
-        rospy.Subscriber("/yolo_result_realsense", YoloResult, self.yolo_callback)
-        rospy.Subscriber(
-            "/yolo_result_torpedo_front", YoloResult, self.yolo_callback_torpedo
+        self.create_subscription(
+            YoloResult, "/yolo_result_realsense", self.yolo_callback, 10
+        )
+        self.create_subscription(
+            YoloResult, "/yolo_result_torpedo_front", self.yolo_callback_torpedo, 10
         )
 
-        rospy.loginfo(
+        self.get_logger().info(
             "YOLO Result Bridge started. Subscribing to /yolo_result_realsense and /yolo_result_torpedo_front and publishing to /yolo_detections and /yolo_detections_torpedo."
         )
 
@@ -38,13 +42,12 @@ class YoloBridge:
         detections_msg.header = msg.header
         self.detection_pub_torpedo.publish(detections_msg)
 
-    def run(self):
-        rospy.spin()
+
+def main():
+    ros.init()
+    node = YoloBridge()
+    ros.spin(node)
 
 
 if __name__ == "__main__":
-    try:
-        bridge = YoloBridge()
-        bridge.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

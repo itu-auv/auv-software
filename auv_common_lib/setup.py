@@ -1,10 +1,10 @@
-from distutils.core import setup
-from catkin_pkg.python_setup import generate_distutils_setup
+from setuptools import find_packages, setup
 
-d = generate_distutils_setup(
-    packages=["auv_common_lib"],
+d = dict(
+    name="auv_common_lib",
+    version="0.1.0",
+    packages=find_packages(),
     # scripts=['bin/myscript'],
-    package_dir={"": "python"},
 )
 
 setup(**d)

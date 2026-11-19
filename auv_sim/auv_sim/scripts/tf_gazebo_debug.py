@@ -1,48 +1,59 @@
 #!/usr/bin/env python3
 
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client
+from auv_common_lib import ros
+from rclpy.node import Node
+from rclpy.duration import Duration
+from rclpy.time import Time
 import tf2_ros
-from auv_msgs.srv import SpawnDebugCube, SpawnDebugCubeResponse
-from std_srvs.srv import Trigger, TriggerResponse
-from gazebo_msgs.srv import SpawnModel, DeleteModel, GetModelState
+from auv_msgs.srv import SpawnDebugCube
+from std_srvs.srv import Trigger
+from nav_msgs.msg import Odometry
+from ros_gz_interfaces.msg import Entity
+from ros_gz_interfaces.srv import DeleteEntity, SpawnEntity
 from geometry_msgs.msg import Pose
-import tf.transformations as tft
+import tf_transformations as tft
 import numpy as np
 
 
-class TFGazeboDebug:
+class TFGazeboDebug(Node):
     def __init__(self):
-        rospy.init_node("tf_gazebo_debug")
+        super().__init__("tf_gazebo_debug")
 
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.spawned_models = []
 
-        rospy.wait_for_service("/gazebo/spawn_sdf_model")
-        rospy.wait_for_service("/gazebo/delete_model")
-        rospy.wait_for_service("/gazebo/get_model_state")
-
-        self.spawn_model_proxy = rospy.ServiceProxy(
-            "/gazebo/spawn_sdf_model", SpawnModel
-        )
-        self.delete_model_proxy = rospy.ServiceProxy(
-            "/gazebo/delete_model", DeleteModel
-        )
-        self.get_model_state_proxy = rospy.ServiceProxy(
-            "/gazebo/get_model_state", GetModelState
-        )
-
         # for reference
-        self.robot_name = rospy.get_param("~robot_name", "taluy")
-        self.robot_base_frame = rospy.get_param(
-            "~robot_base_frame", f"{self.robot_name}/base_link"
+        self.robot_name = get_param(self, "~robot_name", "taluy")
+        self.robot_base_frame = get_param(
+            self, "~robot_base_frame", f"{self.robot_name}/base_link"
+        )
+        self.world = get_param(self, "~world", "pool")
+
+        # Gazebo Harmonic, through ros_gz_bridge: entity creation and removal are
+        # services of the world, the robot's true pose is its odometry publisher.
+        # (`remove` is not bridged by the sim launch; bridge it to use delete_all.)
+        self.spawn_model_proxy = service_client(
+            self, SpawnEntity, f"/world/{self.world}/create"
+        )
+        self.delete_model_proxy = service_client(
+            self, DeleteEntity, f"/world/{self.world}/remove"
+        )
+        self.spawn_model_proxy.wait_for_service()
+        self.gazebo_robot_pose = None
+        self.create_subscription(
+            Odometry, f"/model/{self.robot_name}/odometry", self.robot_pose_cb, 1
         )
 
-        self.spawn_srv = rospy.Service(
-            "/debug/frame_to_model", SpawnDebugCube, self.handle_spawn_cube
+        self.spawn_srv = self.create_service(
+            SpawnDebugCube, "/debug/frame_to_model", self.handle_spawn_cube
         )
-        self.reset_srv = rospy.Service("/debug/delete_all", Trigger, self.handle_reset)
+        self.reset_srv = self.create_service(
+            Trigger, "/debug/delete_all", self.handle_reset
+        )
 
         self.cube_sdf = """
 <?xml version='1.0'?>
@@ -65,7 +76,10 @@ class TFGazeboDebug:
   </model>
 </sdf>
 """
-        rospy.loginfo("gazebo tf debugger ready")
+        self.get_logger().info("gazebo tf debugger ready")
+
+    def robot_pose_cb(self, msg):
+        self.gazebo_robot_pose = msg.pose.pose
 
     def pose_to_matrix(self, translation, rotation):
         T = tft.translation_matrix([translation.x, translation.y, translation.z])
@@ -85,31 +99,29 @@ class TFGazeboDebug:
         ) = quat
         return pose
 
-    def handle_spawn_cube(self, req):
+    def handle_spawn_cube(self, req, response):
         frame_name = req.frame_name
         try:
             trans_target = self.tf_buffer.lookup_transform(
-                "odom", frame_name, rospy.Time(0), rospy.Duration(1.0)
+                "odom", frame_name, Time(), Duration(seconds=1.0)
             )
 
-            gazebo_robot = self.get_model_state_proxy(
-                model_name=self.robot_name, relative_entity_name="world"
-            )
+            gazebo_robot = self.gazebo_robot_pose
             ros_robot = self.tf_buffer.lookup_transform(
-                "odom", self.robot_base_frame, rospy.Time(0), rospy.Duration(1.0)
+                "odom", self.robot_base_frame, Time(), Duration(seconds=1.0)
             )
 
-            if not gazebo_robot.success:
-                return SpawnDebugCubeResponse(
+            if gazebo_robot is None:
+                return SpawnDebugCube.Response(
                     success=False,
-                    message=f"gazebo error: {gazebo_robot.status_message}",
+                    message=f"gazebo error: no pose on /model/{self.robot_name}/odometry",
                 )
 
             M_target_in_odom = self.pose_to_matrix(
                 trans_target.transform.translation, trans_target.transform.rotation
             )
             M_robot_in_world = self.pose_to_matrix(
-                gazebo_robot.pose.position, gazebo_robot.pose.orientation
+                gazebo_robot.position, gazebo_robot.orientation
             )
             M_robot_in_odom = self.pose_to_matrix(
                 ros_robot.transform.translation, ros_robot.transform.rotation
@@ -125,48 +137,48 @@ class TFGazeboDebug:
                 f"debug_cube_{len(self.spawned_models)}_{frame_name.replace('/', '_')}"
             )
 
-            resp = self.spawn_model_proxy(
-                model_name=model_name,
-                model_xml=self.cube_sdf,
-                robot_namespace="",
-                initial_pose=pose,
-                reference_frame="world",
-            )
+            request = SpawnEntity.Request()
+            request.entity_factory.name = model_name
+            request.entity_factory.sdf = self.cube_sdf
+            request.entity_factory.pose = pose
+            resp = self.spawn_model_proxy(request)
 
             if resp.success:
                 self.spawned_models.append(model_name)
-                return SpawnDebugCubeResponse(
+                return SpawnDebugCube.Response(
                     success=True,
                     message=f"spawned {model_name} at gazebo {pose.position.x}, {pose.position.y}",
                 )
             else:
-                return SpawnDebugCubeResponse(
-                    success=False, message=f"spawn error: {resp.status_message}"
+                return SpawnDebugCube.Response(
+                    success=False, message="spawn error: Gazebo refused the model"
                 )
 
         except Exception as e:
-            return SpawnDebugCubeResponse(success=False, message=f"error: {str(e)}")
+            return SpawnDebugCube.Response(success=False, message=f"error: {str(e)}")
 
-    def handle_reset(self, req):
+    def handle_reset(self, req, response):
         success = True
         messages = []
         for model_name in self.spawned_models:
-            resp = self.delete_model_proxy(model_name)
+            request = DeleteEntity.Request()
+            request.entity.name = model_name
+            request.entity.type = Entity.MODEL
+            resp = self.delete_model_proxy(request)
             if not resp.success:
                 success = False
-                messages.append(f"failed to delete {model_name}: {resp.status_message}")
+                messages.append(f"failed to delete {model_name}")
 
         self.spawned_models = []
         message = "success" if success else "\n".join(messages)
-        return TriggerResponse(success=success, message=message)
+        return Trigger.Response(success=success, message=message)
 
-    def run(self):
-        rospy.spin()
+
+def main():
+    ros.init()
+    node = TFGazeboDebug()
+    ros.spin(node)
 
 
 if __name__ == "__main__":
-    try:
-        node = TFGazeboDebug()
-        node.run()
-    except rospy.ROSInterruptException:
-        pass
+    main()

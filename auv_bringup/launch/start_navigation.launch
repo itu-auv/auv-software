@@ -2,40 +2,41 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
-  <arg name="sim" default="false" />
+  <arg name="localization_disabled_at_startup" default="true" />
+  <arg name="plane_fitter_sync_queue_size" default="30" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
-  <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
+  <arg name="config_file" default="$(find-pkg-share auv_control)/config/$(var namespace)/default.yaml" />
 
-  <include file="$(find auv_localization)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
+  <include file="$(find-pkg-share auv_localization)/launch/start.launch.py">
+    <arg name="namespace" value="$(var namespace)" />
   </include>
 
-  <include file="$(find auv_bringup)/launch/robot_localization.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="sim" value="$(arg sim)" />
+  <include file="$(find-pkg-share auv_bringup)/launch/robot_localization.launch.py">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="control_rate" value="$(var control_rate)" />
+    <arg name="localization_disabled_at_startup" value="$(var localization_disabled_at_startup)" />
   </include>
 
-  <include file="$(find auv_control)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="rate" value="$(arg control_rate)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-    <arg name="start_state_publisher" value="$(arg start_state_publisher)" />
-    <arg name="config_file" value="$(arg config_file)"/>
+  <include file="$(find-pkg-share auv_control)/launch/start.launch.py">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="rate" value="$(var control_rate)" />
+    <arg name="use_gui" value="$(var use_gui)" />
+    <arg name="start_state_publisher" value="$(var start_state_publisher)" />
+    <arg name="config_file" value="$(var config_file)"/>
   </include>
 
-  <include file="$(find auv_mapping)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="sim" value="$(arg sim)" />
+  <include file="$(find-pkg-share auv_mapping)/launch/start.launch">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="control_rate" value="$(var control_rate)" />
+    <arg name="plane_fitter_sync_queue_size" value="$(var plane_fitter_sync_queue_size)" />
   </include>
 
-  <include file="$(find auv_navigation)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
+  <include file="$(find-pkg-share auv_navigation)/launch/start.launch.py">
+    <arg name="namespace" value="$(var namespace)" />
   </include>
 
-  <include file="$(find auv_vision)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
+  <include file="$(find-pkg-share auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(var namespace)" />
   </include>
 </launch>

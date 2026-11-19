@@ -5,10 +5,10 @@
   <arg name="verbose" default="false" />
   <arg name="pub_camera_info" default="true" />
 
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="compressed" value="$(arg compressed)" />
-    <arg name="verbose" value="$(arg verbose)" />
-    <arg name="pub_camera_info" value="$(arg pub_camera_info)" />
+  <include file="$(find-pkg-share auv_bringup)/launch/inc/sensors/start_cameras_$(var namespace).launch">
+    <arg name="namespace" value="$(var namespace)" />
+    <arg name="compressed" value="$(var compressed)" />
+    <arg name="verbose" value="$(var verbose)" />
+    <arg name="pub_camera_info" value="$(var pub_camera_info)" />
   </include>
 </launch>

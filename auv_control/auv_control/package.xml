@@ -6,20 +6,33 @@
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>angles</depend>
   <depend>auv_common_lib</depend>
   <depend>auv_controllers</depend>
   <depend>auv_msgs</depend>
-  <depend>dynamic_reconfigure</depend>
+  <depend>fmt</depend>
   <depend>geometry_msgs</depend>
+  <depend>message_filters</depend>
   <depend>nav_msgs</depend>
   <depend>pluginlib</depend>
-  <depend>roscpp</depend>
-  <depend>rosfmt</depend>
-  <depend>rospy</depend>
+  <depend>rcl_interfaces</depend>
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>robot_localization</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
+  <depend>tf2_geometry_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>tf_transformations</depend>
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>auv_description</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

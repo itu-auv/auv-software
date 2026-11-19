@@ -1,5 +1,0 @@
-# VisualServoing.srv
-string target_prop
----
-bool success
-string message

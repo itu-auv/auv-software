@@ -11,7 +11,10 @@ the strongest spatial clusters for each object class. Publishes:
 import threading
 import os
 import sys
-import rospy
+import rclpy
+from auv_common_lib.ros import get_param, service_client
+from auv_common_lib import ros
+from rclpy.node import Node
 import yaml
 import numpy as np
 from collections import defaultdict
@@ -30,39 +33,39 @@ from geometry_msgs.msg import (
     Vector3,
     Quaternion,
 )
-from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from std_srvs.srv import Trigger
+from auv_msgs.srv import SetObjectTransform
 from kde_visualizer import KdeVisualizer, CLASS_COLORS_BGR
 
 
-class KdeObjectMapper:
+class KdeObjectMapper(Node):
     def __init__(self):
-        rospy.init_node("kde_object_mapper")
+        super().__init__("kde_object_mapper")
 
         # ── Parameters ────────────────────────────────────────────────────
-        self.bandwidth = rospy.get_param("~bandwidth", 0.2)
-        self.min_peak_density = rospy.get_param("~min_peak_density", 0.01)
-        self.max_peaks_per_class = rospy.get_param("~max_peaks_per_class", 5)
-        self.suppression_radius = rospy.get_param("~suppression_radius", 0.5)
-        self.update_rate = rospy.get_param("~update_rate", 2.0)
-        self.static_frame = rospy.get_param("~static_frame", "odom")
-        self.grid_resolution = rospy.get_param("~grid_resolution", 0.05)
-        self.min_points_for_kde = rospy.get_param("~min_points_for_kde", 5)
-        self.max_points_per_class = rospy.get_param("~max_points_per_class", 2000)
-        self.frame_suffix = rospy.get_param("~frame_suffix", "_kde")
-        image_width = rospy.get_param("~image_width", 800)
-        image_height = rospy.get_param("~image_height", 600)
-        object_classes = rospy.get_param("~object_classes", [])
+        self.bandwidth = get_param(self, "~bandwidth", 0.2)
+        self.min_peak_density = get_param(self, "~min_peak_density", 0.01)
+        self.max_peaks_per_class = get_param(self, "~max_peaks_per_class", 5)
+        self.suppression_radius = get_param(self, "~suppression_radius", 0.5)
+        self.update_rate = get_param(self, "~update_rate", 2.0)
+        self.static_frame = get_param(self, "~static_frame", "odom")
+        self.grid_resolution = get_param(self, "~grid_resolution", 0.05)
+        self.min_points_for_kde = get_param(self, "~min_points_for_kde", 5)
+        self.max_points_per_class = get_param(self, "~max_points_per_class", 2000)
+        self.frame_suffix = get_param(self, "~frame_suffix", "_kde")
+        image_width = get_param(self, "~image_width", 800)
+        image_height = get_param(self, "~image_height", 600)
+        object_classes = get_param(self, "~object_classes", [])
 
         # Temporal decay parameter (default 0.5 seconds half-life)
-        self.temporal_decay = rospy.get_param("~temporal_decay", 25)
+        self.temporal_decay = get_param(self, "~temporal_decay", 25)
 
         # Premap parameters
-        self.premap_path = rospy.get_param("~premap_path", "")
-        self.premap_max_distance = rospy.get_param("~premap_max_distance", 5.0)
+        self.premap_path = get_param(self, "~premap_path", "")
+        self.premap_max_distance = get_param(self, "~premap_max_distance", 5.0)
 
         if not object_classes:
-            rospy.logwarn(
+            self.get_logger().warning(
                 "No object_classes configured — KDE mapper has nothing to do."
             )
 
@@ -90,16 +93,17 @@ class KdeObjectMapper:
         self.subscribers = {}
         for cls_name in object_classes:
             topic = f"kde_map/points/{cls_name}"
-            self.subscribers[cls_name] = rospy.Subscriber(
-                topic,
+            self.subscribers[cls_name] = self.create_subscription(
                 PointStamped,
+                topic,
                 lambda msg, c=cls_name: self._point_callback(msg, c),
-                queue_size=50,
+                50,
             )
-            rospy.loginfo(f"Subscribed to {topic}")
+            self.get_logger().info(f"Subscribed to {topic}")
 
         # ── Visualizer (runs on its own thread) ──────────────────────────
         self.visualizer = KdeVisualizer(
+            self,
             image_width,
             image_height,
             self.class_colors,
@@ -109,20 +113,20 @@ class KdeObjectMapper:
         self.visualizer.start()
 
         # ── Service proxy ─────────────────────────────────────────────────
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_service = service_client(
+            self, SetObjectTransform, "set_object_transform"
         )
 
         # ── Services ─────────────────────────────────────────────────────
-        rospy.Service("kde_map/clear", Trigger, self._clear_callback)
-        rospy.Service("kde_map/trigger_update", Trigger, self._trigger_callback)
+        self.create_service(Trigger, "kde_map/clear", self._clear_callback)
+        self.create_service(Trigger, "kde_map/trigger_update", self._trigger_callback)
 
         # ── Timer ─────────────────────────────────────────────────────────
-        self.update_timer = rospy.Timer(
-            rospy.Duration(1.0 / self.update_rate), self._update_callback
+        self.update_timer = self.create_timer(
+            1.0 / self.update_rate, self._update_callback
         )
 
-        rospy.loginfo(
+        self.get_logger().info(
             f"KDE Object Mapper ready — {len(object_classes)} classes, "
             f"bw={self.bandwidth}m, rate={self.update_rate}Hz"
         )
@@ -141,11 +145,11 @@ class KdeObjectMapper:
         """
         premap = {}
         if not premap_path:
-            rospy.logwarn("KDE: ~premap_path is empty. Premap is disabled.")
+            self.get_logger().warning("KDE: ~premap_path is empty. Premap is disabled.")
             return premap
 
         if not os.path.exists(premap_path):
-            rospy.logwarn(
+            self.get_logger().warning(
                 f"KDE: Premap file at {premap_path} is missing. Premap is disabled."
             )
             return premap
@@ -155,14 +159,14 @@ class KdeObjectMapper:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
-                rospy.logwarn(
+                self.get_logger().warning(
                     f"KDE: Failed to parse premap YAML from {premap_path} — top-level is not a dict."
                 )
                 return premap
 
             objects_data = data.get("objects", {})
             if not isinstance(objects_data, dict):
-                rospy.logwarn(
+                self.get_logger().warning(
                     f"KDE: 'objects' key in premap {premap_path} is not a dictionary."
                 )
                 return premap
@@ -173,11 +177,13 @@ class KdeObjectMapper:
                     if isinstance(pos, (list, tuple)) and len(pos) >= 2:
                         premap[k] = np.array([float(pos[0]), float(pos[1])])
 
-            rospy.loginfo(
+            self.get_logger().info(
                 f"KDE: Loaded premap with {len(premap)} classes from {premap_path}: {list(premap.keys())}"
             )
         except Exception as e:
-            rospy.logwarn(f"KDE: Failed to load premap from {premap_path}: {e}")
+            self.get_logger().warning(
+                f"KDE: Failed to load premap from {premap_path}: {e}"
+            )
             premap = {}
         return premap
 
@@ -193,11 +199,13 @@ class KdeObjectMapper:
                 with self.lock:
                     self.premap = new_premap
                 self._premap_mtime = mtime
-                rospy.loginfo(
+                self.get_logger().info(
                     f"KDE: Dynamically reloaded premap due to file modification (mtime={mtime})"
                 )
         except Exception as e:
-            rospy.logwarn_throttle(10.0, f"KDE: Failed to check/reload premap: {e}")
+            self.get_logger().warning(
+                f"KDE: Failed to check/reload premap: {e}", throttle_duration_sec=10.0
+            )
 
     def _point_callback(self, msg, class_name):
         with self.lock:
@@ -218,24 +226,26 @@ class KdeObjectMapper:
                     return
 
             buf = self.point_buffers[class_name]
-            buf.append([msg.point.x, msg.point.y, rospy.Time.now().to_sec()])
+            buf.append(
+                [msg.point.x, msg.point.y, self.get_clock().now().nanoseconds / 1e9]
+            )
             # Keep buffer bounded
             if len(buf) > self.max_points_per_class:
                 del buf[: len(buf) - self.max_points_per_class]
 
-    def _clear_callback(self, _req):
+    def _clear_callback(self, _req, response):
         with self.lock:
             self.point_buffers.clear()
             self.current_results.clear()
-        rospy.loginfo("KDE: cleared all point buffers.")
+        self.get_logger().info("KDE: cleared all point buffers.")
 
-        return TriggerResponse(success=True, message="Cleared all KDE buffers")
+        return Trigger.Response(success=True, message="Cleared all KDE buffers")
 
-    def _trigger_callback(self, _req):
+    def _trigger_callback(self, _req, response):
         self._run_kde()
-        return TriggerResponse(success=True, message="KDE update triggered")
+        return Trigger.Response(success=True, message="KDE update triggered")
 
-    def _update_callback(self, _event):
+    def _update_callback(self):
         # Re-entrancy guard: skip if previous KDE computation is still running
         with self.lock:
             if self._kde_running:
@@ -261,7 +271,7 @@ class KdeObjectMapper:
 
         results = {}
         kde_data = {}
-        now = rospy.Time.now().to_sec()
+        now = self.get_clock().now().nanoseconds / 1e9
 
         for cls_name in list(self.class_colors.keys()):
             if cls_name in buffers_snapshot:
@@ -390,25 +400,28 @@ class KdeObjectMapper:
                 )
 
                 t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
+                t.header.stamp = self.get_clock().now().to_msg()
                 t.header.frame_id = self.static_frame
                 t.child_frame_id = frame_id
-                t.transform.translation = Vector3(px, py, 0.0)
-                t.transform.rotation = Quaternion(0, 0, 0, 1)
+                t.transform.translation = Vector3(x=px, y=py, z=0.0)
+                t.transform.rotation = Quaternion(x=0, y=0, z=0, w=1)
 
                 try:
-                    req = SetObjectTransformRequest()
+                    req = SetObjectTransform.Request()
                     req.transform = t
                     self.set_object_transform_service.call(req)
-                except rospy.ServiceException as e:
-                    rospy.logwarn_throttle(
-                        10.0, f"set_object_transform failed for {frame_id}: {e}"
+                except Exception as e:
+                    self.get_logger().warning(
+                        f"set_object_transform failed for {frame_id}: {e}",
+                        throttle_duration_sec=10.0,
                     )
 
-    def spin(self):
-        rospy.spin()
+
+def main():
+    ros.init()
+    node = KdeObjectMapper()
+    ros.spin(node)
 
 
 if __name__ == "__main__":
-    node = KdeObjectMapper()
-    node.spin()
+    main()

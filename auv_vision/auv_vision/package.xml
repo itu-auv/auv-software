@@ -6,16 +6,24 @@
   <maintainer email="mimarlarf@gmail.com">Faruk Mimarlar</maintainer>
   <author email="mimarlarf@gmail.com">Faruk Mimarlar</author>
   <license>BSD-3-Clause</license>
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>auv_common_lib</depend>
   <depend>auv_detection</depend>
+  <depend>auv_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
   <depend>python3-zmq</depend>
-  <depend>rospy</depend>
+  <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_srvs</depend>
-  <depend>tf</depend>
-  <export/>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf_transformations</depend>
+  <depend>ultralytics_ros</depend>
+  <depend>vision_msgs</depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

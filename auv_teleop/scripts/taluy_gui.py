@@ -2,7 +2,9 @@
 
 import sys
 import os
-import rospy
+import rclpy
+from ament_index_python.packages import get_package_share_directory
+from auv_common_lib import ros
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -139,8 +141,7 @@ class StartScreen(QMainWindow):
         image_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        package_dir = os.path.dirname(script_dir)
+        package_dir = get_package_share_directory("auv_teleop")
         image_path = os.path.join(package_dir, "images", "itu_auv_workshop.jpg")
 
         try:
@@ -173,6 +174,12 @@ class StartScreen(QMainWindow):
 
 if __name__ == "__main__":
     import signal
+    import threading
+
+    ros.init()
+    node = rclpy.create_node("taluy_gui_node")
+    ros.set_node(node)
+    threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
 
     def signal_handler(sig, frame):
         print("\nClosing GUI...")
@@ -181,7 +188,6 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    rospy.init_node("taluy_gui_node", anonymous=True)
     app = QApplication(sys.argv)
     window = StartScreen()
     window.show()

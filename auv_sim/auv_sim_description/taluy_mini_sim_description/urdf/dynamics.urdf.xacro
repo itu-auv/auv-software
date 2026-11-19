@@ -18,28 +18,21 @@
   <xacro:property name="cob" value="0.0 0.0 0.2"/>
   <xacro:property name="volume" value="0.027"/>
   <xacro:macro name="auv_hydro_model" params="namespace">
-    <link name="${namespace}/base_link">
-      <neutrally_buoyant>1</neutrally_buoyant>
-      <volume>${volume}</volume>
-      <box>
-        <width>0.03</width>
-        <length>0.03</length>
-        <height>0.03</height>
-      </box>
-      <center_of_buoyancy>${cob}</center_of_buoyancy>
-      <hydrodynamic_model>
-        <type>fossen</type>
-        <added_mass>
-          0 0 0 0 0 0
-          0 0 0 0 0 0
-          0 0 0 0 0 0
-          0 0 0 0 0 0
-          0 0 0 0 0 0
-          0 0 0 0 0 0
-        </added_mass>
-        <linear_damping>-30 -31 -89 -1.87 -1.87 -1.87</linear_damping>
-        <quadratic_damping>-77 -155 -136 -7.98 -7.98 -7.98</quadratic_damping>
-      </hydrodynamic_model>
-    </link>
+    <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
+      <link_name>${namespace}/base_link</link_name>
+      <water_density>1028.0</water_density>
+      <xUabsU>-77</xUabsU>
+      <xU>-30</xU>
+      <yVabsV>-155</yVabsV>
+      <yV>-31</yV>
+      <zWabsW>-136</zWabsW>
+      <zW>-89</zW>
+      <kPabsP>-7.98</kPabsP>
+      <kP>-1.87</kP>
+      <mQabsQ>-7.98</mQabsQ>
+      <mQ>-1.87</mQ>
+      <nRabsR>-7.98</nRabsR>
+      <nR>-1.87</nR>
+    </plugin>
   </xacro:macro>
 </robot>
