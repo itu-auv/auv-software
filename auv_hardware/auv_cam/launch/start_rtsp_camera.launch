@@ -29,8 +29,9 @@
       <!-- camera settings and calibration: the section named after this node -->
       <param from="$(var camera_config)" />
       <!-- image_transport plugins to publish with -->
-      <param if="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw, image_transport/compressed]" />
-      <param unless="$(var compressed)" name="image_raw.enable_pub_plugins" value="[image_transport/raw]" />
+      <!-- ROS 2 image_transport wants the node name as the parameter prefix and
+           launch does not allow if/unless on <param>, so pick the list with $(eval). -->
+      <param name="$(var name).image_raw.enable_pub_plugins" value="$(eval &quot;'[image_transport/raw, image_transport/compressed]' if '$(var compressed)' == 'true' else '[image_transport/raw]'&quot;)" />
       <param name="verbose" type="bool" value="$(var verbose)" />
       <param name="pub_camera_info" value="$(var pub_camera_info)" />
 
